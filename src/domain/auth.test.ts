@@ -7,6 +7,7 @@ import {
   authenticate,
   createSession,
   createUser,
+  findUserByEmail,
   hashPassword,
   hashToken,
   invalidateSession,
@@ -103,6 +104,18 @@ describe("authenticate", () => {
   it("returns null for a wrong password or an unknown email", async () => {
     expect(await authenticate(db, "ada@example.com", "wrong password here")).toBeNull();
     expect(await authenticate(db, "nobody@example.com", "a long enough password")).toBeNull();
+  });
+});
+
+describe("findUserByEmail", () => {
+  it("finds a person by email, ignoring case and spaces, without a password", async () => {
+    expect(await findUserByEmail(db, " SAM@example.com ")).toEqual({
+      id: 2,
+      email: "sam@example.com",
+      name: "Sam Okafor",
+      role: "staff",
+    });
+    expect(await findUserByEmail(db, "nobody@example.com")).toBeNull();
   });
 });
 

@@ -105,6 +105,21 @@ describe("signIn as a demo role", () => {
     expect(await validateSession(db, token)).toMatchObject({ user: { role: "admin" } });
   });
 
+  it("opens the demo account without hashing its public password", async () => {
+    // The stub names a public account; checking its published password proves nothing and
+    // costs a 100k-iteration hash. Even a hash that could never match lets the stub in.
+    await db.update(users).set({ passwordHash: "not-a-hash" }).where(eq(users.id, 2));
+    expect(await redirectOf(signIn({}, form({ demo: "staff" })))).toBe("/dashboard");
+  });
+
+  it("says so plainly when the demo accounts aren't in this database", async () => {
+    await db.update(users).set({ email: "someone@example.com" }).where(eq(users.id, 1));
+    expect(await signIn({}, form({ demo: "admin" }))).toEqual({
+      error: { message: "The demo account isn't set up on this database. Run the demo seed first." },
+      values: { email: "" },
+    });
+  });
+
   it("treats an unknown role like an ordinary empty form", async () => {
     expect(await signIn({}, form({ demo: "owner" }))).toMatchObject({ error: { field: "email" } });
   });

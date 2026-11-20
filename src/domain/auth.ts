@@ -72,6 +72,18 @@ export type SessionUser = { id: number; email: string; name: string; role: Actor
 
 const normaliseEmail = (email: string) => email.trim().toLowerCase();
 
+/**
+ * The user with this email, or null, with no password check. Only for accounts whose
+ * password is public anyway (the demo); everything else goes through `authenticate`.
+ */
+export async function findUserByEmail(db: Database, email: string): Promise<SessionUser | null> {
+  const [user] = await db
+    .select({ id: users.id, email: users.email, name: users.name, role: users.role })
+    .from(users)
+    .where(eq(users.email, normaliseEmail(email)));
+  return user ?? null;
+}
+
 /** The user for this email and password, or null. Unknown emails and wrong passwords look the same. */
 export async function authenticate(db: Database, email: string, password: string): Promise<SessionUser | null> {
   const [user] = await db
