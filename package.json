@@ -17,7 +17,9 @@
     "db:migrate:local": "wrangler d1 migrations apply stocktake --local",
     "db:migrate:remote": "wrangler d1 migrations apply stocktake --remote",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "db:seed:local": "node scripts/seed.mts && wrangler d1 execute stocktake --local --file .seed/demo.sql",
+    "db:seed:remote": "node scripts/seed.mts && wrangler d1 execute stocktake --remote --file .seed/demo.sql"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.11.0",
