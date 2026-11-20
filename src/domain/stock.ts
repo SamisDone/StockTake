@@ -2,8 +2,9 @@ import { desc, eq, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
 import type { Database } from "@/db/database";
-import { activityLog, products, purchaseOrderLines, stockMovements, users } from "@/db/schema";
+import { products, purchaseOrderLines, stockMovements, users } from "@/db/schema";
 import type { Actor } from "./actor";
+import { logActivity } from "./activity";
 import { DomainError, parseInput, violates } from "./errors";
 
 const productId = z.number().int().positive();
@@ -70,14 +71,12 @@ export async function recordStockChange(db: Database, actor: Actor, raw: StockCh
         userId: actor.id,
         occurredAt: now,
       }),
-      db.insert(activityLog).values({
-        userId: actor.id,
+      logActivity(db, actor, {
         action: `stock.${input.kind}`,
         entityType: "product",
         entityId: product.id,
         summary: input.note ? `${summary}: ${input.note}` : summary,
-        occurredAt: now,
-      }),
+      }, now),
       selectOnHand(db, product.id),
     ]);
     return { onHand: after.onHand };
@@ -103,14 +102,12 @@ export async function recordCount(db: Database, actor: Actor, raw: CountInput, n
       ? `Counted ${input.counted} × ${product.name}, which matches`
       : `Counted ${input.counted} × ${product.name} (was ${product.onHand})`;
 
-  const log = db.insert(activityLog).values({
-    userId: actor.id,
+  const log = logActivity(db, actor, {
     action: "stock.counted",
     entityType: "product",
     entityId: product.id,
     summary: input.note ? `${summary}: ${input.note}` : summary,
-    occurredAt: now,
-  });
+  }, now);
 
   const statements: [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]] = [log];
   if (difference !== 0) {

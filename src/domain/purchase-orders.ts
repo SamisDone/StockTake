@@ -2,7 +2,6 @@ import { and, asc, count, desc, eq, inArray, sql, sum } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/database";
 import {
-  activityLog,
   type PurchaseOrderStatus,
   products,
   purchaseOrderLines,
@@ -13,6 +12,7 @@ import {
 } from "@/db/schema";
 import { formatMoney } from "@/lib/format";
 import { type Actor, requireAdmin } from "./actor";
+import { logActivity } from "./activity";
 import { DomainError, parseInput, violates } from "./errors";
 
 export const poNumber = (id: number) => `PO-${String(id).padStart(4, "0")}`;
@@ -164,14 +164,12 @@ export async function createDraft(db: Database, actor: Actor, raw: DraftInput, n
       })
       .returning({ id: purchaseOrders.id }),
     db.insert(purchaseOrderLines).values(lines.map((line) => ({ ...line, purchaseOrderId: newId }))),
-    db.insert(activityLog).values({
-      userId: actor.id,
+    logActivity(db, actor, {
       action: "purchase_order.drafted",
       entityType: "purchase_order",
       entityId: newId,
       summary: `Drafted an order with ${supplier.name}: ${summary}`,
-      occurredAt: now,
-    }),
+    }, now),
   ]);
   return { id: order.id };
 }
@@ -190,14 +188,12 @@ export async function updateDraft(db: Database, actor: Actor, id: number, raw: D
         .update(purchaseOrders)
         .set({ supplierId: supplier.id, notes: input.notes ?? null, expectedAt: input.expectedAt ?? null })
         .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.status, "draft"))),
-      db.insert(activityLog).values({
-        userId: actor.id,
+      logActivity(db, actor, {
         action: "purchase_order.edited",
         entityType: "purchase_order",
         entityId: id,
         summary: `Edited ${poNumber(id)}: ${summary}`,
-        occurredAt: now,
-      }),
+      }, now),
     ]),
   );
 }
@@ -219,14 +215,12 @@ export async function placeOrder(db: Database, actor: Actor, id: number, now = n
   await guarded(db, id, "place", () =>
     db.batch([
       db.update(purchaseOrders).set({ status: "ordered", orderedAt: now }).where(eq(purchaseOrders.id, id)),
-      db.insert(activityLog).values({
-        userId: actor.id,
+      logActivity(db, actor, {
         action: "purchase_order.placed",
         entityType: "purchase_order",
         entityId: id,
         summary: `Placed ${poNumber(id)} with ${order.supplierName} for ${formatMoney(total)}`,
-        occurredAt: now,
-      }),
+      }, now),
     ]),
   );
 }
@@ -239,14 +233,12 @@ export async function cancelOrder(db: Database, actor: Actor, id: number, now = 
   await guarded(db, id, "cancel", () =>
     db.batch([
       db.update(purchaseOrders).set({ status: "cancelled", cancelledAt: now }).where(eq(purchaseOrders.id, id)),
-      db.insert(activityLog).values({
-        userId: actor.id,
+      logActivity(db, actor, {
         action: "purchase_order.cancelled",
         entityType: "purchase_order",
         entityId: id,
         summary: `Cancelled ${poNumber(id)}`,
-        occurredAt: now,
-      }),
+      }, now),
     ]),
   );
 }
@@ -277,14 +269,12 @@ export async function receiveOrder(db: Database, actor: Actor, id: number, now =
         })),
       ),
       db.update(purchaseOrders).set({ status: "received", receivedAt: now }).where(eq(purchaseOrders.id, id)),
-      db.insert(activityLog).values({
-        userId: actor.id,
+      logActivity(db, actor, {
         action: "purchase_order.received",
         entityType: "purchase_order",
         entityId: id,
         summary: `Received ${poNumber(id)} from ${order.supplierName}: ${units} units`,
-        occurredAt: now,
-      }),
+      }, now),
     ]),
   );
 }

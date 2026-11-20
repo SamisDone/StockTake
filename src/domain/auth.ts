@@ -1,8 +1,9 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/database";
-import { activityLog, roles, sessions, users } from "@/db/schema";
+import { roles, sessions, users } from "@/db/schema";
 import { type Actor, requireAdmin } from "./actor";
+import { logActivity } from "./activity";
 import { DomainError, parseInput, violates } from "./errors";
 
 // PBKDF2-SHA256 through WebCrypto. 100,000 iterations is the most Workers allows, and
@@ -106,15 +107,13 @@ export async function createUser(db: Database, actor: Actor, raw: NewUserInput, 
         .insert(users)
         .values({ email: input.email, name: input.name, role: input.role, passwordHash, createdAt: now })
         .returning({ id: users.id, email: users.email, name: users.name, role: users.role }),
-      db.insert(activityLog).values({
-        userId: actor.id,
+      logActivity(db, actor, {
         action: "user.created",
         entityType: "user",
         // Same reasoning as createDraft: inside the atomic batch, the new user is max(id).
         entityId: sql<number>`(SELECT max(${users.id}) FROM ${users})`,
         summary: `Added ${input.name} as ${input.role}`,
-        occurredAt: now,
-      }),
+      }, now),
     ]);
     return user;
   } catch (error) {
