@@ -105,7 +105,7 @@ function Refusals() {
           >
             <p className="font-semibold">{attempt}</p>
             <code className="font-mono text-xs leading-relaxed break-words text-ink-2">{sql}</code>
-            <p className="justify-self-start rounded-[3px] bg-ink px-2 py-1 font-mono text-xs leading-relaxed font-semibold text-label">
+            <p className="justify-self-start rounded-mark bg-ink px-2 py-1 font-mono text-xs leading-relaxed font-semibold text-label">
               {refusal}
             </p>
           </li>

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "@/db/database";
-import { forecast, getStockForecasts } from "@/domain/forecast";
+import { forecast, getProductForecast, getStockForecasts } from "@/domain/forecast";
+import { archiveProduct } from "@/domain/products";
 import { createDraft, placeOrder } from "@/domain/purchase-orders";
 import { recordCount, recordStockChange } from "@/domain/stock";
 import { createTestDb } from "@/test/db";
@@ -85,5 +86,36 @@ describe("getStockForecasts", () => {
     expect(gadget).toMatchObject({ onHand: 2, onOrder: 3, dailyDemand: 1, status: "reorder" });
     // Most urgent first.
     expect(forecasts.map((f) => f.sku)).toEqual(["GAD-002", "WID-001"]);
+  });
+});
+
+describe("getProductForecast", () => {
+  let db: Database;
+
+  beforeEach(async () => {
+    ({ db } = await createTestDb());
+    await seedBasics(db);
+  });
+
+  it("forecasts one product with its prices, archived or not", async () => {
+    await recordCount(db, admin, { productId: 1, counted: 56 }, daysAgo(60));
+    await recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 28 }, daysAgo(10));
+    await archiveProduct(db, admin, 1, daysAgo(1));
+
+    expect(await getProductForecast(db, 1, now)).toMatchObject({
+      sku: "WID-001",
+      supplierName: "Northwind Supply",
+      onHand: 28,
+      dailyDemand: 1,
+      daysOfCover: 28,
+      unitPriceCents: 900,
+      archivedAt: daysAgo(1),
+    });
+    // The list leaves archived products out.
+    expect((await getStockForecasts(db, now)).map((f) => f.id)).toEqual([2]);
+  });
+
+  it("says when the product doesn't exist", async () => {
+    await expect(getProductForecast(db, 99, now)).rejects.toMatchObject({ code: "not_found" });
   });
 });

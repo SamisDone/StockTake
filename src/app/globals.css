@@ -22,9 +22,11 @@
 
   --radius-label: 10px; /* die-cut corner of a label sheet */
   --radius-control: 6px;
+  --radius-mark: 3px; /* status marks and refusal chips */
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* a label pulled out from the edge */
 }
 
 @layer base {
@@ -35,6 +37,18 @@
     text-rendering: optimizeLegibility;
     scrollbar-color: var(--color-liner-deep) transparent;
     caret-color: var(--color-ink);
+  }
+
+  /* The list stays put under an open drawer, and keeps the scrollbar's width, so it
+     doesn't shift sideways. */
+  html:has(dialog.drawer[open]) {
+    overflow: hidden;
+    scrollbar-gutter: stable;
+  }
+
+  /* Search fields draw their own clear button. */
+  input[type="search"]::-webkit-search-cancel-button {
+    appearance: none;
   }
 
   body {
@@ -121,6 +135,45 @@
 
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * The drawer: a second label pulled out from the right edge over the dimmed list as
+   * it opens, and pushed back the same way, faster, before it closes. Transitions, not
+   * keyframes, so a close midway through opening turns around from where it is.
+   */
+  .drawer-scrim {
+    transition: opacity 300ms var(--ease-out);
+  }
+  .drawer-panel {
+    transition: translate 300ms var(--ease-drawer);
+  }
+  .drawer[data-closing] .drawer-scrim {
+    opacity: 0;
+    transition-duration: 200ms;
+  }
+  .drawer[data-closing] .drawer-panel {
+    translate: calc(100% + 1rem) 0;
+    transition: translate 200ms var(--ease-out);
+  }
+  @starting-style {
+    .drawer[open] .drawer-scrim {
+      opacity: 0;
+    }
+    .drawer[open] .drawer-panel {
+      translate: calc(100% + 1rem) 0;
+    }
+  }
+
+  /* Same place, different content (a filter changed): the new content fades in. No
+     movement, so reduced motion keeps it as is. */
+  .swap-in {
+    animation: 160ms var(--ease-out) both fade-in;
+  }
+
+  /* A line that appears after an action prints in, the way loaded content does. */
+  .print-in {
+    animation: 260ms var(--ease-out) both print-in;
   }
 }
 
@@ -221,5 +274,25 @@
   ::view-transition-old(.nav-forward),
   ::view-transition-old(.nav-back) {
     animation: 100ms ease both fade-out;
+  }
+  .print-in {
+    animation: 150ms ease both fade-in;
+  }
+  .drawer-panel,
+  .drawer[data-closing] .drawer-panel {
+    translate: none;
+  }
+  .drawer-panel {
+    transition: opacity 150ms ease;
+  }
+  .drawer[data-closing] .drawer-panel {
+    opacity: 0;
+    transition: opacity 100ms ease;
+  }
+  @starting-style {
+    .drawer[open] .drawer-panel {
+      translate: none;
+      opacity: 0;
+    }
   }
 }

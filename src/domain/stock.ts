@@ -157,3 +157,12 @@ export async function listMovements(db: Database, id: number, { limit = 50 } = {
     .orderBy(desc(stockMovements.occurredAt), desc(stockMovements.id))
     .limit(limit);
 }
+
+/** How many movements a product's ledger holds, for saying how much of it is shown. */
+export async function countMovements(db: Database, id: number) {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)`.mapWith(Number) })
+    .from(stockMovements)
+    .where(eq(stockMovements.productId, id));
+  return row.count;
+}

@@ -1,6 +1,7 @@
-import { asc, eq, isNull, sql } from "drizzle-orm";
+import { type SQL, asc, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/db/database";
 import { products, purchaseOrderLines, purchaseOrders, stockMovements, suppliers } from "@/db/schema";
+import { DomainError } from "./errors";
 import { outer } from "./input";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -45,8 +46,11 @@ export function forecast(input: ForecastInput, now = new Date()) {
 
 const urgency: Record<StockStatus, number> = { out: 0, reorder: 1, ok: 2 };
 
-/** A forecast for every active product, most urgent first. */
-export async function getStockForecasts(db: Database, now = new Date()) {
+/**
+ * Stock, demand and supply for products, with the forecast worked out. `where` picks
+ * the products; the demand window ends at `now`.
+ */
+async function forecastRows(db: Database, where: SQL | undefined, now: Date) {
   const since = new Date(now.getTime() - DEMAND_WINDOW_DAYS * DAY_MS);
 
   const onOrder = sql<number>`(
@@ -69,6 +73,7 @@ export async function getStockForecasts(db: Database, now = new Date()) {
       id: products.id,
       sku: products.sku,
       name: products.name,
+      description: products.description,
       category: products.category,
       supplierId: products.supplierId,
       supplierName: suppliers.name,
@@ -76,24 +81,39 @@ export async function getStockForecasts(db: Database, now = new Date()) {
       reorderPoint: products.reorderPoint,
       reorderQuantity: products.reorderQuantity,
       unitCostCents: products.unitCostCents,
+      unitPriceCents: products.unitPriceCents,
+      archivedAt: products.archivedAt,
       leadTimeDays: sql<number>`coalesce(${suppliers.leadTimeDays}, ${DEFAULT_LEAD_TIME_DAYS})`.mapWith(Number),
       onOrder: onOrder.mapWith(Number),
       netSold: netSold.mapWith(Number),
     })
     .from(products)
     .leftJoin(suppliers, eq(suppliers.id, products.supplierId))
-    .where(isNull(products.archivedAt))
+    .where(where)
     .orderBy(asc(products.name));
 
-  return rows
-    .map(({ netSold: sold, ...row }) => {
-      const dailyDemand = Math.max(sold, 0) / DEMAND_WINDOW_DAYS;
-      return { ...row, dailyDemand, ...forecast({ ...row, dailyDemand }, now) };
-    })
-    .sort(
-      (a, b) =>
-        urgency[a.status] - urgency[b.status] ||
-        (a.daysOfCover ?? Infinity) - (b.daysOfCover ?? Infinity) ||
-        a.name.localeCompare(b.name),
-    );
+  return rows.map(({ netSold: sold, ...row }) => {
+    const dailyDemand = Math.max(sold, 0) / DEMAND_WINDOW_DAYS;
+    return { ...row, dailyDemand, ...forecast({ ...row, dailyDemand }, now) };
+  });
+}
+
+export type StockForecast = Awaited<ReturnType<typeof forecastRows>>[number];
+
+/** A forecast for every active product, most urgent first. */
+export async function getStockForecasts(db: Database, now = new Date()) {
+  const rows = await forecastRows(db, isNull(products.archivedAt), now);
+  return rows.sort(
+    (a, b) =>
+      urgency[a.status] - urgency[b.status] ||
+      (a.daysOfCover ?? Infinity) - (b.daysOfCover ?? Infinity) ||
+      a.name.localeCompare(b.name),
+  );
+}
+
+/** One product's forecast, archived or not. */
+export async function getProductForecast(db: Database, productId: number, now = new Date()) {
+  const [row] = await forecastRows(db, eq(products.id, productId), now);
+  if (!row) throw new DomainError("not_found", "That product doesn't exist.");
+  return row;
 }

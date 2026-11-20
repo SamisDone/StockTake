@@ -23,3 +23,26 @@ const count = new Intl.NumberFormat("en-US");
 export function formatCount(n: number) {
   return count.format(n);
 }
+
+/** A signed movement, with a real minus sign, e.g. 12 → "+12", -3 → "−3". */
+export function formatChange(n: number) {
+  return n > 0 ? `+${formatCount(n)}` : n < 0 ? `−${formatCount(-n)}` : "0";
+}
+
+/** Units a day, to one decimal, e.g. 2.14 → "2.1 a day". */
+export function formatRate(perDay: number) {
+  return `${Math.round(perDay * 10) / 10} a day`;
+}
+
+const shortDate = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+const shortDateYear = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/** A ledger date in UTC: "Nov 14", with the year only when it isn't the current one. */
+export function formatDate(date: Date, now = new Date()) {
+  return (date.getUTCFullYear() === now.getUTCFullYear() ? shortDate : shortDateYear).format(date);
+}
