@@ -2,15 +2,24 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
 import { getDb } from "@/db/client";
+import type { Database } from "@/db/database";
 import type { MovementKind } from "@/db/schema";
 import { DomainError } from "@/domain/errors";
-import { DEMAND_WINDOW_DAYS, type StockForecast, getProductForecast } from "@/domain/forecast";
+import { DEFAULT_LEAD_TIME_DAYS, DEMAND_WINDOW_DAYS, type StockForecast, getProductForecast } from "@/domain/forecast";
+import { listCategories } from "@/domain/products";
+import { poNumber } from "@/domain/purchase-orders";
 import { countMovements, listMovements } from "@/domain/stock";
+import { listSuppliers } from "@/domain/suppliers";
 import { CoverTrack, Tally, TallyPlaceholder } from "@/components/stock";
 import { explainStock } from "@/lib/explain";
-import { formatChange, formatCount, formatDate, formatDays, formatMoney, formatRate } from "@/lib/format";
+import { formatChange, formatCount, formatDate, formatDays, formatMargin, formatMoney, formatRate } from "@/lib/format";
+import { centsToInput } from "@/lib/parse";
 import { getCurrentUser } from "@/server/dal";
+import { EditButton, LabelEditor } from "./label-editor";
+import { ProductForm } from "./product-form";
+import type { SupplierOption } from "./product-values";
 import { RecordStock } from "./record-stock";
+import { RestoreProduct } from "./restore-product";
 
 /** The ledger shows this many of the newest movements. */
 const LEDGER_LIMIT = 50;
@@ -26,9 +35,10 @@ export function productId(raw: string) {
  * A product printed as one label: what it is, what's on hand and why its status is
  * what it is, the place to record stock, and the ledger that every number comes from.
  * The drawer and the full page print the same label; `action` is the way out of each.
+ * An admin edits its details in place, archives it from there, and restores it here.
  */
 export async function ProductLabel({ id, heading, action }: { id: number; heading: "h1" | "h2"; action: ReactNode }) {
-  await getCurrentUser();
+  const user = await getCurrentUser();
   await connection();
   const db = await getDb();
   const now = new Date();
@@ -40,9 +50,12 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
     if (error instanceof DomainError && error.code === "not_found") notFound();
     throw error;
   }
-  const [movements, total] = await Promise.all([
+  const isAdmin = user.role === "admin";
+  const canEdit = isAdmin && !product.archivedAt;
+  const [movements, total, editing] = await Promise.all([
     listMovements(db, id, { limit: LEDGER_LIMIT }),
     countMovements(db, id),
+    canEdit ? editingOptions(db, product.supplierId) : null,
   ]);
 
   const Title = heading;
@@ -50,7 +63,7 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
   const Sub = heading === "h1" ? "h2" : "h3";
   const position = product.onHand + product.onOrder;
 
-  return (
+  const label = (
     <article aria-labelledby="product-title">
       <header className="flex items-start justify-between gap-4 border-b-2 border-ink px-5 pt-6 pb-4 sm:px-8 sm:pt-8">
         <div className="min-w-0">
@@ -63,7 +76,10 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
             {product.archivedAt ? <> · Archived {formatDate(product.archivedAt, now)}</> : null}
           </p>
         </div>
-        {action}
+        <div className="flex shrink-0 items-start gap-1">
+          {canEdit ? <EditButton /> : null}
+          {action}
+        </div>
       </header>
 
       <dl className="grid grid-cols-3 border-b-2 border-ink">
@@ -82,7 +98,8 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
         <Tally name="On order" value={product.onOrder} />
       </dl>
 
-      <Status product={product} />
+      {/* Frozen stock needs no reorder advice; the archived band below says what applies. */}
+      {product.archivedAt ? null : <Status product={product} />}
 
       <dl className="grid grid-cols-2 gap-px border-b-2 border-ink bg-ink sm:grid-cols-4">
         <Detail name="Demand" value={product.dailyDemand > 0 ? formatRate(product.dailyDemand) : "No sales"}>
@@ -102,7 +119,7 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
         <Detail name="Unit cost" value={formatMoney(product.unitCostCents)} />
         <Detail name="Unit price" value={formatMoney(product.unitPriceCents)} />
         <Detail name="Value at cost" value={formatMoney(product.onHand * product.unitCostCents)} />
-        <Detail name="Margin" value={marginText(product.unitCostCents, product.unitPriceCents)} />
+        <Detail name="Margin" value={formatMargin(product.unitCostCents, product.unitPriceCents)} />
       </dl>
 
       {product.description ? (
@@ -110,9 +127,13 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
       ) : null}
 
       {product.archivedAt ? (
-        <p className="border-b-2 border-ink px-5 py-4 text-sm text-ink-2 sm:px-8">
-          This product is archived, so its stock can&apos;t change. Its ledger stays as it was.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b-2 border-ink px-5 py-4 sm:px-8">
+          <p className="min-w-0 flex-1 basis-72 text-sm text-ink-2">
+            <strong className="font-bold text-ink">Archived.</strong> Its stock can&apos;t change and it can&apos;t be
+            ordered. Its ledger stays as it was{isAdmin ? "" : ", and an admin can restore it"}.
+          </p>
+          {isAdmin ? <RestoreProduct productId={product.id} /> : null}
+        </div>
       ) : (
         <RecordStock productId={product.id} onHand={product.onHand} headingLevel={sub} />
       )}
@@ -142,6 +163,55 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
       </section>
     </article>
   );
+
+  if (!isAdmin) return label;
+  return (
+    <LabelEditor
+      form={
+        editing ? (
+          <ProductForm
+            productId={product.id}
+            defaults={{
+              name: product.name,
+              sku: product.sku,
+              category: product.category ?? "",
+              supplierId: product.supplierId === null ? "" : String(product.supplierId),
+              unitCost: centsToInput(product.unitCostCents),
+              unitPrice: centsToInput(product.unitPriceCents),
+              reorderPoint: String(product.reorderPoint),
+              reorderQuantity: String(product.reorderQuantity),
+              description: product.description ?? "",
+            }}
+            suppliers={editing.suppliers}
+            categories={editing.categories}
+            defaultLeadTimeDays={DEFAULT_LEAD_TIME_DAYS}
+            headingLevel={heading === "h1" ? 1 : 2}
+            action={action}
+            archive={{
+              productId: product.id,
+              name: product.name,
+              onHand: product.onHand,
+              valueCents: product.onHand * product.unitCostCents,
+            }}
+          />
+        ) : null
+      }
+    >
+      {label}
+    </LabelEditor>
+  );
+}
+
+/**
+ * The choices the product form offers: active suppliers (plus the product's own, if it
+ * has since been archived, so editing doesn't quietly drop it) and the categories in use.
+ */
+export async function editingOptions(db: Database, currentSupplierId: number | null = null) {
+  const [all, categories] = await Promise.all([listSuppliers(db, { includeArchived: true }), listCategories(db)]);
+  const suppliers: SupplierOption[] = all
+    .filter((s) => !s.archivedAt || s.id === currentSupplierId)
+    .map((s) => ({ id: s.id, name: s.archivedAt ? `${s.name} (archived)` : s.name, leadTimeDays: s.leadTimeDays }));
+  return { suppliers, categories };
 }
 
 /** Why the product has its status: plain for healthy stock, yellow stock for a reorder, reverse print when out. */
@@ -165,11 +235,6 @@ function Status({ product }: { product: StockForecast }) {
   );
 }
 
-function marginText(costCents: number, priceCents: number) {
-  if (priceCents === 0) return "–";
-  return `${Math.round(((priceCents - costCents) / priceCents) * 100)}%`;
-}
-
 /** One boxed field of the details zone. The grid's 1px gaps over ink are the rules between fields. */
 function Detail({ name, value, children }: { name: string; value: string; children?: ReactNode }) {
   return (
@@ -188,8 +253,6 @@ const KIND_LABEL: Record<MovementKind, string> = {
   return: "Return",
   write_off: "Write-off",
 };
-
-const poNumber = (id: number) => `PO-${String(id).padStart(4, "0")}`;
 
 type Movement = Awaited<ReturnType<typeof listMovements>>[number];
 

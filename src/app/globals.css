@@ -177,6 +177,17 @@
   }
 }
 
+/* Press feedback for quiet buttons (no fill until hover): the whole control shrinks to
+   0.96 while held, the way reverse-print buttons scale their label. */
+@utility press-quiet {
+  transition-property: color, background-color, scale;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease-out);
+  &:not(:disabled):active {
+    scale: 0.96;
+  }
+}
+
 /*
  * Motion. Pages and loaded data *print*: they reveal top to bottom, the way a label
  * feeds out of the printer. What leaves is torn off fast so it never competes. Deeper

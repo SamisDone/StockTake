@@ -27,6 +27,9 @@ export function Drawer({ children }: { children: ReactNode }) {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     delete node.dataset.closing;
     if (!node.open) node.showModal();
+    // Opening a dialog focuses its first control, Close. A form to fill in marks the
+    // field that should have it instead.
+    node.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     return () => {
       node.close();
       opener?.focus({ preventScroll: true });
@@ -67,7 +70,7 @@ export function Drawer({ children }: { children: ReactNode }) {
         <button
           type="button"
           onClick={close}
-          className="absolute top-3 right-2 z-10 flex min-h-11 items-center gap-1.5 rounded-control bg-label px-3 text-sm font-semibold text-ink-2 transition-colors duration-150 hover:bg-liner hover:text-ink sm:top-5 sm:right-5"
+          className="absolute top-3 right-2 z-10 flex min-h-11 items-center gap-1.5 rounded-control bg-label px-3 text-sm font-semibold text-ink-2 press-quiet hover:bg-liner hover:text-ink sm:top-5 sm:right-5"
         >
           <X aria-hidden size={18} strokeWidth={2.25} />
           Close

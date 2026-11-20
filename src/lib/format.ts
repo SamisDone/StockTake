@@ -46,3 +46,10 @@ const shortDateYear = new Intl.DateTimeFormat("en-US", {
 export function formatDate(date: Date, now = new Date()) {
   return (date.getUTCFullYear() === now.getUTCFullYear() ? shortDate : shortDateYear).format(date);
 }
+
+/** Margin on the price, as a whole percentage: cost 250, price 900 → "72%". A dash without a price. */
+export function formatMargin(costCents: number, priceCents: number) {
+  if (priceCents === 0) return "–";
+  const percent = Math.round(((priceCents - costCents) / priceCents) * 100);
+  return percent < 0 ? `−${-percent}%` : `${percent}%`;
+}

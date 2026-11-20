@@ -1,11 +1,15 @@
+import { Plus } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { connection } from "next/server";
+import { Suspense } from "react";
 import { getDb } from "@/db/client";
-import { getStockForecasts } from "@/domain/forecast";
+import { type StockForecast, getArchivedForecasts, getStockForecasts } from "@/domain/forecast";
 import { PageHeader } from "@/components/page-header";
 import { TallyPlaceholder } from "@/components/stock";
 import { PageTransition, Reveal } from "@/components/transitions";
-import { getCurrentUser } from "@/server/dal";
+import { formatDate } from "@/lib/format";
+import { getCurrentUser, getSessionUser } from "@/server/dal";
 import { type ProductRow, ProductTable } from "./product-table";
 
 export const metadata: Metadata = { title: "Products" };
@@ -13,7 +17,18 @@ export const metadata: Metadata = { title: "Products" };
 export default function ProductsPage() {
   return (
     <PageTransition>
-      <PageHeader title="Products" />
+      <PageHeader
+        title="Products"
+        actions={
+          // The header keeps the button's height whoever is signed in, so it never grows
+          // when the session arrives.
+          <div className="flex h-12 items-end">
+            <Suspense>
+              <AddProduct />
+            </Suspense>
+          </div>
+        }
+      />
       <Reveal fallback={<ListPlaceholder />}>
         <ProductList />
       </Reveal>
@@ -25,26 +40,47 @@ async function ProductList() {
   await getCurrentUser();
   // Cover is relative to now, so it belongs to the request, never to a prerender.
   await connection();
-  const forecasts = await getStockForecasts(await getDb());
+  const db = await getDb();
+  const now = new Date();
+  const [active, archived] = await Promise.all([getStockForecasts(db, now), getArchivedForecasts(db, now)]);
 
   // Only what the table prints crosses to the browser.
-  const rows: ProductRow[] = forecasts
-    .map((f) => ({
-      id: f.id,
-      sku: f.sku,
-      name: f.name,
-      category: f.category,
-      status: f.status,
-      onHand: f.onHand,
-      reorderPoint: f.reorderPoint,
-      daysOfCover: f.daysOfCover,
-      leadTimeDays: f.leadTimeDays,
-      valueCents: f.onHand * f.unitCostCents,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const row = (f: StockForecast): ProductRow => ({
+    id: f.id,
+    sku: f.sku,
+    name: f.name,
+    category: f.category,
+    status: f.status,
+    onHand: f.onHand,
+    reorderPoint: f.reorderPoint,
+    daysOfCover: f.daysOfCover,
+    leadTimeDays: f.leadTimeDays,
+    valueCents: f.onHand * f.unitCostCents,
+    archivedOn: f.archivedAt ? formatDate(f.archivedAt, now) : null,
+  });
+  const rows = [...active, ...archived].map(row).sort((a, b) => a.name.localeCompare(b.name));
   const categories = [...new Set(rows.flatMap((row) => (row.category ? [row.category] : [])))].sort();
 
   return <ProductTable rows={rows} categories={categories} />;
+}
+
+/** Adding a product is an admin's job, so only an admin sees the way in. */
+async function AddProduct() {
+  const user = await getSessionUser();
+  if (user?.role !== "admin") return null;
+  return (
+    <Link
+      href="/products/new"
+      prefetch={false}
+      scroll={false}
+      className="group flex h-12 items-center rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 hover:bg-ink-lift"
+    >
+      <span className="flex items-center gap-2 transition-transform duration-150 ease-out group-active:scale-[0.96]">
+        <Plus aria-hidden size={18} strokeWidth={2.5} />
+        Add product
+      </span>
+    </Link>
+  );
 }
 
 /** The same label, unprinted: the filter fields, the tallies and the rows hold their space. */

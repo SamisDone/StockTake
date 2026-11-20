@@ -3,7 +3,7 @@
 import { Search, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { StockStatus } from "@/domain/forecast";
 import { Choice } from "@/components/choice";
 import { CoverBar, MobileName, StatusMark, Tally, Th } from "@/components/stock";
@@ -20,43 +20,77 @@ export type ProductRow = {
   daysOfCover: number | null;
   leadTimeDays: number;
   valueCents: number;
+  /** When it was archived, printed; null while it's active. */
+  archivedOn: string | null;
 };
 
-type Show = "all" | "attention";
+type Show = "all" | "attention" | "archived";
+const SHOWS: Show[] = ["all", "attention", "archived"];
+
+/** The hash is only read once, on arrival, so there's nothing to subscribe to. */
+const subscribeNever = () => () => {};
+const readHash = () => window.location.hash;
 
 /**
- * The catalog, searchable and filtered by category and status. The catalog is tens of
- * products, so every product is sent once and filtered here: typing costs no request.
- * The filters live in the URL, so a filtered list can be shared or reloaded.
+ * The catalog, searchable and filtered by category and status. Archived products are a
+ * shelf of their own: never counted with the active ones, shown only when asked for.
+ * The catalog is tens of products, so every product is sent once and filtered here:
+ * typing costs no request. The filters live in the URL's hash, so a filtered list can
+ * be shared or reloaded.
+ *
+ * The hash, not the query: the filters never reach the server, and changing the query
+ * with history.replaceState leaves Next.js's router believing the page was rendered for
+ * the old one. A Server Action in a product opened over the list (recording stock,
+ * editing it) then refreshes into a full-page reload instead of the drawer. A query in
+ * a link (the form this page used to write) is still read.
  */
 export function ProductTable({ rows, categories }: { rows: ProductRow[]; categories: string[] }) {
   const pathname = usePathname();
   const params = useSearchParams();
+  const knownCategory = (wanted: string | null) => (wanted && categories.includes(wanted) ? wanted : "");
+  const knownShow = (wanted: string | null) => SHOWS.find((s) => s === wanted) ?? "all";
   const [query, setQuery] = useState(() => params.get("q") ?? "");
-  const [category, setCategory] = useState(() => {
-    const wanted = params.get("category");
-    return wanted && categories.includes(wanted) ? wanted : "";
-  });
-  const [show, setShow] = useState<Show>(() => (params.get("show") === "attention" ? "attention" : "all"));
+  const [category, setCategory] = useState(() => knownCategory(params.get("category")));
+  const [show, setShow] = useState<Show>(() => knownShow(params.get("show")));
 
-  // Mirror the filters into the URL without a navigation. Only on the list itself: with a
-  // product open over it, the URL is the product's.
+  // The server never sees the hash, so the filters in it apply once this is in the
+  // browser (null until then), and only once: after that, the filters write the hash.
+  const arrivalHash = useSyncExternalStore(subscribeNever, readHash, () => null);
+  const [arrived, setArrived] = useState(false);
+  if (!arrived && arrivalHash !== null) {
+    setArrived(true);
+    const hash = new URLSearchParams(arrivalHash.slice(1));
+    if (hash.size > 0) {
+      setQuery(hash.get("q") ?? "");
+      setCategory(knownCategory(hash.get("category")));
+      setShow(knownShow(hash.get("show")));
+    }
+  }
+
+  // Mirror the filters into the hash without a navigation. Only on the list itself: with
+  // a product open over it, the URL is the product's.
   useEffect(() => {
-    if (pathname !== "/products") return;
+    if (pathname !== "/products" || !arrived) return;
     const next = new URLSearchParams();
     if (query.trim()) next.set("q", query.trim());
     if (category) next.set("category", category);
-    if (show === "attention") next.set("show", "attention");
-    const search = next.size ? `?${next}` : "";
-    if (search !== window.location.search) window.history.replaceState(null, "", `${pathname}${search}`);
-  }, [pathname, query, category, show]);
+    if (show !== "all") next.set("show", show);
+    const hash = next.size ? `#${next}` : "";
+    if (hash !== window.location.hash) {
+      window.history.replaceState(null, "", `${pathname}${window.location.search}${hash}`);
+    }
+  }, [pathname, arrived, query, category, show]);
 
   const needle = query.trim().toLowerCase();
   const inCategory = category ? rows.filter((row) => row.category === category) : rows;
-  const attentionCount = inCategory.filter((row) => row.status !== "ok").length;
-  const shown = inCategory.filter(
+  const active = inCategory.filter((row) => !row.archivedOn);
+  const archived = inCategory.filter((row) => row.archivedOn);
+  const attentionCount = active.filter((row) => row.status !== "ok").length;
+  // What "of N" counts against: the active catalog, or the archived shelf.
+  const shelf = rows.filter((row) => (show === "archived") === Boolean(row.archivedOn));
+  const shown = (show === "archived" ? archived : active).filter(
     (row) =>
-      (show === "all" || row.status !== "ok") &&
+      (show !== "attention" || row.status !== "ok") &&
       (!needle || row.name.toLowerCase().includes(needle) || row.sku.toLowerCase().includes(needle)),
   );
   const units = shown.reduce((sum, row) => sum + row.onHand, 0);
@@ -100,6 +134,9 @@ export function ProductTable({ rows, categories }: { rows: ProductRow[]; categor
           <Choice name="show" checked={show === "attention"} onSelect={() => choose(() => setShow("attention"))}>
             Needs attention <span className="ml-1.5">{formatCount(attentionCount)}</span>
           </Choice>
+          <Choice name="show" checked={show === "archived"} onSelect={() => choose(() => setShow("archived"))}>
+            Archived <span className="ml-1.5">{formatCount(archived.length)}</span>
+          </Choice>
         </Choices>
       </div>
 
@@ -109,10 +146,10 @@ export function ProductTable({ rows, categories }: { rows: ProductRow[]; categor
             {/* Always printed, hidden when nothing is filtered, so filtering never
                   changes the zone's height. */}
             <p
-              aria-hidden={shown.length === rows.length || undefined}
-              className={`mt-1 text-sm text-ink-2 ${shown.length === rows.length ? "invisible" : ""}`}
+              aria-hidden={shown.length === shelf.length || undefined}
+              className={`mt-1 text-sm text-ink-2 ${shown.length === shelf.length ? "invisible" : ""}`}
             >
-              of {formatCount(rows.length)}
+              of {formatCount(shelf.length)}
             </p>
           </Tally>
           <Tally name="Units on hand" value={units} />
@@ -167,7 +204,7 @@ function Row({ row, selected }: { row: ProductRow; selected: boolean }) {
     >
       <td className="py-3 pr-4 max-md:col-span-3 max-md:p-0 md:pl-8">
         <div className="flex items-baseline gap-2">
-          <StatusMark status={row.status} />
+          {row.archivedOn ? null : <StatusMark status={row.status} />}
           <Link
             href={`/products/${row.id}`}
             prefetch={false}
@@ -189,7 +226,14 @@ function Row({ row, selected }: { row: ProductRow; selected: boolean }) {
       <td className="tabular py-3 pr-4 text-right text-ink-2 max-md:hidden">{formatCount(row.reorderPoint)}</td>
       <td className="py-3 pr-6 max-md:p-0">
         <MobileName>Cover</MobileName>
-        <CoverBar daysOfCover={row.daysOfCover} leadTimeDays={row.leadTimeDays} />
+        {row.archivedOn ? (
+          // Frozen stock has no cover to measure.
+          <p className="text-sm">
+            <span className="font-semibold">Archived</span> <span className="text-ink-3">{row.archivedOn}</span>
+          </p>
+        ) : (
+          <CoverBar daysOfCover={row.daysOfCover} leadTimeDays={row.leadTimeDays} />
+        )}
       </td>
       <td className="tabular py-3 text-right max-md:p-0 max-md:text-left md:pr-8">
         <MobileName>Value</MobileName>
@@ -251,7 +295,7 @@ function SearchField({ query, onChange }: { query: string; onChange: (query: str
               input.current?.focus();
             }}
             aria-label="Clear search"
-            className="-mr-2.5 flex size-11 shrink-0 items-center justify-center rounded-control text-ink-2 transition-colors duration-150 hover:bg-liner hover:text-ink"
+            className="-mr-2.5 flex size-11 shrink-0 items-center justify-center rounded-control text-ink-2 press-quiet hover:bg-liner hover:text-ink"
           >
             <X aria-hidden size={18} strokeWidth={2} />
           </button>
@@ -298,14 +342,18 @@ function Empty({
           ? `No products${where} match “${query}”.`
           : show === "attention"
             ? `Nothing${where} needs attention.`
-            : `No products${where}.`}
+            : show === "archived"
+              ? `Nothing${where} is archived.`
+              : `No products${where}.`}
       </p>
       <p className="mt-1 max-w-prose text-sm text-ink-2">
         {query
           ? "Search looks at product names and SKUs."
           : show === "attention"
             ? "Every product here has enough stock, counting what's on order, to outlast its supplier's lead time."
-            : "Products are added by an admin."}
+            : show === "archived"
+              ? "An admin archives a product from its label. It keeps its ledger and can be restored."
+              : "Products are added by an admin."}
       </p>
       {query ? (
         <button

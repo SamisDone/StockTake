@@ -1,4 +1,4 @@
-import { type SQL, asc, eq, isNull, sql } from "drizzle-orm";
+import { type SQL, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/db/database";
 import { products, purchaseOrderLines, purchaseOrders, stockMovements, suppliers } from "@/db/schema";
 import { DomainError } from "./errors";
@@ -11,7 +11,7 @@ export const DEMAND_WINDOW_DAYS = 28;
 /** A reorder covers the lead time plus this many days of demand. */
 export const COVER_TARGET_DAYS = 30;
 /** Lead time assumed for products with no supplier. */
-const DEFAULT_LEAD_TIME_DAYS = 7;
+export const DEFAULT_LEAD_TIME_DAYS = 7;
 
 export type StockStatus = "out" | "reorder" | "ok";
 
@@ -109,6 +109,11 @@ export async function getStockForecasts(db: Database, now = new Date()) {
       (a.daysOfCover ?? Infinity) - (b.daysOfCover ?? Infinity) ||
       a.name.localeCompare(b.name),
   );
+}
+
+/** Archived products by name, with the same figures as active ones. Their stock is frozen. */
+export async function getArchivedForecasts(db: Database, now = new Date()) {
+  return forecastRows(db, isNotNull(products.archivedAt), now);
 }
 
 /** One product's forecast, archived or not. */

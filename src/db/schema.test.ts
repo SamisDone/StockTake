@@ -327,6 +327,49 @@ describe("users and sessions", () => {
   });
 });
 
+describe("archived products", () => {
+  const archive = (id: number) => run("UPDATE products SET archived_at = ? WHERE id = ?", [T0, id]);
+
+  it("can't take stock movements while archived", async () => {
+    await move(1, "adjustment", 4);
+    await archive(1);
+    await expect(move(1, "sale", -1)).rejects.toThrow(/product is archived/);
+    expect(await onHand(1)).toBe(4);
+
+    await run("UPDATE products SET archived_at = NULL WHERE id = 1");
+    await move(1, "sale", -1);
+    expect(await onHand(1)).toBe(3);
+  });
+
+  it("can't be added to an order", async () => {
+    await archive(2);
+    await run("INSERT INTO purchase_orders (id, supplier_id, status, created_by) VALUES (1, 1, 'draft', 1)");
+    await expect(
+      run(
+        "INSERT INTO purchase_order_lines (purchase_order_id, product_id, quantity, unit_cost_cents) VALUES (1, 2, 5, 400)",
+      ),
+    ).rejects.toThrow(/product is archived/);
+  });
+
+  it("can't be archived while on an open order, draft or placed", async () => {
+    await draftOrder();
+    await expect(archive(1)).rejects.toThrow(/product is on an open purchase order/);
+    await placeOrder();
+    await expect(archive(1)).rejects.toThrow(/product is on an open purchase order/);
+
+    await receiveOrder();
+    await archive(1);
+    expect(await scalar(client, "SELECT archived_at FROM products WHERE id = 1")).toBe(T0);
+  });
+
+  it("can be archived once its order is cancelled", async () => {
+    await draftOrder();
+    await run("UPDATE purchase_orders SET status = 'cancelled', cancelled_at = ? WHERE id = 1", [T0]);
+    await archive(1);
+    expect(await scalar(client, "SELECT archived_at FROM products WHERE id = 1")).toBe(T0);
+  });
+});
+
 describe("activity log", () => {
   it("is append-only", async () => {
     await run(

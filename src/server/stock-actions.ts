@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { DomainError } from "@/domain/errors";
 import { recordCount, recordStockChange } from "@/domain/stock";
 import { formatChange, formatCount } from "@/lib/format";
+import { parseUnits } from "@/lib/parse";
 import { type FormState, field, formError } from "./form-state";
 import { authorize } from "./dal";
 
@@ -18,12 +19,10 @@ export type StockFormState = FormState & {
 
 const MAX_UNITS = 1_000_000;
 
-/** A whole number of units typed by a person: digits only, thousands separators allowed. */
+/** A whole number of units typed by a person, up to the most one entry can move. */
 function units(text: string) {
-  const digits = text.trim().replace(/[,\s]/g, "");
-  if (!/^\d+$/.test(digits)) return null;
-  const n = Number(digits);
-  return n <= MAX_UNITS ? n : null;
+  const n = parseUnits(text);
+  return n !== null && n <= MAX_UNITS ? n : null;
 }
 
 /**

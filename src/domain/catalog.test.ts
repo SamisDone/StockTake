@@ -8,6 +8,7 @@ import {
   restoreProduct,
   updateProduct,
 } from "@/domain/products";
+import { cancelOrder, createDraft, placeOrder, poNumber } from "@/domain/purchase-orders";
 import { recordStockChange } from "@/domain/stock";
 import {
   archiveSupplier,
@@ -85,6 +86,37 @@ describe("products", () => {
     expect((await listProducts(db, { includeArchived: true })).map((p) => p.sku)).toEqual(["GAD-002", "WID-001"]);
     await restoreProduct(db, admin, 1);
     expect((await listProducts(db)).map((p) => p.sku)).toEqual(["GAD-002", "WID-001"]);
+  });
+
+  it("refuses to archive a product on an open order, naming the orders", async () => {
+    const lines = [{ productId: 1, quantity: 10 }];
+    const first = await createDraft(db, admin, { supplierId: 1, lines });
+    await expect(archiveProduct(db, admin, 1)).rejects.toMatchObject({
+      code: "invalid_state",
+      message: `Widget is on ${poNumber(first.id)}, which is still open. Receive or cancel it first.`,
+    });
+
+    const second = await createDraft(db, admin, { supplierId: 1, lines });
+    await placeOrder(db, admin, second.id);
+    await expect(archiveProduct(db, admin, 1)).rejects.toMatchObject({
+      message: `Widget is on ${poNumber(first.id)} and ${poNumber(second.id)}, which are still open. Receive or cancel them first.`,
+    });
+
+    await cancelOrder(db, admin, first.id);
+    await cancelOrder(db, admin, second.id);
+    await archiveProduct(db, admin, 1);
+    expect((await getProduct(db, 1)).archivedAt).toBeInstanceOf(Date);
+  });
+
+  it("keeps an archived product's stock frozen until it's restored", async () => {
+    await recordStockChange(db, staff, { productId: 1, kind: "return", quantity: 5 });
+    await archiveProduct(db, admin, 1);
+    await expect(recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 1 })).rejects.toMatchObject({
+      code: "invalid_state",
+    });
+    await restoreProduct(db, admin, 1);
+    await recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 1 });
+    expect((await getProduct(db, 1)).onHand).toBe(4);
   });
 
   it("searches by name or SKU, case-insensitively", async () => {

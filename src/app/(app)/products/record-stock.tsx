@@ -1,9 +1,11 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useActionState, useState, type ReactNode } from "react";
+import { useActionState, useState } from "react";
 import { Choice } from "@/components/choice";
+import { Field } from "@/components/field";
 import { formatChange, formatCount } from "@/lib/format";
+import { parseUnits } from "@/lib/parse";
 import { type StockFormState, type StockKind, recordStock } from "@/server/stock-actions";
 
 const KINDS: { kind: StockKind; label: string; quantity: string; submit: string }[] = [
@@ -14,12 +16,6 @@ const KINDS: { kind: StockKind; label: string; quantity: string; submit: string 
 ];
 
 const initial: StockFormState = {};
-
-/** Whole units as typed, or null while the field doesn't hold one. */
-function parseUnits(text: string) {
-  const digits = text.trim().replace(/[,\s]/g, "");
-  return /^\d+$/.test(digits) ? Number(digits) : null;
-}
 
 /**
  * Records a count, sale, return or write-off against one product. Before anything is
@@ -179,41 +175,5 @@ function Effect({ kind, onHand, quantity }: { kind: StockKind; onHand: number; q
     <>
       On hand goes from {now} to <strong className="font-semibold text-ink">{formatCount(after)}</strong>.
     </>
-  );
-}
-
-/** A boxed field: its name in the top-left, the value below. At fault, it turns to yellow attention stock. */
-function Field({
-  name,
-  label,
-  error,
-  optional = false,
-  divided = false,
-  children,
-}: {
-  name: string;
-  label: string;
-  error?: string;
-  optional?: boolean;
-  divided?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div
-      className={`px-5 pt-2.5 pb-1.5 focus-within:shadow-[inset_0_0_0_2px_var(--color-ink)] sm:px-8 ${
-        divided ? "max-sm:border-t sm:border-l border-ink" : ""
-      } ${error ? "bg-stock" : ""}`}
-    >
-      <label htmlFor={name} className={`field-name block ${error ? "text-ink" : ""}`}>
-        {label}
-        {optional ? <span className="font-normal"> (optional)</span> : null}
-      </label>
-      {children}
-      {error ? (
-        <p id={`${name}-error`} role="alert" className="pb-1 text-sm font-medium">
-          {error}
-        </p>
-      ) : null}
-    </div>
   );
 }

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { formatChange, formatCount, formatDate, formatDays, formatMoney, formatRate, formatWholeMoney } from "./format";
+import {
+  formatChange,
+  formatCount,
+  formatDate,
+  formatDays,
+  formatMargin,
+  formatMoney,
+  formatRate,
+  formatWholeMoney,
+} from "./format";
 
 describe("format", () => {
   it("prints money from cents", () => {
@@ -13,6 +22,13 @@ describe("format", () => {
     expect(formatDays(3.44)).toBe("3.4 days");
     expect(formatDays(9.96)).toBe("10 days");
     expect(formatDays(23.6)).toBe("24 days");
+  });
+
+  it("prints margin on the price, and a dash when there's no price", () => {
+    expect(formatMargin(250, 900)).toBe("72%");
+    expect(formatMargin(900, 900)).toBe("0%");
+    expect(formatMargin(1200, 900)).toBe("−33%");
+    expect(formatMargin(250, 0)).toBe("–");
   });
 
   it("groups thousands in counts", () => {

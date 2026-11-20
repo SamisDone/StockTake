@@ -45,11 +45,12 @@ async function loadStockedProduct(db: Database, id: number) {
     .from(products)
     .where(eq(products.id, id));
   if (!product) throw new DomainError("not_found", "That product doesn't exist.");
-  if (product.archivedAt) {
-    throw new DomainError("invalid_state", `${product.name} is archived, so its stock can't change.`);
-  }
+  if (product.archivedAt) throw archivedError(product.name);
   return product;
 }
+
+const archivedError = (name: string) =>
+  new DomainError("invalid_state", `${name} is archived, so its stock can't change.`);
 
 const selectOnHand = (db: Database, id: number) =>
   db.select({ onHand: products.onHand }).from(products).where(eq(products.id, id));
@@ -90,6 +91,8 @@ export async function recordStockChange(db: Database, actor: Actor, raw: StockCh
       const [current] = await selectOnHand(db, product.id);
       throw new DomainError("insufficient_stock", `Only ${current.onHand} × ${product.name} on hand.`);
     }
+    // Archived between the read and the write; the database refused it.
+    if (violates(error, "product is archived")) throw archivedError(product.name);
     throw error;
   }
 }
@@ -132,7 +135,12 @@ export async function recordCount(db: Database, actor: Actor, raw: CountInput, n
       }),
     );
   }
-  await db.batch(statements);
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    if (violates(error, "product is archived")) throw archivedError(product.name);
+    throw error;
+  }
   return { onHand: input.counted, difference };
 }
 

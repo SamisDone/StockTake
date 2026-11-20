@@ -1,11 +1,12 @@
-import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/database";
-import { products, suppliers } from "@/db/schema";
+import { products, purchaseOrderLines, purchaseOrders, suppliers } from "@/db/schema";
 import { logActivity } from "./activity";
 import { type Actor, requireAdmin } from "./actor";
 import { DomainError, parseInput, violates } from "./errors";
 import { cents, containsPattern, id, optionalText, wholeUnits } from "./input";
+import { poNumber } from "./purchase-orders";
 
 export const productInput = z.object({
   sku: z
@@ -119,29 +120,57 @@ export async function updateProduct(
   }
 }
 
+/** Throws when the product is on a draft or a placed order: archiving it would strand that order. */
+async function assertNoOpenOrders(db: Database, product: { id: number; name: string }) {
+  const open = await db
+    .select({ id: purchaseOrders.id })
+    .from(purchaseOrderLines)
+    .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
+    .where(and(eq(purchaseOrderLines.productId, product.id), inArray(purchaseOrders.status, ["draft", "ordered"])))
+    .orderBy(asc(purchaseOrders.id));
+  if (open.length === 0) return;
+  const numbers = open.map((order) => poNumber(order.id));
+  const list = numbers.length === 1 ? numbers[0] : `${numbers.slice(0, -1).join(", ")} and ${numbers.at(-1)}`;
+  const [verb, pronoun] = numbers.length === 1 ? ["is", "it"] : ["are", "them"];
+  throw new DomainError(
+    "invalid_state",
+    `${product.name} is on ${list}, which ${verb} still open. Receive or cancel ${pronoun} first.`,
+  );
+}
+
 async function setArchived(db: Database, actor: Actor, productId: number, archived: boolean, now: Date) {
   requireAdmin(actor, archived ? "archive products" : "restore products");
   const product = await loadProduct(db, productId);
-  await db.batch([
-    db
-      .update(products)
-      .set({ archivedAt: archived ? now : null })
-      .where(eq(products.id, productId)),
-    logActivity(
-      db,
-      actor,
-      {
-        action: archived ? "product.archived" : "product.restored",
-        entityType: "product",
-        entityId: productId,
-        summary: `${archived ? "Archived" : "Restored"} ${product.name}`,
-      },
-      now,
-    ),
-  ]);
+  if (archived) await assertNoOpenOrders(db, product);
+  try {
+    await db.batch([
+      db
+        .update(products)
+        .set({ archivedAt: archived ? now : null })
+        .where(eq(products.id, productId)),
+      logActivity(
+        db,
+        actor,
+        {
+          action: archived ? "product.archived" : "product.restored",
+          entityType: "product",
+          entityId: productId,
+          summary: `${archived ? "Archived" : "Restored"} ${product.name}`,
+        },
+        now,
+      ),
+    ]);
+  } catch (error) {
+    // An order was drafted between the check and the write; the database refused it.
+    if (violates(error, "product is on an open purchase order")) await assertNoOpenOrders(db, product);
+    throw error;
+  }
 }
 
-/** Hides a product from the catalog. Its stock history stays. */
+/**
+ * Hides a product from the catalog and freezes its stock. Its ledger stays as it was.
+ * Refused while the product is on an open order.
+ */
 export const archiveProduct = (db: Database, actor: Actor, productId: number, now = new Date()) =>
   setArchived(db, actor, productId, true, now);
 

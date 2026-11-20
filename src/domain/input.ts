@@ -12,8 +12,12 @@ export const optionalText = (max: number) =>
     .transform((value) => value || undefined);
 
 export const id = z.number().int().positive();
-export const cents = z.number().int().min(0, "Can't be negative.").max(100_000_000);
-export const wholeUnits = z.number().int().min(0, "Can't be negative.").max(1_000_000);
+export const cents = z.number().int().min(0, "Can't be negative.").max(100_000_000, "Keep it to $1,000,000 or less.");
+export const wholeUnits = z
+  .number()
+  .int()
+  .min(0, "Can't be negative.")
+  .max(1_000_000, "Keep it to 1,000,000 or fewer.");
 
 /**
  * A LIKE pattern matching `query` anywhere, with % and _ taken literally. Use it with
