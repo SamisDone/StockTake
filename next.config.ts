@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  typedRoutes: true,
   turbopack: {
     rules: {
       "*.css": {
@@ -15,3 +16,6 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
+// Exposes the Wrangler bindings (D1 as `DB`) to `next dev` through getCloudflareContext().
+initOpenNextCloudflareForDev();

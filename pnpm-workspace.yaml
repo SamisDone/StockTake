@@ -1,3 +1,7 @@
+# Flat node_modules: the OpenNext bundler copies node_modules into .open-next/, and
+# pnpm's symlinked layout breaks that copy on Windows.
+nodeLinker: hoisted
+
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
