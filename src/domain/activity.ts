@@ -19,7 +19,11 @@ export function logActivity(db: Database, actor: Actor, entry: ActivityEntry, no
 /** The activity feed, newest first, optionally for one entity. */
 export async function listActivity(
   db: Database,
-  { entityType, entityId, limit = 50 }: { entityType?: ActivityEntry["entityType"]; entityId?: number; limit?: number } = {},
+  {
+    entityType,
+    entityId,
+    limit = 50,
+  }: { entityType?: ActivityEntry["entityType"]; entityId?: number; limit?: number } = {},
 ) {
   return db
     .select({

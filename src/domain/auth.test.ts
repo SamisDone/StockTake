@@ -73,7 +73,12 @@ describe("createUser", () => {
 
   it("reports an email that is already in use", async () => {
     await expect(
-      createUser(db, admin, { email: "ADA@example.com", name: "Ada", password: "a long enough password", role: "staff" }),
+      createUser(db, admin, {
+        email: "ADA@example.com",
+        name: "Ada",
+        password: "a long enough password",
+        role: "staff",
+      }),
     ).rejects.toMatchObject({ code: "conflict", field: "email" });
   });
 });

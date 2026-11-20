@@ -92,7 +92,13 @@ async function loadProduct(db: Database, productId: number) {
 }
 
 /** Edits a product's details. Stock only changes through movements. Admin-only. */
-export async function updateProduct(db: Database, actor: Actor, productId: number, raw: ProductInput, now = new Date()) {
+export async function updateProduct(
+  db: Database,
+  actor: Actor,
+  productId: number,
+  raw: ProductInput,
+  now = new Date(),
+) {
   requireAdmin(actor, "edit products");
   const input = parseInput(productInput, raw);
   await loadProduct(db, productId);
@@ -172,10 +178,7 @@ export async function listProducts(
         includeArchived ? undefined : isNull(products.archivedAt),
         category ? eq(products.category, category) : undefined,
         pattern
-          ? or(
-              sql`${products.name} LIKE ${pattern} ESCAPE '!'`,
-              sql`${products.sku} LIKE ${pattern} ESCAPE '!'`,
-            )
+          ? or(sql`${products.name} LIKE ${pattern} ESCAPE '!'`, sql`${products.sku} LIKE ${pattern} ESCAPE '!'`)
           : undefined,
       ),
     )

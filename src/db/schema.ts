@@ -182,10 +182,7 @@ export const stockMovements = sqliteTable(
   },
   (t) => [
     index("stock_movements_product_occurred").on(t.productId, t.occurredAt),
-    check(
-      "stock_movements_kind",
-      sql`${t.kind} IN ('receipt', 'sale', 'adjustment', 'return', 'write_off')`,
-    ),
+    check("stock_movements_kind", sql`${t.kind} IN ('receipt', 'sale', 'adjustment', 'return', 'write_off')`),
     check(
       "stock_movements_quantity_sign",
       sql`CASE ${t.kind}
@@ -196,10 +193,7 @@ export const stockMovements = sqliteTable(
         WHEN 'adjustment' THEN ${t.quantity} <> 0
       END`,
     ),
-    check(
-      "stock_movements_receipt_line",
-      sql`(${t.kind} = 'receipt') = (${t.purchaseOrderLineId} IS NOT NULL)`,
-    ),
+    check("stock_movements_receipt_line", sql`(${t.kind} = 'receipt') = (${t.purchaseOrderLineId} IS NOT NULL)`),
   ],
 );
 
@@ -215,8 +209,5 @@ export const activityLog = sqliteTable(
     summary: text("summary").notNull(),
     occurredAt: timestamp("occurred_at").notNull().default(now),
   },
-  (t) => [
-    index("activity_log_occurred").on(t.occurredAt),
-    index("activity_log_entity").on(t.entityType, t.entityId),
-  ],
+  (t) => [index("activity_log_occurred").on(t.occurredAt), index("activity_log_entity").on(t.entityType, t.entityId)],
 );

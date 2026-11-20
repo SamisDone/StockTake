@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "@/db/database";
-import { archiveProduct, createProduct, getProduct, listProducts, restoreProduct, updateProduct } from "@/domain/products";
+import {
+  archiveProduct,
+  createProduct,
+  getProduct,
+  listProducts,
+  restoreProduct,
+  updateProduct,
+} from "@/domain/products";
 import { recordStockChange } from "@/domain/stock";
 import {
   archiveSupplier,
@@ -106,7 +113,9 @@ describe("suppliers", () => {
   });
 
   it("is admin-only to create, edit or archive", async () => {
-    await expect(createSupplier(db, staff, { name: "X", leadTimeDays: 1 })).rejects.toMatchObject({ code: "forbidden" });
+    await expect(createSupplier(db, staff, { name: "X", leadTimeDays: 1 })).rejects.toMatchObject({
+      code: "forbidden",
+    });
     await expect(archiveSupplier(db, staff, 1)).rejects.toMatchObject({ code: "forbidden" });
   });
 

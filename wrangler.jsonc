@@ -6,24 +6,24 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
     "directory": ".open-next/assets",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
   },
   "services": [
     {
       // Self-reference binding the adapter uses for internal requests; must match "name".
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "stocktake"
-    }
+      "service": "stocktake",
+    },
   ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "stocktake",
       "database_id": "3304c2f0-d5c4-4f31-8d97-a138818f238b",
-      "migrations_dir": "drizzle"
-    }
+      "migrations_dir": "drizzle",
+    },
   ],
   "observability": {
-    "enabled": true
-  }
+    "enabled": true,
+  },
 }

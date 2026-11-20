@@ -63,7 +63,13 @@ export async function createSupplier(db: Database, actor: Actor, raw: SupplierIn
 }
 
 /** Edits a supplier. Admin-only. */
-export async function updateSupplier(db: Database, actor: Actor, supplierId: number, raw: SupplierInput, now = new Date()) {
+export async function updateSupplier(
+  db: Database,
+  actor: Actor,
+  supplierId: number,
+  raw: SupplierInput,
+  now = new Date(),
+) {
   requireAdmin(actor, "edit suppliers");
   const input = parseInput(supplierInput, raw);
   await loadSupplier(db, supplierId);
@@ -87,14 +93,25 @@ export async function archiveSupplier(db: Database, actor: Actor, supplierId: nu
     logActivity(
       db,
       actor,
-      { action: "supplier.archived", entityType: "supplier", entityId: supplierId, summary: `Archived ${supplier.name}` },
+      {
+        action: "supplier.archived",
+        entityType: "supplier",
+        entityId: supplierId,
+        summary: `Archived ${supplier.name}`,
+      },
       now,
     ),
   ]);
 }
 
 /** Adds the person's review of a supplier, or replaces their earlier one. */
-export async function reviewSupplier(db: Database, actor: Actor, supplierId: number, raw: ReviewInput, now = new Date()) {
+export async function reviewSupplier(
+  db: Database,
+  actor: Actor,
+  supplierId: number,
+  raw: ReviewInput,
+  now = new Date(),
+) {
   const input = parseInput(reviewInput, raw);
   const supplier = await loadSupplier(db, supplierId);
   const values = { rating: input.rating, comment: input.comment ?? null, createdAt: now };

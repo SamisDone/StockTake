@@ -104,7 +104,10 @@ describe("createDraft", () => {
   });
 
   it("rejects an archived supplier", async () => {
-    await db.update(suppliers).set({ archivedAt: at(1) }).where(eq(suppliers.id, 1));
+    await db
+      .update(suppliers)
+      .set({ archivedAt: at(1) })
+      .where(eq(suppliers.id, 1));
     await expect(createDraft(db, staff, twoLines)).rejects.toMatchObject({ code: "invalid_state" });
   });
 });
@@ -206,10 +209,7 @@ describe("receiveOrder", () => {
   it("receives an order once, even when two people receive it at the same time", async () => {
     const { id } = await createDraft(db, staff, twoLines, at(1));
     await placeOrder(db, admin, id, at(2));
-    const results = await Promise.allSettled([
-      receiveOrder(db, staff, id, at(9)),
-      receiveOrder(db, admin, id, at(9)),
-    ]);
+    const results = await Promise.allSettled([receiveOrder(db, staff, id, at(9)), receiveOrder(db, admin, id, at(9))]);
     expect(results.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
     const failure = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
     expect(failure.reason).toMatchObject({ code: "invalid_state", message: "PO-0001 has been received already." });

@@ -1,0 +1,9 @@
+.next
+.open-next
+.wrangler
+drizzle/meta
+pnpm-lock.yaml
+cloudflare-env.d.ts
+next-env.d.ts
+CLAUDE.md
+AGENTS.md

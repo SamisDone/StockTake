@@ -107,13 +107,18 @@ export async function createUser(db: Database, actor: Actor, raw: NewUserInput, 
         .insert(users)
         .values({ email: input.email, name: input.name, role: input.role, passwordHash, createdAt: now })
         .returning({ id: users.id, email: users.email, name: users.name, role: users.role }),
-      logActivity(db, actor, {
-        action: "user.created",
-        entityType: "user",
-        // Same reasoning as createDraft: inside the atomic batch, the new user is max(id).
-        entityId: sql<number>`(SELECT max(${users.id}) FROM ${users})`,
-        summary: `Added ${input.name} as ${input.role}`,
-      }, now),
+      logActivity(
+        db,
+        actor,
+        {
+          action: "user.created",
+          entityType: "user",
+          // Same reasoning as createDraft: inside the atomic batch, the new user is max(id).
+          entityId: sql<number>`(SELECT max(${users.id}) FROM ${users})`,
+          summary: `Added ${input.name} as ${input.role}`,
+        },
+        now,
+      ),
     ]);
     return user;
   } catch (error) {

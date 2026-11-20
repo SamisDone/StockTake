@@ -126,7 +126,12 @@ async function resolveDraft(db: Database, input: z.output<typeof draftInput>) {
 
   const ids = input.lines.map((line) => line.productId);
   const found = await db
-    .select({ id: products.id, name: products.name, unitCostCents: products.unitCostCents, archivedAt: products.archivedAt })
+    .select({
+      id: products.id,
+      name: products.name,
+      unitCostCents: products.unitCostCents,
+      archivedAt: products.archivedAt,
+    })
     .from(products)
     .where(inArray(products.id, ids));
   const byId = new Map(found.map((p) => [p.id, p]));
@@ -135,7 +140,11 @@ async function resolveDraft(db: Database, input: z.output<typeof draftInput>) {
     const product = byId.get(line.productId);
     if (!product) throw new DomainError("not_found", "One of those products doesn't exist.");
     if (product.archivedAt) throw new DomainError("invalid_state", `${product.name} is archived.`);
-    return { productId: line.productId, quantity: line.quantity, unitCostCents: line.unitCostCents ?? product.unitCostCents };
+    return {
+      productId: line.productId,
+      quantity: line.quantity,
+      unitCostCents: line.unitCostCents ?? product.unitCostCents,
+    };
   });
 
   const totalCents = lines.reduce((total, line) => total + line.quantity * line.unitCostCents, 0);
@@ -164,12 +173,17 @@ export async function createDraft(db: Database, actor: Actor, raw: DraftInput, n
       })
       .returning({ id: purchaseOrders.id }),
     db.insert(purchaseOrderLines).values(lines.map((line) => ({ ...line, purchaseOrderId: newId }))),
-    logActivity(db, actor, {
-      action: "purchase_order.drafted",
-      entityType: "purchase_order",
-      entityId: newId,
-      summary: `Drafted an order with ${supplier.name}: ${summary}`,
-    }, now),
+    logActivity(
+      db,
+      actor,
+      {
+        action: "purchase_order.drafted",
+        entityType: "purchase_order",
+        entityId: newId,
+        summary: `Drafted an order with ${supplier.name}: ${summary}`,
+      },
+      now,
+    ),
   ]);
   return { id: order.id };
 }
@@ -188,19 +202,26 @@ export async function updateDraft(db: Database, actor: Actor, id: number, raw: D
         .update(purchaseOrders)
         .set({ supplierId: supplier.id, notes: input.notes ?? null, expectedAt: input.expectedAt ?? null })
         .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.status, "draft"))),
-      logActivity(db, actor, {
-        action: "purchase_order.edited",
-        entityType: "purchase_order",
-        entityId: id,
-        summary: `Edited ${poNumber(id)}: ${summary}`,
-      }, now),
+      logActivity(
+        db,
+        actor,
+        {
+          action: "purchase_order.edited",
+          entityType: "purchase_order",
+          entityId: id,
+          summary: `Edited ${poNumber(id)}: ${summary}`,
+        },
+        now,
+      ),
     ]),
   );
 }
 
 async function orderTotal(db: Database, id: number) {
   const [row] = await db
-    .select({ total: sum(sql<number>`${purchaseOrderLines.quantity} * ${purchaseOrderLines.unitCostCents}`).mapWith(Number) })
+    .select({
+      total: sum(sql<number>`${purchaseOrderLines.quantity} * ${purchaseOrderLines.unitCostCents}`).mapWith(Number),
+    })
     .from(purchaseOrderLines)
     .where(eq(purchaseOrderLines.purchaseOrderId, id));
   return row?.total ?? 0;
@@ -215,12 +236,17 @@ export async function placeOrder(db: Database, actor: Actor, id: number, now = n
   await guarded(db, id, "place", () =>
     db.batch([
       db.update(purchaseOrders).set({ status: "ordered", orderedAt: now }).where(eq(purchaseOrders.id, id)),
-      logActivity(db, actor, {
-        action: "purchase_order.placed",
-        entityType: "purchase_order",
-        entityId: id,
-        summary: `Placed ${poNumber(id)} with ${order.supplierName} for ${formatMoney(total)}`,
-      }, now),
+      logActivity(
+        db,
+        actor,
+        {
+          action: "purchase_order.placed",
+          entityType: "purchase_order",
+          entityId: id,
+          summary: `Placed ${poNumber(id)} with ${order.supplierName} for ${formatMoney(total)}`,
+        },
+        now,
+      ),
     ]),
   );
 }
@@ -233,12 +259,17 @@ export async function cancelOrder(db: Database, actor: Actor, id: number, now = 
   await guarded(db, id, "cancel", () =>
     db.batch([
       db.update(purchaseOrders).set({ status: "cancelled", cancelledAt: now }).where(eq(purchaseOrders.id, id)),
-      logActivity(db, actor, {
-        action: "purchase_order.cancelled",
-        entityType: "purchase_order",
-        entityId: id,
-        summary: `Cancelled ${poNumber(id)}`,
-      }, now),
+      logActivity(
+        db,
+        actor,
+        {
+          action: "purchase_order.cancelled",
+          entityType: "purchase_order",
+          entityId: id,
+          summary: `Cancelled ${poNumber(id)}`,
+        },
+        now,
+      ),
     ]),
   );
 }
@@ -251,7 +282,11 @@ export async function cancelOrder(db: Database, actor: Actor, id: number, now = 
 export async function receiveOrder(db: Database, actor: Actor, id: number, now = new Date()) {
   const order = await loadOrderFor(db, id, "receive");
   const lines = await db
-    .select({ id: purchaseOrderLines.id, productId: purchaseOrderLines.productId, quantity: purchaseOrderLines.quantity })
+    .select({
+      id: purchaseOrderLines.id,
+      productId: purchaseOrderLines.productId,
+      quantity: purchaseOrderLines.quantity,
+    })
     .from(purchaseOrderLines)
     .where(eq(purchaseOrderLines.purchaseOrderId, id));
   const units = lines.reduce((total, line) => total + line.quantity, 0);
@@ -269,12 +304,17 @@ export async function receiveOrder(db: Database, actor: Actor, id: number, now =
         })),
       ),
       db.update(purchaseOrders).set({ status: "received", receivedAt: now }).where(eq(purchaseOrders.id, id)),
-      logActivity(db, actor, {
-        action: "purchase_order.received",
-        entityType: "purchase_order",
-        entityId: id,
-        summary: `Received ${poNumber(id)} from ${order.supplierName}: ${units} units`,
-      }, now),
+      logActivity(
+        db,
+        actor,
+        {
+          action: "purchase_order.received",
+          entityType: "purchase_order",
+          entityId: id,
+          summary: `Received ${poNumber(id)} from ${order.supplierName}: ${units} units`,
+        },
+        now,
+      ),
     ]),
   );
 }
@@ -334,9 +374,10 @@ export async function listOrders(db: Database, { status }: { status?: PurchaseOr
       createdAt: purchaseOrders.createdAt,
       expectedAt: purchaseOrders.expectedAt,
       lineCount: count(purchaseOrderLines.id),
-      totalCents: sql<number>`coalesce(sum(${purchaseOrderLines.quantity} * ${purchaseOrderLines.unitCostCents}), 0)`.mapWith(
-        Number,
-      ),
+      totalCents:
+        sql<number>`coalesce(sum(${purchaseOrderLines.quantity} * ${purchaseOrderLines.unitCostCents}), 0)`.mapWith(
+          Number,
+        ),
     })
     .from(purchaseOrders)
     .innerJoin(suppliers, eq(suppliers.id, purchaseOrders.supplierId))

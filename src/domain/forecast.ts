@@ -33,8 +33,7 @@ export function forecast(input: ForecastInput, now = new Date()) {
 
   // Stock that is already on its way counts towards the decision to reorder.
   const position = onHand + onOrder;
-  const needsReorder =
-    position <= reorderPoint || (dailyDemand > 0 && position / dailyDemand <= leadTimeDays);
+  const needsReorder = position <= reorderPoint || (dailyDemand > 0 && position / dailyDemand <= leadTimeDays);
 
   const suggestedQuantity = needsReorder
     ? Math.max(reorderQuantity, Math.ceil(dailyDemand * (leadTimeDays + COVER_TARGET_DAYS)) - position, 1)

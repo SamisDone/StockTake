@@ -102,9 +102,7 @@ describe("stock ledger", () => {
 
   it("refuses to create a product with stock already on hand", async () => {
     await expect(
-      run(
-        "INSERT INTO products (sku, name, unit_cost_cents, unit_price_cents, on_hand) VALUES ('X-1', 'X', 1, 1, 5)",
-      ),
+      run("INSERT INTO products (sku, name, unit_cost_cents, unit_price_cents, on_hand) VALUES ('X-1', 'X', 1, 1, 5)"),
     ).rejects.toThrow(/on_hand starts at zero/);
   });
 
@@ -288,9 +286,9 @@ describe("suppliers", () => {
 
   it("allows one review per person per supplier", async () => {
     await run("INSERT INTO supplier_reviews (supplier_id, user_id, rating) VALUES (1, 1, 4)");
-    await expect(
-      run("INSERT INTO supplier_reviews (supplier_id, user_id, rating) VALUES (1, 1, 2)"),
-    ).rejects.toThrow(/UNIQUE/);
+    await expect(run("INSERT INTO supplier_reviews (supplier_id, user_id, rating) VALUES (1, 1, 2)")).rejects.toThrow(
+      /UNIQUE/,
+    );
   });
 });
 
@@ -314,7 +312,9 @@ describe("users and sessions", () => {
   });
 
   it("drops a user's sessions when the user is deleted", async () => {
-    await run("INSERT INTO users (id, email, name, password_hash, role) VALUES (2, 'bo@example.com', 'Bo', 'x', 'staff')");
+    await run(
+      "INSERT INTO users (id, email, name, password_hash, role) VALUES (2, 'bo@example.com', 'Bo', 'x', 'staff')",
+    );
     await run("INSERT INTO sessions (id, user_id, expires_at) VALUES ('hash', 2, ?)", [T0]);
     await run("DELETE FROM users WHERE id = 2");
     expect(await scalar(client, "SELECT count(*) FROM sessions")).toBe(0);

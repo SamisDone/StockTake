@@ -99,9 +99,9 @@ describe("recordStockChange", () => {
   });
 
   it.each([0, -4, 2.5])("rejects a quantity of %s", async (quantity) => {
-    await expect(
-      recordStockChange(db, staff, { productId: 1, kind: "sale", quantity }),
-    ).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(recordStockChange(db, staff, { productId: 1, kind: "sale", quantity })).rejects.toMatchObject({
+      code: "invalid_input",
+    });
   });
 
   it("does not accept receipts, which only come from purchase orders", async () => {
@@ -111,16 +111,19 @@ describe("recordStockChange", () => {
   });
 
   it("reports a missing product", async () => {
-    await expect(
-      recordStockChange(db, staff, { productId: 99, kind: "sale", quantity: 1 }),
-    ).rejects.toMatchObject({ code: "not_found" });
+    await expect(recordStockChange(db, staff, { productId: 99, kind: "sale", quantity: 1 })).rejects.toMatchObject({
+      code: "not_found",
+    });
   });
 
   it("refuses stock changes on an archived product", async () => {
-    await db.update(products).set({ archivedAt: at(2) }).where(eq(products.id, 1));
-    await expect(
-      recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 1 }),
-    ).rejects.toMatchObject({ code: "invalid_state" });
+    await db
+      .update(products)
+      .set({ archivedAt: at(2) })
+      .where(eq(products.id, 1));
+    await expect(recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 1 })).rejects.toMatchObject({
+      code: "invalid_state",
+    });
   });
 });
 

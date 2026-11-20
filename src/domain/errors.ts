@@ -1,12 +1,7 @@
 import { z } from "zod";
 
 export type DomainErrorCode =
-  | "invalid_input"
-  | "not_found"
-  | "forbidden"
-  | "insufficient_stock"
-  | "invalid_state"
-  | "conflict";
+  "invalid_input" | "not_found" | "forbidden" | "insufficient_stock" | "invalid_state" | "conflict";
 
 /** An expected failure with a message that can be shown to the person as-is. */
 export class DomainError extends Error {

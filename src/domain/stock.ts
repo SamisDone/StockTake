@@ -71,12 +71,17 @@ export async function recordStockChange(db: Database, actor: Actor, raw: StockCh
         userId: actor.id,
         occurredAt: now,
       }),
-      logActivity(db, actor, {
-        action: `stock.${input.kind}`,
-        entityType: "product",
-        entityId: product.id,
-        summary: input.note ? `${summary}: ${input.note}` : summary,
-      }, now),
+      logActivity(
+        db,
+        actor,
+        {
+          action: `stock.${input.kind}`,
+          entityType: "product",
+          entityId: product.id,
+          summary: input.note ? `${summary}: ${input.note}` : summary,
+        },
+        now,
+      ),
       selectOnHand(db, product.id),
     ]);
     return { onHand: after.onHand };
@@ -102,12 +107,17 @@ export async function recordCount(db: Database, actor: Actor, raw: CountInput, n
       ? `Counted ${input.counted} × ${product.name}, which matches`
       : `Counted ${input.counted} × ${product.name} (was ${product.onHand})`;
 
-  const log = logActivity(db, actor, {
-    action: "stock.counted",
-    entityType: "product",
-    entityId: product.id,
-    summary: input.note ? `${summary}: ${input.note}` : summary,
-  }, now);
+  const log = logActivity(
+    db,
+    actor,
+    {
+      action: "stock.counted",
+      entityType: "product",
+      entityId: product.id,
+      summary: input.note ? `${summary}: ${input.note}` : summary,
+    },
+    now,
+  );
 
   const statements: [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]] = [log];
   if (difference !== 0) {
