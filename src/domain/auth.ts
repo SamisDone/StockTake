@@ -1,10 +1,11 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/database";
 import { roles, sessions, users } from "@/db/schema";
 import { type Actor, requireAdmin } from "./actor";
 import { logActivity } from "./activity";
 import { DomainError, parseInput, violates } from "./errors";
+import { SESSION_TTL_MS } from "./session-policy";
 
 // PBKDF2-SHA256 through WebCrypto. 100,000 iterations is the most Workers allows, and
 // native argon2/bcrypt don't run there. The iteration count is stored with each hash,
@@ -13,7 +14,7 @@ const ITERATIONS = 100_000;
 const MAX_ITERATIONS = 100_000;
 const SCHEME = "pbkdf2_sha256";
 
-export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export { SESSION_TTL_MS };
 
 const encoder = new TextEncoder();
 
@@ -135,11 +136,18 @@ export async function hashToken(token: string) {
   return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** Starts a session. The returned token goes in the cookie; only its hash is stored. */
+/**
+ * Starts a session. The returned token goes in the cookie; only its hash is stored.
+ * The person's expired sessions are deleted in the same batch, so abandoned ones
+ * don't pile up.
+ */
 export async function createSession(db: Database, userId: number, now = new Date()) {
   const token = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
   const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
-  await db.insert(sessions).values({ id: await hashToken(token), userId, expiresAt, createdAt: now });
+  await db.batch([
+    db.delete(sessions).where(and(eq(sessions.userId, userId), lte(sessions.expiresAt, now))),
+    db.insert(sessions).values({ id: await hashToken(token), userId, expiresAt, createdAt: now }),
+  ]);
   return { token, expiresAt };
 }
 

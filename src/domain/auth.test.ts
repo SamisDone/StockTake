@@ -141,6 +141,19 @@ describe("sessions", () => {
     expect(await validateSession(db, token, later(SESSION_TTL_MS + DAY))).not.toBeNull();
   });
 
+  it("clears out the person's expired sessions when they sign in again", async () => {
+    const { token: stale } = await createSession(db, 1, t0);
+    const { token: current } = await createSession(db, 1, later(5 * DAY));
+    await createSession(db, 2, t0); // someone else's, also expired: not this sign-in's business
+
+    await createSession(db, 1, later(SESSION_TTL_MS + DAY));
+
+    const ids = (await db.select({ id: sessions.id }).from(sessions)).map((s) => s.id);
+    expect(ids).toHaveLength(3);
+    expect(ids).not.toContain(await hashToken(stale));
+    expect(ids).toContain(await hashToken(current));
+  });
+
   it("signs out by deleting the session", async () => {
     const { token } = await createSession(db, 1, t0);
     await invalidateSession(db, token);
