@@ -17,6 +17,23 @@ import { DomainError, parseInput, violates } from "./errors";
 
 export const poNumber = (id: number) => `PO-${String(id).padStart(4, "0")}`;
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * When a placed order should arrive: the date the supplier promised, else the day it
+ * was placed plus the supplier's lead time. Null for orders that aren't on their way.
+ */
+export function dueDate(order: {
+  status: PurchaseOrderStatus;
+  expectedAt: Date | null;
+  orderedAt: Date | null;
+  leadTimeDays: number;
+}) {
+  if (order.status !== "ordered") return null;
+  if (order.expectedAt) return order.expectedAt;
+  return order.orderedAt ? new Date(order.orderedAt.getTime() + order.leadTimeDays * DAY_MS) : null;
+}
+
 const lineInput = z.object({
   productId: z.number().int().positive(),
   quantity: z.number().int().positive().max(1_000_000),
@@ -328,6 +345,7 @@ export async function getOrder(db: Database, id: number) {
       notes: purchaseOrders.notes,
       supplierId: purchaseOrders.supplierId,
       supplierName: suppliers.name,
+      leadTimeDays: suppliers.leadTimeDays,
       createdByName: users.name,
       createdAt: purchaseOrders.createdAt,
       expectedAt: purchaseOrders.expectedAt,
@@ -359,6 +377,7 @@ export async function getOrder(db: Database, id: number) {
   return {
     ...order,
     number: poNumber(order.id),
+    dueAt: dueDate(order),
     lines: withTotals,
     totalCents: withTotals.reduce((total, line) => total + line.lineTotalCents, 0),
   };
@@ -371,8 +390,12 @@ export async function listOrders(db: Database, { status }: { status?: PurchaseOr
       id: purchaseOrders.id,
       status: purchaseOrders.status,
       supplierName: suppliers.name,
+      leadTimeDays: suppliers.leadTimeDays,
       createdAt: purchaseOrders.createdAt,
       expectedAt: purchaseOrders.expectedAt,
+      orderedAt: purchaseOrders.orderedAt,
+      receivedAt: purchaseOrders.receivedAt,
+      cancelledAt: purchaseOrders.cancelledAt,
       lineCount: count(purchaseOrderLines.id),
       totalCents:
         sql<number>`coalesce(sum(${purchaseOrderLines.quantity} * ${purchaseOrderLines.unitCostCents}), 0)`.mapWith(
@@ -385,5 +408,5 @@ export async function listOrders(db: Database, { status }: { status?: PurchaseOr
     .where(status ? eq(purchaseOrders.status, status) : undefined)
     .groupBy(purchaseOrders.id)
     .orderBy(desc(purchaseOrders.createdAt), desc(purchaseOrders.id));
-  return rows.map((row) => ({ ...row, number: poNumber(row.id) }));
+  return rows.map((row) => ({ ...row, number: poNumber(row.id), dueAt: dueDate(row) }));
 }

@@ -231,4 +231,17 @@ describe("listOrders", () => {
     ]);
     expect((await listOrders(db, { status: "ordered" })).map((o) => o.number)).toEqual(["PO-0001"]);
   });
+
+  it("says when a placed order is due: its expected date, else placed plus the supplier's lead time", async () => {
+    const plain = await createDraft(db, staff, twoLines, at(1));
+    await placeOrder(db, admin, plain.id, at(2));
+    const promised = await createDraft(db, staff, { ...twoLines, expectedAt: at(20) }, at(3));
+    await placeOrder(db, admin, promised.id, at(4));
+    await createDraft(db, staff, twoLines, at(5));
+
+    const due = Object.fromEntries((await listOrders(db)).map((o) => [o.number, o.dueAt]));
+    // Northwind's lead time is 7 days.
+    expect(due).toEqual({ "PO-0001": at(9), "PO-0002": at(20), "PO-0003": null });
+    expect((await getOrder(db, plain.id)).dueAt).toEqual(at(9));
+  });
 });

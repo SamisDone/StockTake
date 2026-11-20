@@ -40,3 +40,27 @@ export function Choice({
     </label>
   );
 }
+
+/** A boxed field holding a row of choices: native radios, so arrow keys move between them. */
+export function Choices({
+  legend,
+  className = "",
+  children,
+}: {
+  legend: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <fieldset className={`min-w-0 border-b border-ink pt-2.5 pb-2 last:border-b-0 lg:border-b-0 ${className}`}>
+      <legend className="sr-only">{legend}</legend>
+      <p aria-hidden className="field-name px-5 sm:px-8">
+        {legend}
+      </p>
+      {/* On a phone the choices scroll sideways rather than wrap. */}
+      <div className="mt-1 flex gap-1 overflow-x-auto px-5 pb-0.5 [scrollbar-width:none] sm:px-8 lg:px-6">
+        {children}
+      </div>
+    </fieldset>
+  );
+}

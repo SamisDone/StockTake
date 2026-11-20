@@ -3,9 +3,10 @@
 import { Search, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { StockStatus } from "@/domain/forecast";
-import { Choice } from "@/components/choice";
+import { Choice, Choices } from "@/components/choice";
+import { useArrivalHash, writeHash } from "@/components/hash-state";
 import { CoverBar, MobileName, StatusMark, Tally, Th } from "@/components/stock";
 import { formatCount, formatMoney, formatWholeMoney } from "@/lib/format";
 
@@ -27,22 +28,12 @@ export type ProductRow = {
 type Show = "all" | "attention" | "archived";
 const SHOWS: Show[] = ["all", "attention", "archived"];
 
-/** The hash is only read once, on arrival, so there's nothing to subscribe to. */
-const subscribeNever = () => () => {};
-const readHash = () => window.location.hash;
-
 /**
  * The catalog, searchable and filtered by category and status. Archived products are a
  * shelf of their own: never counted with the active ones, shown only when asked for.
  * The catalog is tens of products, so every product is sent once and filtered here:
- * typing costs no request. The filters live in the URL's hash, so a filtered list can
- * be shared or reloaded.
- *
- * The hash, not the query: the filters never reach the server, and changing the query
- * with history.replaceState leaves Next.js's router believing the page was rendered for
- * the old one. A Server Action in a product opened over the list (recording stock,
- * editing it) then refreshes into a full-page reload instead of the drawer. A query in
- * a link (the form this page used to write) is still read.
+ * typing costs no request. The filters live in the URL's hash (see hash-state.ts for
+ * why not the query); a query in a link, the form this page used to write, is still read.
  */
 export function ProductTable({ rows, categories }: { rows: ProductRow[]; categories: string[] }) {
   const pathname = usePathname();
@@ -55,11 +46,10 @@ export function ProductTable({ rows, categories }: { rows: ProductRow[]; categor
 
   // The server never sees the hash, so the filters in it apply once this is in the
   // browser (null until then), and only once: after that, the filters write the hash.
-  const arrivalHash = useSyncExternalStore(subscribeNever, readHash, () => null);
+  const hash = useArrivalHash();
   const [arrived, setArrived] = useState(false);
-  if (!arrived && arrivalHash !== null) {
+  if (!arrived && hash !== null) {
     setArrived(true);
-    const hash = new URLSearchParams(arrivalHash.slice(1));
     if (hash.size > 0) {
       setQuery(hash.get("q") ?? "");
       setCategory(knownCategory(hash.get("category")));
@@ -71,14 +61,7 @@ export function ProductTable({ rows, categories }: { rows: ProductRow[]; categor
   // a product open over it, the URL is the product's.
   useEffect(() => {
     if (pathname !== "/products" || !arrived) return;
-    const next = new URLSearchParams();
-    if (query.trim()) next.set("q", query.trim());
-    if (category) next.set("category", category);
-    if (show !== "all") next.set("show", show);
-    const hash = next.size ? `#${next}` : "";
-    if (hash !== window.location.hash) {
-      window.history.replaceState(null, "", `${pathname}${window.location.search}${hash}`);
-    }
+    writeHash(pathname, { q: query.trim(), category, show: show === "all" ? "" : show });
   }, [pathname, arrived, query, category, show]);
 
   const needle = query.trim().toLowerCase();
@@ -304,22 +287,6 @@ function SearchField({ query, onChange }: { query: string; onChange: (query: str
         )}
       </div>
     </div>
-  );
-}
-
-/** A boxed field holding a row of choices: native radios, so arrow keys move between them. */
-function Choices({ legend, className = "", children }: { legend: string; className?: string; children: ReactNode }) {
-  return (
-    <fieldset className={`min-w-0 border-b border-ink pt-2.5 pb-2 last:border-b-0 lg:border-b-0 ${className}`}>
-      <legend className="sr-only">{legend}</legend>
-      <p aria-hidden className="field-name px-5 sm:px-8">
-        {legend}
-      </p>
-      {/* On a phone the choices scroll sideways rather than wrap. */}
-      <div className="mt-1 flex gap-1 overflow-x-auto px-5 pb-0.5 [scrollbar-width:none] sm:px-8 lg:px-6">
-        {children}
-      </div>
-    </fieldset>
   );
 }
 

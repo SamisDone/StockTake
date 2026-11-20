@@ -54,7 +54,15 @@ async function Attention() {
           <>
             <p className="mt-1 max-w-prose px-5 text-sm text-ink-2 sm:px-8">
               Cover is how long stock lasts at the last 28 days&apos; sales. The mark on each bar is the supplier&apos;s
-              lead time: cover short of it runs out before a new order can arrive.
+              lead time: cover short of it runs out before a new order can arrive.{" "}
+              <Link
+                href="/orders"
+                prefetch={false}
+                transitionTypes={NAV_FORWARD}
+                className="font-semibold text-ink underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
+              >
+                Draft the orders
+              </Link>
             </p>
             {/* A table from md up, running to the sheet's edges so a row's hover fill does too;
                 below md each row stacks into a small label of named fields. */}
