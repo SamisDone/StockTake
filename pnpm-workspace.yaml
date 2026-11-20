@@ -5,3 +5,10 @@ nodeLinker: hoisted
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+patchedDependencies:
+  # OpenNext default-imports cookie@1, which has no default export. Bundled for the
+  # Node.js proxy on workerd, every request with a Cookie header crashed with
+  # "Cannot read properties of undefined (reading 'parse')". Drop this once upstream
+  # switches to a namespace import.
+  "@opennextjs/aws@4.2.0": patches/@opennextjs__aws@4.2.0.patch
