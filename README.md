@@ -1,36 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Stocktake
 
-## Getting Started
+An inventory system whose stock levels you can audit. Every unit on hand traces back to a movement in an append-only ledger, and the database itself refuses any write that would break that.
 
-First, run the development server:
+Stocktake rebuilds [StockMaster](https://github.com/SamisDone/StockMaster-Main), a PHP and MySQL course project (CSE 252), on Next.js, Cloudflare Workers and D1.
+
+**Live:** https://stocktake.sarker-samonwita.workers.dev. The interface is still being built; the domain layer and the database are in place.
+
+## What it does
+
+- **Stock ledger.** Receipts, sales, returns, write-offs and count adjustments, each recorded as a signed movement. A product's on-hand count is a denormalised copy of its ledger total.
+- **Purchase orders.** Draft → ordered → received, or cancelled. Receiving books one receipt per line, atomically.
+- **Forecasting.** Days of cover from the last 28 days of net demand, with reorder suggestions that account for stock already on order and each supplier's lead time.
+- **Suppliers.** Lead times, and one 1–5 star review per person.
+- **Activity log.** Who did what, append-only.
+- **Roles.** Admins manage the catalog and place or cancel orders; staff record stock and receive deliveries.
+
+## How the integrity works
+
+The rules live in the database, in [`drizzle/0001_ledger_rules.sql`](drizzle/0001_ledger_rules.sql), so no application bug can get around them:
+
+- Inserting a movement updates `products.on_hand` through a trigger. `on_hand` starts at zero, can't go negative (`CHECK (on_hand >= 0)`), and can't be set to anything but the ledger total.
+- Movements and activity entries can't be updated or deleted. A correction is a new adjustment.
+- Purchase orders can only make the allowed status changes. Their lines lock once placed, and a receipt must match its line's product and quantity.
+- Each order line can be received once (a unique index), and the order can only be marked received once every line has its receipt. Receiving the same order twice, even concurrently, fails as a whole.
+
+D1 has no interactive transactions, so multi-statement writes use `db.batch()`, which is atomic. Each rule has a test in [`src/db/schema.test.ts`](src/db/schema.test.ts) that runs the real migrations.
+
+## Stack
+
+- Next.js 16 (App Router, Cache Components) on Cloudflare Workers through [OpenNext](https://opennext.js.org/cloudflare)
+- Cloudflare D1 (SQLite) with Drizzle ORM
+- Session auth: PBKDF2-SHA256 password hashes through WebCrypto, and random session tokens of which only the SHA-256 is stored
+- Tests: Vitest on in-memory libsql, with the same migrations as production
+
+## Run it locally
+
+You need Node.js 22.18 or newer and pnpm (`corepack enable` provides it).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm db:migrate:local   # create the tables and rules in a local D1 database
+pnpm db:seed:local      # load the demo dataset (repeatable; it resets first)
+pnpm dev                # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The local database lives in `.wrangler/state/` and needs no Cloudflare account. `next dev` reaches it through the same `DB` binding as production.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The demo dataset is 120 days of simulated trading for a small distributor, generated deterministically and ending yesterday. It includes two demo people, both with the password `stocktake-demo`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Email                  | Role  |
+| ---------------------- | ----- |
+| `admin@stocktake.demo` | Admin |
+| `staff@stocktake.demo` | Staff |
 
-## Learn More
+### Other commands
 
-To learn more about Next.js, take a look at the following resources:
+| Command            | What it does                                                               |
+| ------------------ | -------------------------------------------------------------------------- |
+| `pnpm test`        | Run the test suite                                                         |
+| `pnpm typecheck`   | Generate route types and type-check                                        |
+| `pnpm lint`        | ESLint                                                                     |
+| `pnpm format`      | Prettier                                                                   |
+| `pnpm preview`     | Build the Worker and serve it locally in workerd, as it runs in production |
+| `pnpm db:generate` | Generate a migration after changing `src/db/schema.ts`                     |
+| `pnpm cf-typegen`  | Regenerate binding types after changing `wrangler.jsonc`                   |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Use `pnpm preview` rather than `wrangler dev` to test the Worker build. It also fills the static-asset cache, and without that step the first request hangs.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploy
 
-## Deploy on Vercel
+Deploying needs a Cloudflare account (the free plan is enough) and `pnpm wrangler login`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+pnpm wrangler d1 create stocktake    # once; put the printed database_id in wrangler.jsonc
+pnpm db:migrate:remote
+pnpm db:seed:remote                  # optional: the demo dataset
+pnpm run deploy                      # not `pnpm deploy`, which is a built-in pnpm command
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project layout
+
+```
+drizzle/          migrations, including the ledger rules
+scripts/          the demo seed runner
+src/app/          routes (App Router)
+src/db/           schema, the D1 client and the database type
+src/domain/       business logic: stock, purchase orders, forecasting, catalog, auth
+src/seed/         the demo dataset generator
+src/test/         test database and fixtures
+```
