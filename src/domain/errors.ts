@@ -13,6 +13,8 @@ export class DomainError extends Error {
   constructor(
     readonly code: DomainErrorCode,
     message: string,
+    /** The input field at fault, for showing the message next to it. */
+    readonly field?: string,
   ) {
     super(message);
     this.name = "DomainError";
@@ -24,8 +26,7 @@ export function parseInput<T extends z.ZodType>(schema: T, input: unknown): z.ou
   const result = schema.safeParse(input);
   if (!result.success) {
     const issue = result.error.issues[0];
-    const field = issue.path.join(".");
-    throw new DomainError("invalid_input", field ? `${field}: ${issue.message}` : issue.message);
+    throw new DomainError("invalid_input", issue.message, issue.path.join(".") || undefined);
   }
   return result.data;
 }
