@@ -4,7 +4,7 @@ An inventory system whose stock levels you can audit. Every unit on hand traces 
 
 Stocktake rebuilds [StockMaster](https://github.com/SamisDone/StockMaster-Main), a PHP and MySQL course project (CSE 252), on Next.js, Cloudflare Workers and D1.
 
-**Live:** https://stocktake.sarker-samonwita.workers.dev. The interface is still being built; the domain layer and the database are in place.
+**Live:** https://stocktake.sarker-samonwita.workers.dev. Open the demo from the landing page as an admin or as staff; no sign-up needed. The app so far has the dashboard; products, purchase orders, suppliers, activity, analytics and the assistant are being built.
 
 ## What it does
 
@@ -24,13 +24,13 @@ The rules live in the database, in [`drizzle/0001_ledger_rules.sql`](drizzle/000
 - Purchase orders can only make the allowed status changes. Their lines lock once placed, and a receipt must match its line's product and quantity.
 - Each order line can be received once (a unique index), and the order can only be marked received once every line has its receipt. Receiving the same order twice, even concurrently, fails as a whole.
 
-D1 has no interactive transactions, so multi-statement writes use `db.batch()`, which is atomic. Each rule has a test in [`src/db/schema.test.ts`](src/db/schema.test.ts) that runs the real migrations.
+D1 has no interactive transactions, so multi-statement writes use `db.batch()`, which is atomic. Each rule has a test in [`src/db/schema.test.ts`](src/db/schema.test.ts) that runs the real migrations. The refusals quoted on the landing page are tested the same way ([`src/lib/refusals.test.ts`](src/lib/refusals.test.ts)), so the page can't claim a rule the database doesn't enforce.
 
 ## Stack
 
 - Next.js 16 (App Router, Cache Components) on Cloudflare Workers through [OpenNext](https://opennext.js.org/cloudflare)
 - Cloudflare D1 (SQLite) with Drizzle ORM
-- Session auth: PBKDF2-SHA256 password hashes through WebCrypto, and random session tokens of which only the SHA-256 is stored
+- Session auth: PBKDF2-SHA256 password hashes through WebCrypto, and random session tokens of which only the SHA-256 is stored. A data-access layer re-checks the session next to the data on every page and Server Action; `proxy.ts` only redirects visitors with no session cookie
 - Tests: Vitest on in-memory libsql, with the same migrations as production
 
 ## Run it locally
@@ -83,9 +83,13 @@ pnpm run deploy                      # not `pnpm deploy`, which is a built-in pn
 ```
 drizzle/          migrations, including the ledger rules
 scripts/          the demo seed runner
-src/app/          routes (App Router)
+src/app/          routes: (marketing) landing, (auth) login, (app) the signed-in app
+src/components/   shared UI: page transitions, page header, demo sign-in
 src/db/           schema, the D1 client and the database type
 src/domain/       business logic: stock, purchase orders, forecasting, catalog, auth
+src/lib/          formatting, and the landing page's tested list of refused writes
+src/server/       the data-access layer, session cookie, and Server Actions
 src/seed/         the demo dataset generator
+src/proxy.ts      the optimistic signed-out redirect
 src/test/         test database and fixtures
 ```
