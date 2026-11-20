@@ -1,6 +1,7 @@
 import { asc, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/db/database";
 import { products, purchaseOrderLines, purchaseOrders, stockMovements, suppliers } from "@/db/schema";
+import { outer } from "./input";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -53,13 +54,13 @@ export async function getStockForecasts(db: Database, now = new Date()) {
     SELECT coalesce(sum(${purchaseOrderLines.quantity}), 0)
     FROM ${purchaseOrderLines}
     JOIN ${purchaseOrders} ON ${purchaseOrders.id} = ${purchaseOrderLines.purchaseOrderId}
-    WHERE ${purchaseOrderLines.productId} = ${products.id} AND ${purchaseOrders.status} = 'ordered'
+    WHERE ${purchaseOrderLines.productId} = ${outer(products, "id")} AND ${purchaseOrders.status} = 'ordered'
   )`;
   // Sales are negative and returns positive, so the negated sum is net units sold.
   const netSold = sql<number>`(
     SELECT coalesce(-sum(${stockMovements.quantity}), 0)
     FROM ${stockMovements}
-    WHERE ${stockMovements.productId} = ${products.id}
+    WHERE ${stockMovements.productId} = ${outer(products, "id")}
       AND ${stockMovements.kind} IN ('sale', 'return')
       AND ${stockMovements.occurredAt} >= ${since.getTime()}
   )`;
