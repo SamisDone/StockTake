@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db/client";
 import { authenticate, createSession, invalidateSession } from "@/domain/auth";
+import { DEMO_PASSWORD, DEMO_USERS } from "@/seed/accounts";
 import { type FormState, field } from "./form-state";
 import { LOGIN_PATH, SESSION_COOKIE, looksLikeSessionToken, safeNextPath, sessionCookie } from "./session-cookie";
 
@@ -13,12 +14,18 @@ const credentials = z.object({
   password: z.string().min(1, "Enter your password.").max(200),
 });
 
-/** The login form's action. On success it sets the session cookie and redirects. */
+/**
+ * The login form's action. On success it sets the session cookie and redirects. A
+ * `demo` field of "admin" or "staff" signs in to that public demo account instead,
+ * so the password never has to be typed or shipped to the browser.
+ */
 export async function signIn(_previous: FormState, formData: FormData): Promise<FormState> {
-  const email = field(formData, "email");
-  const values = { email };
+  const demo = DEMO_USERS.find((user) => user.role === field(formData, "demo"));
+  const email = demo?.email ?? field(formData, "email");
+  const password = demo ? DEMO_PASSWORD : field(formData, "password");
+  const values = { email: demo ? "" : email };
 
-  const parsed = credentials.safeParse({ email, password: field(formData, "password") });
+  const parsed = credentials.safeParse({ email, password });
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     return { error: { message: issue.message, field: String(issue.path[0]) }, values };
@@ -27,10 +34,18 @@ export async function signIn(_previous: FormState, formData: FormData): Promise<
   const db = await getDb();
   const user = await authenticate(db, parsed.data.email, parsed.data.password);
   // One message for both cases, so the form doesn't reveal which emails have accounts.
-  if (!user) return { error: { message: "That email and password don't match an account." }, values };
+  if (!user) {
+    return {
+      error: {
+        message: "That email and password don't match an account. Check the password, or use a demo account above.",
+      },
+      values,
+    };
+  }
 
   const { token } = await createSession(db, user.id);
   (await cookies()).set(sessionCookie(token));
+
   redirect(safeNextPath(field(formData, "next")));
 }
 

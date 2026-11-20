@@ -36,9 +36,8 @@ export function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.has(pathname);
 }
 
-// The pages these name are built with the UI; until then typedRoutes can't check them.
-export const LOGIN_PATH = "/login" as Route;
-export const HOME_PATH = "/dashboard" as Route;
+export const LOGIN_PATH = "/login" satisfies Route;
+export const HOME_PATH = "/dashboard" satisfies Route;
 
 /**
  * Where to go after signing in. Only a path on this site is accepted, and the login page

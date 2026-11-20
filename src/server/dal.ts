@@ -1,5 +1,6 @@
 import "server-only";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { getDb } from "@/db/client";
@@ -17,6 +18,9 @@ import { LOGIN_PATH, SESSION_COOKIE, looksLikeSessionToken } from "./session-coo
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!looksLikeSessionToken(token)) return null;
+  // Validation compares the expiry with the current time. Cookies can be read during a
+  // runtime prefetch, the clock can't, so wait for the real request first.
+  await connection();
   const session = await validateSession(await getDb(), token);
   return session?.user ?? null;
 });

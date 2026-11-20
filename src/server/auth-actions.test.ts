@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/database";
 import { sessions, users } from "@/db/schema";
@@ -59,7 +60,9 @@ describe("signIn", () => {
     const unknown = await signIn({}, form({ email: "nobody@example.com", password: PASSWORD }));
     expect(wrong.error).toEqual(unknown.error);
     expect(wrong).toEqual({
-      error: { message: "That email and password don't match an account." },
+      error: {
+        message: "That email and password don't match an account. Check the password, or use a demo account above.",
+      },
       values: { email: "ada@example.com" },
     });
     expect(request.current.jar.size).toBe(0);
@@ -74,6 +77,36 @@ describe("signIn", () => {
     expect(await signIn({}, form({ email: "  ", password: PASSWORD }))).toMatchObject({
       error: { field: "email" },
     });
+  });
+});
+
+describe("signIn as a demo role", () => {
+  beforeEach(async () => {
+    // The fixtures' people stand in for the demo accounts.
+    await db
+      .update(users)
+      .set({ email: "admin@stocktake.demo", passwordHash: await hashPassword("stocktake-demo") })
+      .where(eq(users.id, 1));
+    await db
+      .update(users)
+      .set({ email: "staff@stocktake.demo", passwordHash: await hashPassword("stocktake-demo") })
+      .where(eq(users.id, 2));
+  });
+
+  it("signs in to the chosen demo account without typing anything", async () => {
+    expect(await redirectOf(signIn({}, form({ demo: "staff" })))).toBe("/dashboard");
+    const token = request.current.jar.get(SESSION_COOKIE)!.value;
+    expect(await validateSession(db, token)).toMatchObject({ user: { email: "staff@stocktake.demo", role: "staff" } });
+  });
+
+  it("ignores typed credentials when a demo role is chosen", async () => {
+    await redirectOf(signIn({}, form({ demo: "admin", email: "sam@example.com", password: "whatever" })));
+    const token = request.current.jar.get(SESSION_COOKIE)!.value;
+    expect(await validateSession(db, token)).toMatchObject({ user: { role: "admin" } });
+  });
+
+  it("treats an unknown role like an ordinary empty form", async () => {
+    expect(await signIn({}, form({ demo: "owner" }))).toMatchObject({ error: { field: "email" } });
   });
 });
 

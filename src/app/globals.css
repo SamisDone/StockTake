@@ -1,26 +1,225 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Thermal Label. The app is printed label stock (white, ink black) on a liner-gray
+ * ground. Rules separate zones (2px) and fields (1px); reverse print marks the active
+ * and the urgent; hi-vis yellow stock marks "needs attention" (and the text selection,
+ * the one highlighter a reader holds).
+ */
+@theme {
+  --color-liner: #e5e6e1;
+  --color-liner-deep: #d6d7d1;
+  --color-label: #ffffff;
+  --color-ink: #0e0e0e;
+  --color-ink-lift: #2b2b28; /* reverse print under the pointer */
+  --color-ink-2: #474743; /* secondary text: 8.9:1 on label, 7.4:1 on liner */
+  --color-ink-3: #67675f; /* field names, on label only: 5.6:1 */
+  --color-hairline: #d9dad4; /* row dividers inside a zone */
+  --color-stock: #ffd400; /* hi-vis label stock: attention only */
+
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-martian-mono), ui-monospace, monospace;
+
+  --radius-label: 10px; /* die-cut corner of a label sheet */
+  --radius-control: 6px;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  html {
+    background: var(--color-liner);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    scrollbar-color: var(--color-liner-deep) transparent;
+    caret-color: var(--color-ink);
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  body {
+    min-height: 100dvh;
+    background: var(--color-liner);
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: var(--color-stock);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 1px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* A label sheet sitting on the liner: the one real layer, so the one shadow. */
+  .sheet {
+    background: var(--color-label);
+    border-radius: var(--radius-label);
+    box-shadow:
+      0 1px 1px rgb(14 14 14 / 0.06),
+      0 4px 16px -6px rgb(14 14 14 / 0.12);
+  }
+
+  /* Condensed, heavy, tight: how values and titles are printed on a label. */
+  .print-display {
+    font-stretch: 75%;
+    font-weight: 800;
+    /* Size utilities read --tw-leading first, so this holds at every text-* size. */
+    --tw-leading: 0.95;
+    line-height: 0.95;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.01em;
+  }
+
+  /* The name of a field, printed small in its top-left corner. */
+  .field-name {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 600;
+    color: var(--color-ink-3);
+  }
+
+  /* The value inside a boxed field. The box shows focus (an inset 2px rule), not the input. */
+  .field-input {
+    display: block;
+    width: 100%;
+    padding-block: 0.125rem 0.5rem;
+    background: transparent;
+    font-size: 1.125rem;
+    font-weight: 500;
+    outline: none;
+  }
+
+  /* Autofill keeps the label stock white instead of the browser's tint. */
+  .field-input:-webkit-autofill {
+    -webkit-text-fill-color: var(--color-ink);
+    box-shadow: 0 0 0 100px var(--color-label) inset;
+  }
+
+  /* Light type on reverse print renders too heavy without grayscale smoothing. */
+  .bg-ink {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Focus inside a label sheet: the sheet clips anything outside it, so the rule is
+     printed inside, in the element's own ink (white on reverse print). */
+  .focus-inset:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -6px;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/*
+ * Motion. Pages and loaded data *print*: they reveal top to bottom, the way a label
+ * feeds out of the printer. What leaves is torn off fast so it never competes. Deeper
+ * and back navigation slide sideways; the rail never moves.
+ */
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-group(app-rail),
+::view-transition-group(app-bar) {
+  animation: none;
+  z-index: 10;
+}
+::view-transition-old(app-rail),
+::view-transition-old(app-bar) {
+  display: none;
+}
+::view-transition-new(app-rail),
+::view-transition-new(app-bar) {
+  animation: none;
+}
+
+::view-transition-new(.print) {
+  animation: 260ms var(--ease-out) both print-in;
+}
+::view-transition-old(.tear) {
+  animation: 110ms var(--ease-out) both fade-out;
+}
+
+::view-transition-old(.nav-forward) {
+  --slide: -32px;
+  animation:
+    110ms var(--ease-out) both fade-out,
+    240ms var(--ease-in-out) both slide-out;
+}
+::view-transition-new(.nav-forward) {
+  --slide: 32px;
+  animation:
+    180ms var(--ease-out) 90ms both fade-in,
+    240ms var(--ease-in-out) both slide-in;
+}
+::view-transition-old(.nav-back) {
+  --slide: 32px;
+  animation:
+    110ms var(--ease-out) both fade-out,
+    240ms var(--ease-in-out) both slide-out;
+}
+::view-transition-new(.nav-back) {
+  --slide: -32px;
+  animation:
+    180ms var(--ease-out) 90ms both fade-in,
+    240ms var(--ease-in-out) both slide-in;
+}
+
+@keyframes print-in {
+  from {
+    clip-path: inset(0 0 100% 0);
+    translate: 0 -6px;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    translate: 0 0;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes slide-in {
+  from {
+    translate: var(--slide) 0;
+  }
+}
+@keyframes slide-out {
+  to {
+    translate: var(--slide) 0;
+  }
+}
+
+/* Reduced motion keeps the handoff legible as a short fade and drops every movement. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(.print),
+  ::view-transition-new(.nav-forward),
+  ::view-transition-new(.nav-back) {
+    animation: 150ms ease both fade-in;
+  }
+  ::view-transition-old(.tear),
+  ::view-transition-old(.nav-forward),
+  ::view-transition-old(.nav-back) {
+    animation: 100ms ease both fade-out;
+  }
 }

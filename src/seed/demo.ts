@@ -9,11 +9,9 @@
  * This module imports nothing from the app, so `scripts/seed.mts` can run it with Node.
  */
 
-export const DEMO_PASSWORD = "stocktake-demo";
-export const DEMO_USERS = [
-  { id: 1, email: "admin@stocktake.demo", name: "Avery Chen", role: "admin" },
-  { id: 2, email: "staff@stocktake.demo", name: "Jordan Reyes", role: "staff" },
-] as const;
+import { DEMO_PASSWORD, DEMO_USERS } from "./accounts.ts";
+
+export { DEMO_PASSWORD, DEMO_USERS };
 
 const DAY = 24 * 60 * 60 * 1000;
 const HOUR = 60 * 60 * 1000;

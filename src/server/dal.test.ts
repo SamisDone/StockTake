@@ -11,6 +11,7 @@ const request = vi.hoisted(() => ({ current: undefined as unknown as ReturnType<
 let db: Database;
 
 vi.mock("next/headers", () => ({ cookies: async () => request.current.cookies }));
+vi.mock("next/server", () => ({ connection: async () => {} }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => request.current.redirect(url) }));
 vi.mock("@/db/client", () => ({ getDb: async () => db }));
 
