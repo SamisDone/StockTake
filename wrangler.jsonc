@@ -19,8 +19,7 @@
     {
       "binding": "DB",
       "database_name": "stocktake",
-      // Replace with the ID printed by `wrangler d1 create stocktake` before the first deploy.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "3304c2f0-d5c4-4f31-8d97-a138818f238b",
       "migrations_dir": "drizzle"
     }
   ],
