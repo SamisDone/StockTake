@@ -19,8 +19,11 @@ export default function LandingPage() {
         <Link href="/" className="print-display text-2xl uppercase">
           Stocktake
         </Link>
+        {/* No prefetch: on Workers the /login route-tree prefetch costs ~100 ms of CPU per
+            landing view, and most visitors take the demo doors instead. */}
         <Link
           href="/login"
+          prefetch={false}
           className="-mx-1 flex min-h-11 items-center px-1 text-sm font-semibold underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
         >
           Sign in
