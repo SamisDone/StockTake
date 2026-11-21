@@ -1,10 +1,10 @@
-import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { Analytics, SupplierDelivery } from "@/domain/analytics";
 import { NAV_FORWARD } from "@/components/transitions";
 import type { Formats } from "@/lib/format";
 import type { AnalyticsCopy } from "./copy";
 import { Key, Zone } from "./zone";
+import { IntentLink } from "@/components/intent-link";
 
 const WEEK = 7;
 
@@ -76,14 +76,13 @@ export function Delivery({
             <li key={s.id} className="border-b border-hairline px-5 py-3 last:border-b-0 sm:px-8">
               <div className="flex items-baseline justify-between gap-4">
                 <p className="min-w-0">
-                  <Link
+                  <IntentLink
                     href={`/suppliers/${s.id}`}
-                    prefetch={false}
                     transitionTypes={NAV_FORWARD}
                     className="-my-2.5 mr-3 inline-block py-2.5 font-semibold underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
                   >
                     {s.name}
-                  </Link>
+                  </IntentLink>
                   <span className="text-sm whitespace-nowrap text-ink-3">{t.quotes(f.days(s.leadTimeDays))}</span>
                 </p>
                 <p className={`shrink-0 text-sm ${s.onTime < s.deliveries.length ? "font-semibold" : ""}`}>{record}</p>

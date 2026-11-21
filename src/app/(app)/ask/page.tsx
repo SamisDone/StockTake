@@ -10,18 +10,19 @@ import { getLanguage, getMoneyPrefs } from "@/server/preferences";
 import type { Language } from "@/lib/i18n";
 import { ASK_COPY } from "./copy";
 import { Conversation } from "./conversation";
+import { WithLanguage } from "@/components/with-language";
+import { both } from "@/lib/i18n";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: ASK_COPY[await getLanguage()].title };
 }
 
-export default async function AskPage() {
-  const language = await getLanguage();
+export default function AskPage() {
   return (
     <PageTransition>
-      <PageHeader title={ASK_COPY[language].title} />
+      <PageHeader title={both(ASK_COPY, (t) => t.title)} />
       <Reveal fallback={<AskPlaceholder />}>
-        <AskLoaded language={language} />
+        <WithLanguage>{(language) => <AskLoaded language={language} />}</WithLanguage>
       </Reveal>
     </PageTransition>
   );

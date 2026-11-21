@@ -1,11 +1,13 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { z } from "zod";
 import { DomainError } from "@/domain/errors";
 import { recordCount, recordStockChange } from "@/domain/stock";
 import { parseUnits } from "@/lib/parse";
 import { type FormState, field, formError } from "./form-state";
 import { authorize } from "./dal";
+import { ledgerPage } from "./ledger";
 import { ACTION_COPY } from "./action-copy";
 
 export type StockKind = "count" | "sale" | "return" | "write_off";
@@ -69,4 +71,22 @@ export async function recordStock(_previous: StockFormState, formData: FormData)
 
   refresh();
   return { done: { message, at: Date.now() }, values: { kind } };
+}
+
+const cursorInput = z.object({
+  productId: z.number().int().positive(),
+  occurredAt: z.number().int().nonnegative(),
+  id: z.number().int().positive(),
+});
+
+/**
+ * The next page of a product's ledger, older than the last movement shown. Anyone signed
+ * in can read a ledger; a malformed cursor reads as nothing more to show.
+ */
+export async function olderMovements(raw: { productId: number; occurredAt: number; id: number }) {
+  const { db } = await authorize();
+  const parsed = cursorInput.safeParse(raw);
+  if (!parsed.success) return [];
+  const { productId, occurredAt, id } = parsed.data;
+  return ledgerPage(db, productId, { occurredAt: new Date(occurredAt), id });
 }

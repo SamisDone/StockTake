@@ -11,18 +11,21 @@ import { CoverBar, MobileName, StatusMark, Tally, TallyPlaceholder, Th } from "@
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
 import { getCurrentUser } from "@/server/dal";
 import { getLanguage, getMoneyPrefs } from "@/server/preferences";
+import { IntentLink } from "@/components/intent-link";
+import { EitherLanguage } from "@/components/either-language";
+import { WithLanguage } from "@/components/with-language";
+import { both } from "@/lib/i18n";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: COPY[await getLanguage()].title };
 }
 
-export default async function DashboardPage() {
-  const language = await getLanguage();
+export default function DashboardPage() {
   return (
     <PageTransition>
-      <PageHeader title={COPY[language].title} />
-      <Reveal fallback={<AttentionPlaceholder t={COPY[language]} />}>
-        <Attention language={language} />
+      <PageHeader title={both(COPY, (t) => t.title)} />
+      <Reveal fallback={<EitherLanguage>{(language) => <AttentionPlaceholder t={COPY[language]} />}</EitherLanguage>}>
+        <WithLanguage>{(language) => <Attention language={language} />}</WithLanguage>
       </Reveal>
     </PageTransition>
   );
@@ -62,7 +65,6 @@ async function Attention({ language }: { language: Language }) {
               {t.coverHelp}{" "}
               <Link
                 href="/orders"
-                prefetch={false}
                 transitionTypes={NAV_FORWARD}
                 className="font-semibold text-ink underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
               >
@@ -108,19 +110,18 @@ function AttentionRow({
   const suggestedCost = row.suggestedQuantity * row.unitCostCents;
 
   return (
-    <tr className="relative border-b border-hairline align-top transition-colors duration-150 last:border-b-0 hover:bg-liner/60 max-md:grid max-md:grid-cols-[4.5rem_minmax(0,1fr)_6.5rem] max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8">
+    <tr className="relative border-b border-hairline align-top row-hit last:border-b-0 max-md:grid max-md:grid-cols-[4.5rem_minmax(0,1fr)_6.5rem] max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8">
       <td className="py-3 pr-4 max-md:col-span-3 max-md:p-0 md:pl-8">
         <div className="flex items-baseline gap-2">
           <StatusMark status={row.status} language={f.language} />
           {/* The name links to the product; its hit area stretches over the whole row. */}
-          <Link
+          <IntentLink
             href={`/products/${row.id}`}
-            prefetch={false}
             transitionTypes={NAV_FORWARD}
             className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
           >
             {row.name}
-          </Link>
+          </IntentLink>
         </div>
         <p className="mt-0.5 text-sm text-ink-3">
           <span className="font-mono text-xs">{row.sku}</span>

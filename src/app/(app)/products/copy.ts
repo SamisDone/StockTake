@@ -89,6 +89,9 @@ const en = {
     "Every change to on hand, newest first. Balance is the running total, so the top line is what's on hand now.",
   noMovements: "No movements yet. Stock starts at zero until it's counted.",
   showing: (shown: string, total: string) => `Showing the latest ${shown} of ${total} movements.`,
+  showOlder: "Show older",
+  loadingOlder: "Loading…",
+  olderFailed: "Couldn't load older movements. Try again.",
   ledgerColumns: { date: "Date", movement: "Movement", change: "Change", balance: "Balance", by: "By" },
   kinds: {
     receipt: "Receipt",
@@ -253,6 +256,9 @@ const bn: ProductsCopy = {
   ledgerHelp: "মজুতের প্রতিটি পরিবর্তন, নতুনগুলো ওপরে। ব্যালান্স চলতি যোগফল, তাই প্রথম লাইনটিই এখনকার মজুত।",
   noMovements: "এখনো কোনো লেনদেন নেই। গোনা না হওয়া পর্যন্ত মজুত শূন্য থেকে শুরু।",
   showing: (shown, total) => `মোট ${total}টি লেনদেনের মধ্যে সর্বশেষ ${shown}টি দেখানো হচ্ছে।`,
+  showOlder: "আরও পুরোনো দেখুন",
+  loadingOlder: "আনা হচ্ছে…",
+  olderFailed: "পুরোনো লেনদেন আনা যায়নি। আবার চেষ্টা করুন।",
   ledgerColumns: { date: "তারিখ", movement: "লেনদেন", change: "পরিবর্তন", balance: "ব্যালান্স", by: "যিনি" },
   kinds: {
     receipt: "প্রাপ্তি",

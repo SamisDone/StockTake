@@ -93,7 +93,6 @@ export function ProposalSlip({
             {t.written[0]}
             <Link
               href={`/orders/${written.id}`}
-              prefetch={false}
               transitionTypes={NAV_FORWARD}
               className="font-mono text-[0.875em] underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
             >

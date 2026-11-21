@@ -25,6 +25,10 @@ import {
   groupFeed,
   readFeedParams,
 } from "./feed";
+import { IntentLink } from "@/components/intent-link";
+import { EitherLanguage } from "@/components/either-language";
+import { WithLanguage } from "@/components/with-language";
+import { both } from "@/lib/i18n";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: COPY[await getLanguage()].title };
@@ -34,14 +38,12 @@ export async function generateMetadata(): Promise<Metadata> {
 const WEEK_LIMIT = 2000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export default async function ActivityPage({ searchParams }: PageProps<"/activity">) {
-  const language = await getLanguage();
-  const t = COPY[language];
+export default function ActivityPage({ searchParams }: PageProps<"/activity">) {
   return (
     <PageTransition>
-      <PageHeader title={t.title} />
-      <Reveal fallback={<FeedPlaceholder t={t} />}>
-        <Feed searchParams={searchParams} language={language} />
+      <PageHeader title={both(COPY, (t) => t.title)} />
+      <Reveal fallback={<EitherLanguage>{(language) => <FeedPlaceholder t={COPY[language]} />}</EitherLanguage>}>
+        <WithLanguage>{(language) => <Feed searchParams={searchParams} language={language} />}</WithLanguage>
       </Reveal>
     </PageTransition>
   );
@@ -209,7 +211,7 @@ function Item({ item, who, f, t }: { item: FeedItem; who: boolean; f: Formats; t
     <li className="border-b border-hairline last:border-b-0">
       <details className="group">
         <summary
-          className={`${row(who)} cursor-pointer list-none transition-colors duration-150 hover:bg-liner/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink [&::-webkit-details-marker]:hidden`}
+          className={`${row(who)} cursor-pointer list-none row-hit focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink [&::-webkit-details-marker]:hidden`}
         >
           <time dateTime={entries[0].occurredAt.toISOString()} className="tabular text-sm text-ink-2">
             {latest}
@@ -265,7 +267,7 @@ function Entry({
   const text = activityText(f.language, entry);
   return (
     <li
-      className={`${row(who)} relative ${nested ? "" : "border-b border-hairline last:border-b-0"} ${href ? "transition-colors duration-150 hover:bg-liner/60" : ""}`}
+      className={`${row(who)} relative ${nested ? "" : "border-b border-hairline last:border-b-0"} ${href ? "row-hit" : ""}`}
     >
       <time dateTime={entry.occurredAt.toISOString()} className="tabular text-sm text-ink-2">
         {f.time(entry.occurredAt)}
@@ -277,13 +279,12 @@ function Entry({
       ) : null}
       <p className="min-w-0 text-sm">
         {href ? (
-          <Link
+          <IntentLink
             href={href}
-            prefetch={false}
             className="after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
           >
             {text}
-          </Link>
+          </IntentLink>
         ) : (
           text
         )}
@@ -299,7 +300,6 @@ function PageLink({ href, direction, children }: { href: Route; direction: "earl
   return (
     <Link
       href={href}
-      prefetch={false}
       className={`press-quiet flex min-h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-liner ${
         direction === "earlier" ? "-ml-3" : "-mr-3 ml-auto"
       }`}

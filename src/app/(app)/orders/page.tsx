@@ -17,35 +17,38 @@ import { ORDERS_COPY, type OrdersCopy } from "./copy";
 import { DraftButton } from "./draft-button";
 import { type OrderRow, OrderTable } from "./order-table";
 import { orderWhen } from "./status";
+import { IntentLink } from "@/components/intent-link";
+import { EitherLanguage } from "@/components/either-language";
+import { WithLanguage } from "@/components/with-language";
+import { both } from "@/lib/i18n";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: ORDERS_COPY[await getLanguage()].title };
 }
 
-export default async function OrdersPage() {
-  const language = await getLanguage();
-  const t = ORDERS_COPY[language];
+export default function OrdersPage() {
   return (
     <PageTransition>
       <PageHeader
-        title={t.title}
+        title={both(ORDERS_COPY, (t) => t.title)}
         actions={
           // Anyone can draft an order, so this needs no session and prints with the page.
           <Link
             href="/orders/new"
-            prefetch={false}
             transitionTypes={NAV_FORWARD}
             className="group flex h-12 items-center rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 hover:bg-ink-lift"
           >
             <span className="flex items-center gap-2 transition-transform duration-150 ease-out group-active:scale-[0.96]">
               <Plus aria-hidden size={18} strokeWidth={2.5} />
-              {t.newOrder}
+              <EitherLanguage inline>{(language) => ORDERS_COPY[language].newOrder}</EitherLanguage>
             </span>
           </Link>
         }
       />
-      <Reveal fallback={<OrdersPlaceholder t={t} />}>
-        <Orders language={language} />
+      <Reveal
+        fallback={<EitherLanguage>{(language) => <OrdersPlaceholder t={ORDERS_COPY[language]} />}</EitherLanguage>}
+      >
+        <WithLanguage>{(language) => <Orders language={language} />}</WithLanguage>
       </Reveal>
     </PageTransition>
   );
@@ -151,13 +154,12 @@ function Suggestions({
           {unsupplied.map((line, i) => (
             <span key={line.productId}>
               {i > 0 ? ", " : null}
-              <Link
+              <IntentLink
                 href={`/products/${line.productId}`}
-                prefetch={false}
                 className="font-semibold text-ink underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
               >
                 {line.name}
-              </Link>
+              </IntentLink>
             </span>
           ))}
           {t.unsupplied[1]}
@@ -213,14 +215,13 @@ function SuggestionRow({
             {drafts.map((id, i) => (
               <span key={id}>
                 {i > 0 ? ", " : null}
-                <Link
+                <IntentLink
                   href={`/orders/${id}`}
-                  prefetch={false}
                   transitionTypes={NAV_FORWARD}
                   className="font-semibold text-ink underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
                 >
                   {poNumber(id)}
-                </Link>
+                </IntentLink>
               </span>
             ))}
           </span>

@@ -27,19 +27,15 @@ export function PageTransition({ children }: { children: ReactNode }) {
 }
 
 /**
- * A Suspense boundary whose placeholder tears off and whose content prints in when the
- * data arrives, so loading reads as a handoff rather than a swap.
+ * A Suspense boundary whose content fades in over its placeholder when the data arrives.
+ * The page already printed in once with the placeholder in place, so the data doesn't
+ * print a second time: the placeholder simply goes, and the content arrives in 150ms,
+ * short enough that the page is never held unclickable for long.
  */
 export function Reveal({ fallback, children }: { fallback: ReactNode; children: ReactNode }) {
   return (
-    <Suspense
-      fallback={
-        <ViewTransition exit="tear" default="none">
-          {fallback}
-        </ViewTransition>
-      }
-    >
-      <ViewTransition enter="print" default="none">
+    <Suspense fallback={fallback}>
+      <ViewTransition enter="arrive" default="none">
         {children}
       </ViewTransition>
     </Suspense>

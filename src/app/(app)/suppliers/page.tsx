@@ -17,30 +17,34 @@ import { type MoneyFormat, moneyFormat } from "@/lib/money";
 import { getCurrentUser, getSessionUser } from "@/server/dal";
 import { getLanguage, getMoneyPrefs } from "@/server/preferences";
 import { SUPPLIERS_COPY, type SuppliersCopy } from "./copy";
+import { IntentLink } from "@/components/intent-link";
+import { EitherLanguage } from "@/components/either-language";
+import { WithLanguage } from "@/components/with-language";
+import { both } from "@/lib/i18n";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: SUPPLIERS_COPY[await getLanguage()].title };
 }
 
-export default async function SuppliersPage() {
-  const language = await getLanguage();
-  const t = SUPPLIERS_COPY[language];
+export default function SuppliersPage() {
   return (
     <PageTransition>
       <PageHeader
-        title={t.title}
+        title={both(SUPPLIERS_COPY, (t) => t.title)}
         actions={
           // The header keeps the button's height whoever is signed in, so it never grows
           // when the session arrives.
           <div className="flex h-12 items-end">
             <Suspense>
-              <AddSupplier t={t} />
+              <WithLanguage>{(language) => <AddSupplier t={SUPPLIERS_COPY[language]} />}</WithLanguage>
             </Suspense>
           </div>
         }
       />
-      <Reveal fallback={<ListPlaceholder t={t} />}>
-        <SupplierList language={language} />
+      <Reveal
+        fallback={<EitherLanguage>{(language) => <ListPlaceholder t={SUPPLIERS_COPY[language]} />}</EitherLanguage>}
+      >
+        <WithLanguage>{(language) => <SupplierList language={language} />}</WithLanguage>
       </Reveal>
     </PageTransition>
   );
@@ -52,7 +56,6 @@ async function AddSupplier({ t }: { t: SuppliersCopy }) {
   return (
     <Link
       href="/suppliers/new"
-      prefetch={false}
       transitionTypes={NAV_FORWARD}
       className="group flex h-12 items-center rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 hover:bg-ink-lift"
     >
@@ -157,18 +160,14 @@ async function SupplierList({ language }: { language: Language }) {
           <p className="mt-1 max-w-prose px-5 text-sm text-ink-2 sm:px-8">{t.archivedHelp}</p>
           <ul className="mt-3">
             {archived.map((r) => (
-              <li
-                key={r.id}
-                className="relative border-b border-hairline px-5 py-3 last:border-b-0 hover:bg-liner/60 sm:px-8"
-              >
-                <Link
+              <li key={r.id} className="relative border-b border-hairline px-5 py-3 last:border-b-0 row-hit sm:px-8">
+                <IntentLink
                   href={`/suppliers/${r.id}`}
-                  prefetch={false}
                   transitionTypes={NAV_FORWARD}
                   className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
                 >
                   {r.name}
-                </Link>
+                </IntentLink>
                 <span className="text-sm text-ink-2"> · {t.archivedOn(f.date(r.archivedAt!, now))}</span>
               </li>
             ))}
@@ -219,16 +218,15 @@ function SupplierTable({
 function SupplierRow({ row, m, f, t }: { row: Row; m: MoneyFormat; f: Formats; t: SuppliersCopy }) {
   const c = t.columns;
   return (
-    <tr className="relative border-b border-hairline align-top transition-colors duration-150 last:border-b-0 hover:bg-liner/60 max-lg:grid max-lg:grid-cols-2 max-lg:gap-x-5 max-lg:gap-y-3 max-lg:px-5 max-lg:py-4 sm:max-lg:grid-cols-4 sm:max-lg:px-8">
+    <tr className="relative border-b border-hairline align-top row-hit last:border-b-0 max-lg:grid max-lg:grid-cols-2 max-lg:gap-x-5 max-lg:gap-y-3 max-lg:px-5 max-lg:py-4 sm:max-lg:grid-cols-4 sm:max-lg:px-8">
       <td className="py-3 pr-4 max-lg:col-span-full max-lg:p-0 lg:pl-8">
-        <Link
+        <IntentLink
           href={`/suppliers/${row.id}`}
-          prefetch={false}
           transitionTypes={NAV_FORWARD}
           className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
         >
           {row.name}
-        </Link>
+        </IntentLink>
         {row.contact ? <p className="mt-0.5 text-sm text-ink-3">{row.contact}</p> : null}
       </td>
       <td className="py-3 pr-4 whitespace-nowrap max-lg:p-0 lg:text-right">

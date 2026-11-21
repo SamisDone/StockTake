@@ -5,6 +5,8 @@ import { getLanguage } from "@/server/preferences";
 import type { Language } from "@/lib/i18n";
 import { SUPPLIERS_COPY } from "../copy";
 import { SupplierLabel, SupplierLabelPlaceholder, supplierId } from "../supplier-label";
+import { EitherLanguage } from "@/components/either-language";
+import { WithLanguage } from "@/components/with-language";
 
 // A fixed title: naming the supplier would read the database outside the session check.
 export async function generateMetadata(): Promise<Metadata> {
@@ -12,14 +14,19 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /** One supplier, printed as its own label. */
-export default async function SupplierPage({ params }: PageProps<"/suppliers/[id]">) {
-  const language = await getLanguage();
+export default function SupplierPage({ params }: PageProps<"/suppliers/[id]">) {
   return (
     <PageTransition>
       <Reveal
-        fallback={<SupplierLabelPlaceholder language={language} action={<BackToSuppliers language={language} />} />}
+        fallback={
+          <EitherLanguage>
+            {(language) => (
+              <SupplierLabelPlaceholder language={language} action={<BackToSuppliers language={language} />} />
+            )}
+          </EitherLanguage>
+        }
       >
-        <Label params={params} language={language} />
+        <WithLanguage>{(language) => <Label params={params} language={language} />}</WithLanguage>
       </Reveal>
     </PageTransition>
   );

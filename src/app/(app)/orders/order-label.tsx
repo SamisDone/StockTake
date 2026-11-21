@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
@@ -18,6 +17,7 @@ import { DraftForm } from "./draft-form";
 import { dayInput } from "./draft-values";
 import { OrderControls } from "./order-controls";
 import { ORDERS_COPY, type OrdersCopy } from "./copy";
+import { IntentLink } from "@/components/intent-link";
 
 /** An order ID from the URL, or a 404 for anything that isn't one. */
 export function orderId(raw: string) {
@@ -111,13 +111,12 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
             {order.lines.map((line) => (
               <tr key={line.id} className="border-b border-hairline align-top last:border-b-0">
                 <td className="py-2.5 pr-4 pl-5 sm:pl-8">
-                  <Link
+                  <IntentLink
                     href={`/products/${line.productId}`}
-                    prefetch={false}
                     className="font-semibold underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
                   >
                     {line.name}
-                  </Link>
+                  </IntentLink>
                   <p className="font-mono text-xs text-ink-3">{line.sku}</p>
                 </td>
                 <td className="tabular py-2.5 pr-4 text-right">{f.count(line.quantity)}</td>

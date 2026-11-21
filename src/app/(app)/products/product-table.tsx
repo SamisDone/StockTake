@@ -1,7 +1,6 @@
 "use client";
 
 import { Search, X } from "lucide-react";
-import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { StockStatus } from "@/domain/forecast";
@@ -12,6 +11,7 @@ import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { PRODUCTS_COPY, type ProductsCopy } from "./copy";
+import { IntentLink } from "@/components/intent-link";
 
 export type ProductRow = {
   id: number;
@@ -208,21 +208,20 @@ function Row({
 }) {
   return (
     <tr
-      className={`relative border-b border-hairline align-top transition-colors duration-150 last:border-b-0 max-md:grid max-md:grid-cols-[4.5rem_minmax(0,1fr)_6.5rem] max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8 ${
-        selected ? "bg-liner" : "hover:bg-liner/60"
+      className={`relative border-b border-hairline align-top last:border-b-0 max-md:grid max-md:grid-cols-[4.5rem_minmax(0,1fr)_6.5rem] max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8 ${
+        selected ? "bg-liner" : "row-hit"
       }`}
     >
       <td className="py-3 pr-4 max-md:col-span-3 max-md:p-0 md:pl-8">
         <div className="flex items-baseline gap-2">
           {row.archivedOn ? null : <StatusMark status={row.status} language={f.language} />}
-          <Link
+          <IntentLink
             href={`/products/${row.id}`}
-            prefetch={false}
             scroll={false}
             className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
           >
             {row.name}
-          </Link>
+          </IntentLink>
         </div>
         <p className="mt-0.5 text-sm text-ink-3">
           <span className="font-mono text-xs">{row.sku}</span>

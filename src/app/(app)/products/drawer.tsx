@@ -3,6 +3,8 @@
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { EitherLanguage } from "@/components/either-language";
+import type { Language } from "@/lib/i18n";
 
 /**
  * A product opened over the list: a second label laid on top of the sheet, as a modal
@@ -13,7 +15,7 @@ import { useLayoutEffect, useRef, type ReactNode } from "react";
  * as it opens (`@starting-style`) and pushed back before the route changes, so an open
  * or close can be interrupted midway and the list beneath never moves.
  */
-export function Drawer({ closeLabel, children }: { closeLabel: string; children: ReactNode }) {
+export function Drawer({ closeLabel, children }: { closeLabel: Record<Language, string>; children: ReactNode }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -36,17 +38,22 @@ export function Drawer({ closeLabel, children }: { closeLabel: string; children:
     };
   }, []);
 
-  /** Push the label back to the edge, then go back once it's gone. */
+  /**
+   * Push the label back to the edge, then go back once it's gone. The dialog closes the
+   * moment the label is gone, not when the route changes: while it's open the page
+   * under it is inert, and a click on the list or the rail would be lost meanwhile.
+   */
   function close() {
     const node = dialog.current;
     if (!node || "closing" in node.dataset) return;
     node.dataset.closing = "";
     // Reading the animations applies the style change, so the transitions exist now.
     const leaving = panel.current?.getAnimations() ?? [];
-    Promise.all(leaving.map((animation) => animation.finished)).then(
-      () => router.back(),
-      () => router.back(),
-    );
+    const leave = () => {
+      node.close();
+      router.back();
+    };
+    Promise.all(leaving.map((animation) => animation.finished)).then(leave, leave);
   }
 
   return (
@@ -73,7 +80,7 @@ export function Drawer({ closeLabel, children }: { closeLabel: string; children:
           className="absolute top-3 right-2 z-10 flex min-h-11 items-center gap-1.5 rounded-control bg-label px-3 text-sm font-semibold text-ink-2 press-quiet hover:bg-liner hover:text-ink sm:top-5 sm:right-5"
         >
           <X aria-hidden size={18} strokeWidth={2.25} />
-          {closeLabel}
+          <EitherLanguage inline>{(language) => closeLabel[language]}</EitherLanguage>
         </button>
         <div className="h-full overflow-y-auto overscroll-contain">{children}</div>
       </div>

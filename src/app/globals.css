@@ -210,6 +210,22 @@
   }
 }
 
+/* A row that is one link (a stretched link makes the whole row its hit area): tinted
+   under the pointer, and darker the moment it's pressed, before the next page arrives,
+   so a click is answered at once. */
+@utility row-hit {
+  transition: background-color 150ms var(--ease-out);
+  @media (hover: hover) {
+    &:hover {
+      background-color: color-mix(in srgb, var(--color-liner) 60%, transparent);
+    }
+  }
+  &:active {
+    background-color: var(--color-liner);
+    transition-duration: 0ms;
+  }
+}
+
 /* Chart fills, in the one ink, for marks that need telling apart without color. Hollow
    is a mark that missed (a delivery after its due day); hatched is stock that was lost,
    one direction for write-offs, the other for what counts found missing. Outlines keep
@@ -239,6 +255,15 @@
   pointer-events: none;
 }
 
+/* Only named parts move. The rest of the page (the liner, the sheet's frame) swaps at
+   once rather than cross-fading the whole screen underneath every transition. */
+::view-transition-old(root) {
+  display: none;
+}
+::view-transition-new(root) {
+  animation: none;
+}
+
 ::view-transition-group(app-rail),
 ::view-transition-group(app-bar) {
   animation: none;
@@ -258,6 +283,10 @@
 }
 ::view-transition-old(.tear) {
   animation: 110ms var(--ease-out) both fade-out;
+}
+/* Data landing in a page that already printed: a short fade, no second print. */
+::view-transition-new(.arrive) {
+  animation: 150ms var(--ease-out) both fade-in;
 }
 
 ::view-transition-old(.nav-forward) {

@@ -14,30 +14,33 @@ import { getCurrentUser, getSessionUser } from "@/server/dal";
 import { getLanguage, getMoneyPrefs } from "@/server/preferences";
 import { PRODUCTS_COPY, type ProductsCopy } from "./copy";
 import { type ProductRow, ProductTable } from "./product-table";
+import { EitherLanguage } from "@/components/either-language";
+import { WithLanguage } from "@/components/with-language";
+import { both } from "@/lib/i18n";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: PRODUCTS_COPY[await getLanguage()].title };
 }
 
-export default async function ProductsPage() {
-  const language = await getLanguage();
-  const t = PRODUCTS_COPY[language];
+export default function ProductsPage() {
   return (
     <PageTransition>
       <PageHeader
-        title={t.title}
+        title={both(PRODUCTS_COPY, (t) => t.title)}
         actions={
           // The header keeps the button's height whoever is signed in, so it never grows
           // when the session arrives.
           <div className="flex h-12 items-end">
             <Suspense>
-              <AddProduct t={t} />
+              <WithLanguage>{(language) => <AddProduct t={PRODUCTS_COPY[language]} />}</WithLanguage>
             </Suspense>
           </div>
         }
       />
-      <Reveal fallback={<ListPlaceholder t={t} />}>
-        <ProductList language={language} />
+      <Reveal
+        fallback={<EitherLanguage>{(language) => <ListPlaceholder t={PRODUCTS_COPY[language]} />}</EitherLanguage>}
+      >
+        <WithLanguage>{(language) => <ProductList language={language} />}</WithLanguage>
       </Reveal>
     </PageTransition>
   );
@@ -78,7 +81,6 @@ async function AddProduct({ t }: { t: ProductsCopy }) {
   return (
     <Link
       href="/products/new"
-      prefetch={false}
       scroll={false}
       className="group flex h-12 items-center rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 hover:bg-ink-lift"
     >

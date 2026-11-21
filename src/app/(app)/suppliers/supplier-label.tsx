@@ -24,6 +24,7 @@ import { SUPPLIERS_COPY, type SuppliersCopy } from "./copy";
 import { RestoreSupplier } from "./restore-supplier";
 import { ReviewForm } from "./review-form";
 import { SupplierForm } from "./supplier-form";
+import { IntentLink } from "@/components/intent-link";
 
 /** The label lists this many of the supplier's newest orders. */
 const ORDER_LIMIT = 8;
@@ -191,18 +192,17 @@ export async function SupplierLabel({ id, action }: { id: number; action: ReactN
               {products.map((p) => (
                 <tr
                   key={p.id}
-                  className="relative border-b border-hairline align-top transition-colors duration-150 last:border-b-0 hover:bg-liner/60 max-md:grid max-md:grid-cols-[auto_minmax(0,1fr)] max-md:gap-x-6 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8"
+                  className="relative border-b border-hairline align-top row-hit last:border-b-0 max-md:grid max-md:grid-cols-[auto_minmax(0,1fr)] max-md:gap-x-6 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8"
                 >
                   <td className="py-3 pr-4 max-md:col-span-2 max-md:p-0 md:pl-8">
                     <div className="flex items-baseline gap-2">
                       <StatusMark status={p.status} language={language} />
-                      <Link
+                      <IntentLink
                         href={`/products/${p.id}`}
-                        prefetch={false}
                         className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
                       >
                         {p.name}
-                      </Link>
+                      </IntentLink>
                     </div>
                     <p className="mt-0.5 font-mono text-xs text-ink-3">{p.sku}</p>
                   </td>
@@ -238,7 +238,6 @@ export async function SupplierLabel({ id, action }: { id: number; action: ReactN
           {supplier.archivedAt ? null : (
             <Link
               href={`/orders/new?supplier=${supplier.id}`}
-              prefetch={false}
               transitionTypes={NAV_FORWARD}
               className="press-quiet -mr-3 flex min-h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-liner"
             >
@@ -254,20 +253,19 @@ export async function SupplierLabel({ id, action }: { id: number; action: ReactN
               return (
                 <li
                   key={o.id}
-                  className="relative flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-hairline px-5 py-3 transition-colors duration-150 last:border-b-0 hover:bg-liner/60 sm:px-8"
+                  className="relative flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-hairline px-5 py-3 transition-colors duration-150 last:border-b-0 row-hit sm:px-8"
                 >
                   <div className="flex min-w-0 items-baseline gap-2">
                     {late ? (
                       <span className="shrink-0 rounded-mark bg-stock px-1.5 py-px text-xs font-bold">{t.late}</span>
                     ) : null}
-                    <Link
+                    <IntentLink
                       href={`/orders/${o.id}`}
-                      prefetch={false}
                       transitionTypes={NAV_FORWARD}
                       className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
                     >
                       {o.number}
-                    </Link>
+                    </IntentLink>
                     <span className="text-sm text-ink-2">
                       {/* The date phrase names the state ("Received Nov 19"); only "Due" needs "Placed". */}
                       {o.status === "ordered" ? `${t.placed} · ` : null}
@@ -398,7 +396,6 @@ function Status({
             {i > 0 ? ", " : null}
             <Link
               href={`/orders/${draftId}`}
-              prefetch={false}
               transitionTypes={NAV_FORWARD}
               className="font-semibold underline decoration-ink-3 underline-offset-4 hover:decoration-ink"
             >

@@ -36,7 +36,6 @@ export function FilterLink({ href, current, children }: { href: Route; current: 
       href={href}
       replace
       scroll={false}
-      prefetch={false}
       aria-current={current ? "true" : undefined}
       className={`inline-flex min-h-9 shrink-0 items-center rounded-control px-3 text-sm font-semibold whitespace-nowrap transition-colors duration-150 select-none pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current ${
         current ? "bg-ink text-label" : "text-ink-2 hover:bg-liner hover:text-ink"

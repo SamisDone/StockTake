@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
 import type { Database } from "@/db/database";
@@ -142,8 +142,19 @@ export async function recordCount(db: Database, actor: Actor, raw: CountInput, n
   return { onHand: input.counted, difference };
 }
 
-/** A product's ledger, newest first, with the running balance after each movement. */
-export async function listMovements(db: Database, id: number, { limit = 50 } = {}) {
+/** Where a page of the ledger ends: the oldest movement shown so far. */
+export type LedgerCursor = { occurredAt: Date; id: number };
+
+/**
+ * A product's ledger, newest first, with the running balance after each movement. With
+ * `before`, the page of movements older than that one. The balance stays right on any
+ * page: it sums from the first movement, and every movement older than the cursor is in.
+ */
+export async function listMovements(
+  db: Database,
+  id: number,
+  { limit = 50, before }: { limit?: number; before?: LedgerCursor } = {},
+) {
   const balance = sql<number>`sum(${stockMovements.quantity}) OVER (ORDER BY ${stockMovements.occurredAt}, ${stockMovements.id})`;
   return db
     .select({
@@ -159,7 +170,14 @@ export async function listMovements(db: Database, id: number, { limit = 50 } = {
     .from(stockMovements)
     .leftJoin(users, eq(users.id, stockMovements.userId))
     .leftJoin(purchaseOrderLines, eq(purchaseOrderLines.id, stockMovements.purchaseOrderLineId))
-    .where(eq(stockMovements.productId, id))
+    .where(
+      and(
+        eq(stockMovements.productId, id),
+        before
+          ? sql`(${stockMovements.occurredAt}, ${stockMovements.id}) < (${before.occurredAt.getTime()}, ${before.id})`
+          : undefined,
+      ),
+    )
     .orderBy(desc(stockMovements.occurredAt), desc(stockMovements.id))
     .limit(limit);
 }

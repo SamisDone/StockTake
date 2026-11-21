@@ -142,4 +142,21 @@ describe("listMovements", () => {
     ]);
     expect(movements[0].occurredAt).toEqual(at(3));
   });
+
+  it("pages back from a cursor with the balance still right", async () => {
+    await recordCount(db, admin, { productId: 1, counted: 10 }, at(1));
+    await recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 4 }, at(2));
+    await recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 1 }, at(2));
+    await recordStockChange(db, staff, { productId: 1, kind: "return", quantity: 1 }, at(3));
+
+    const first = await listMovements(db, 1, { limit: 2 });
+    expect(first.map((m) => m.balance)).toEqual([6, 5]);
+    const last = first.at(-1)!;
+    // The second sale shares its time with the first: the ID breaks the tie.
+    const older = await listMovements(db, 1, { limit: 2, before: { occurredAt: last.occurredAt, id: last.id } });
+    expect(older.map((m) => [m.quantity, m.balance])).toEqual([
+      [-4, 6],
+      [10, 10],
+    ]);
+  });
 });

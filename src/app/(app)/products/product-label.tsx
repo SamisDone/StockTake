@@ -7,8 +7,7 @@ import type { Database } from "@/db/database";
 import { DomainError } from "@/domain/errors";
 import { DEFAULT_LEAD_TIME_DAYS, DEMAND_WINDOW_DAYS, type StockForecast, getProductForecast } from "@/domain/forecast";
 import { listCategories } from "@/domain/products";
-import { poNumber } from "@/domain/purchase-orders";
-import { countMovements, listMovements } from "@/domain/stock";
+import { countMovements } from "@/domain/stock";
 import { listSuppliers } from "@/domain/suppliers";
 import { CoverTrack, Tally, TallyPlaceholder } from "@/components/stock";
 import { explainStock } from "@/lib/explain";
@@ -17,16 +16,15 @@ import type { Language } from "@/lib/i18n";
 import { type MoneyFormat, moneyFormat } from "@/lib/money";
 import { centsToInput } from "@/lib/parse";
 import { getCurrentUser } from "@/server/dal";
+import { ledgerPage } from "@/server/ledger";
 import { getLanguage, getMoneyPrefs } from "@/server/preferences";
 import { EditButton, LabelEditor } from "@/components/label-editor";
 import { ProductForm } from "./product-form";
 import type { SupplierOption } from "./product-values";
+import { Ledger } from "./ledger";
 import { RecordStock } from "./record-stock";
 import { RestoreProduct } from "./restore-product";
 import { PRODUCTS_COPY, type ProductsCopy } from "./copy";
-
-/** The ledger shows this many of the newest movements. */
-const LEDGER_LIMIT = 50;
 
 /** A product ID from the URL, or a 404 for anything that isn't one. */
 export function productId(raw: string) {
@@ -58,7 +56,7 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
   const canEdit = isAdmin && !product.archivedAt;
   const language = await getLanguage();
   const [movements, total, editing, money] = await Promise.all([
-    listMovements(db, id, { limit: LEDGER_LIMIT }),
+    ledgerPage(db, id),
     countMovements(db, id),
     canEdit ? editingOptions(db, language, product.supplierId) : null,
     getMoneyPrefs(),
@@ -126,7 +124,6 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
             product.supplierId !== null && product.supplierName ? (
               <Link
                 href={`/suppliers/${product.supplierId}`}
-                prefetch={false}
                 className="underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
               >
                 {product.supplierName}
@@ -172,11 +169,16 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
         {movements.length === 0 ? (
           <p className="mt-4 px-5 font-semibold sm:px-8">{t.noMovements}</p>
         ) : (
-          <Ledger movements={movements} now={now} f={f} t={t} />
+          // A new movement changes the newest entry and the total, which starts the ledger over.
+          <Ledger
+            key={`${movements[0].id}-${total}`}
+            productId={product.id}
+            initial={movements}
+            total={total}
+            now={now}
+            language={language}
+          />
         )}
-        {total > movements.length ? (
-          <p className="mt-3 px-5 text-sm text-ink-2 sm:px-8">{t.showing(f.count(movements.length), f.count(total))}</p>
-        ) : null}
       </section>
     </article>
   );
@@ -271,66 +273,6 @@ function Detail({ name, value, children }: { name: string; value: ReactNode; chi
       <dd className="mt-0.5 text-lg font-medium text-pretty break-words">{value}</dd>
       {children ? <dd className="text-xs text-ink-3">{children}</dd> : null}
     </div>
-  );
-}
-
-type Movement = Awaited<ReturnType<typeof listMovements>>[number];
-
-/** The ledger: one row per movement with the running balance after it. */
-function Ledger({ movements, now, f, t }: { movements: Movement[]; now: Date; f: Formats; t: ProductsCopy }) {
-  const c = t.ledgerColumns;
-  return (
-    <table className="mt-4 w-full border-collapse text-left text-sm">
-      <thead>
-        <tr className="border-b border-ink">
-          <LedgerTh className="pl-5 sm:pl-8">{c.date}</LedgerTh>
-          <LedgerTh className="w-full">{c.movement}</LedgerTh>
-          <LedgerTh align="right">{c.change}</LedgerTh>
-          <LedgerTh align="right" className="pr-5 sm:pr-8 md:pr-4">
-            {c.balance}
-          </LedgerTh>
-          <LedgerTh className="max-md:hidden md:pr-8">{c.by}</LedgerTh>
-        </tr>
-      </thead>
-      <tbody>
-        {movements.map((move, index) => (
-          <tr key={move.id} className="border-b border-hairline align-top last:border-b-0">
-            <td className="py-2.5 pr-4 pl-5 whitespace-nowrap text-ink-2 sm:pl-8">{f.date(move.occurredAt, now)}</td>
-            <td className="py-2.5 pr-4">
-              <span className="font-semibold">{t.kinds[move.kind]}</span>
-              {move.purchaseOrderId ? (
-                <span className="ml-2 font-mono text-xs text-ink-3">{poNumber(move.purchaseOrderId)}</span>
-              ) : null}
-              {move.note ? <p className="text-ink-3">{move.note}</p> : null}
-              {move.userName ? <p className="text-ink-3 md:hidden">{move.userName}</p> : null}
-            </td>
-            <td className="tabular py-2.5 pr-4 text-right font-semibold">{f.change(move.quantity)}</td>
-            <td
-              className={`tabular py-2.5 pr-5 text-right sm:pr-8 md:pr-4 ${index === 0 ? "font-bold" : "text-ink-2"}`}
-            >
-              {f.count(move.balance)}
-            </td>
-            <td className="py-2.5 whitespace-nowrap text-ink-2 max-md:hidden md:pr-8">{move.userName ?? "–"}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function LedgerTh({
-  children,
-  align = "left",
-  className = "",
-}: {
-  children: ReactNode;
-  align?: "left" | "right";
-  className?: string;
-}) {
-  return (
-    <th scope="col" className={`field-name pt-1 pr-4 pb-2 ${align === "right" ? "text-right" : ""} ${className}`}>
-      {children}
-    </th>
   );
 }
 

@@ -5,20 +5,27 @@ import { BackToProducts } from "../back-to-products";
 import { getLanguage } from "@/server/preferences";
 import { PRODUCTS_COPY } from "../copy";
 import { ProductLabel, ProductLabelPlaceholder, productId } from "../product-label";
+import { EitherLanguage } from "@/components/either-language";
+import { WithLanguage } from "@/components/with-language";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: PRODUCTS_COPY[await getLanguage()].productTitle };
 }
 
 /** A product as its own page: what a shared link or a reload of an open drawer prints. */
-export default async function ProductPage({ params }: PageProps<"/products/[id]">) {
-  const language = await getLanguage();
+export default function ProductPage({ params }: PageProps<"/products/[id]">) {
   return (
     <PageTransition>
       <Reveal
-        fallback={<ProductLabelPlaceholder language={language} action={<BackToProducts language={language} />} />}
+        fallback={
+          <EitherLanguage>
+            {(language) => (
+              <ProductLabelPlaceholder language={language} action={<BackToProducts language={language} />} />
+            )}
+          </EitherLanguage>
+        }
       >
-        <Label params={params} language={language} />
+        <WithLanguage>{(language) => <Label params={params} language={language} />}</WithLanguage>
       </Reveal>
     </PageTransition>
   );

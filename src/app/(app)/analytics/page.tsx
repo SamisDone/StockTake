@@ -1,6 +1,5 @@
 import { Check, ChevronDown } from "lucide-react";
 import type { Metadata, Route } from "next";
-import Link from "next/link";
 import { connection } from "next/server";
 import { ViewTransition, type ReactNode } from "react";
 import { getDb } from "@/db/client";
@@ -29,19 +28,23 @@ import { SalesChart } from "./sales-chart";
 import { StockChart } from "./stock-chart";
 import { WhereItWent } from "./where-it-went";
 import { Key, Zone } from "./zone";
+import { IntentLink } from "@/components/intent-link";
+import { EitherLanguage } from "@/components/either-language";
+import { WithLanguage } from "@/components/with-language";
+import { both } from "@/lib/i18n";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: ANALYTICS_COPY[await getLanguage()].title };
 }
 
-export default async function AnalyticsPage({ searchParams }: PageProps<"/analytics">) {
-  const language = await getLanguage();
-  const t = ANALYTICS_COPY[language];
+export default function AnalyticsPage({ searchParams }: PageProps<"/analytics">) {
   return (
     <PageTransition>
-      <PageHeader title={t.title} />
-      <Reveal fallback={<ReportPlaceholder t={t} />}>
-        <Report searchParams={searchParams} language={language} />
+      <PageHeader title={both(ANALYTICS_COPY, (t) => t.title)} />
+      <Reveal
+        fallback={<EitherLanguage>{(language) => <ReportPlaceholder t={ANALYTICS_COPY[language]} />}</EitherLanguage>}
+      >
+        <WithLanguage>{(language) => <Report searchParams={searchParams} language={language} />}</WithLanguage>
       </Reveal>
     </PageTransition>
   );
@@ -503,18 +506,17 @@ function ProductList({
             return (
               <li
                 key={p.id}
-                className="relative flex items-start justify-between gap-4 border-b border-hairline px-5 py-3 transition-colors duration-150 last:border-b-0 hover:bg-liner/60 sm:px-8"
+                className="relative flex items-start justify-between gap-4 border-b border-hairline px-5 py-3 transition-colors duration-150 last:border-b-0 row-hit sm:px-8"
               >
                 <div className="min-w-0">
                   {/* The name links to the product; its hit area stretches over the whole row. */}
-                  <Link
+                  <IntentLink
                     href={`/products/${p.id}`}
-                    prefetch={false}
                     transitionTypes={NAV_FORWARD}
                     className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
                   >
                     {p.name}
-                  </Link>
+                  </IntentLink>
                   <p className="mt-0.5 font-mono text-xs text-ink-3">{p.sku}</p>
                 </div>
                 <div className="shrink-0 text-right">

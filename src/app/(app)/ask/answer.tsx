@@ -1,9 +1,9 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Ref } from "@/assistant/tools";
 import { NAV_FORWARD } from "@/components/transitions";
 import { type Inline, localProse, parseAnswer, refHref } from "@/lib/answer-text";
 import type { Language } from "@/lib/i18n";
+import { IntentLink } from "@/components/intent-link";
 
 /**
  * An answer, printed as prose in the reader's digits. Records it names link to their own
@@ -40,17 +40,16 @@ function printed(content: Inline[], language: Language): ReactNode[] {
     if (part.type === "bold") return <strong key={i}>{printed(part.children, language)}</strong>;
     const machine = part.ref.code !== undefined && part.text.toLowerCase() === part.ref.code.toLowerCase();
     return (
-      <Link
+      <IntentLink
         key={i}
         href={refHref(part.ref)}
-        prefetch={false}
         transitionTypes={NAV_FORWARD}
         className={`font-semibold underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink ${
           machine ? "font-mono text-[0.875em] font-normal" : ""
         }`}
       >
         {machine ? part.text : localProse(part.text, language)}
-      </Link>
+      </IntentLink>
     );
   });
 }

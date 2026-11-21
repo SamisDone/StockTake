@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { PurchaseOrderStatus } from "@/db/schema";
@@ -12,6 +11,7 @@ import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { ORDERS_COPY, type OrdersCopy } from "./copy";
+import { IntentLink } from "@/components/intent-link";
 
 export type OrderRow = {
   id: number;
@@ -115,20 +115,19 @@ export function OrderTable({ rows, money, language }: { rows: OrderRow[]; money:
 /** One order: the supplier's name opens it, and the whole row is the hit area. */
 function Row({ row, m, f, t }: { row: OrderRow; m: MoneyFormat; f: Formats; t: OrdersCopy }) {
   return (
-    <tr className="relative border-b border-hairline align-top transition-colors duration-150 last:border-b-0 hover:bg-liner/60 max-md:grid max-md:grid-cols-3 max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8">
+    <tr className="relative border-b border-hairline align-top row-hit last:border-b-0 max-md:grid max-md:grid-cols-3 max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8">
       <td className="py-3 pr-4 max-md:col-span-3 max-md:p-0 md:pl-8">
         <div className="flex items-baseline gap-2">
           {row.late ? (
             <span className="shrink-0 rounded-mark bg-stock px-1.5 py-px text-xs font-bold">{t.late}</span>
           ) : null}
-          <Link
+          <IntentLink
             href={`/orders/${row.id}`}
-            prefetch={false}
             transitionTypes={NAV_FORWARD}
             className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
           >
             {row.supplierName}
-          </Link>
+          </IntentLink>
         </div>
         <p className="mt-0.5 font-mono text-xs text-ink-3">{row.number}</p>
       </td>

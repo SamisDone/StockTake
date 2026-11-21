@@ -34,3 +34,8 @@ export function banglaDigits(text: string) {
 export function localDigits(text: string, language: Language) {
   return language === "bn" ? banglaDigits(text) : text;
 }
+
+/** One piece of copy in both languages, e.g. a page title for `PageHeader`. */
+export function both<T, R>(copy: Copy<T>, pick: (t: T) => R): Record<Language, R> {
+  return { en: pick(copy.en), bn: pick(copy.bn) };
+}
