@@ -53,3 +53,10 @@ export function formatMargin(costCents: number, priceCents: number) {
   const percent = Math.round(((priceCents - costCents) / priceCents) * 100);
   return percent < 0 ? `−${-percent}%` : `${percent}%`;
 }
+
+const time = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+
+/** A time of day in UTC, like every date in the app: "2:05 PM". */
+export function formatTime(date: Date) {
+  return time.format(date);
+}
