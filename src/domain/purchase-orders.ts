@@ -431,8 +431,25 @@ export function deliveryRecord(
   for (const order of orders) {
     if (order.status !== "received" || !order.receivedAt || !order.orderedAt) continue;
     received += 1;
-    const due = order.expectedAt ?? new Date(order.orderedAt.getTime() + order.leadTimeDays * DAY_MS);
-    if (startOfDay(order.receivedAt) <= startOfDay(due)) onTime += 1;
+    if (arrivedOnTime({ ...order, orderedAt: order.orderedAt, receivedAt: order.receivedAt })) onTime += 1;
   }
   return { received, onTime };
 }
+
+/**
+ * Whether a received order arrived by its due day: the date the supplier gave, else the
+ * day it was placed plus their lead time. Whole UTC days, so late on the due day is on time.
+ */
+export function arrivedOnTime(order: {
+  expectedAt: Date | null;
+  orderedAt: Date;
+  receivedAt: Date;
+  leadTimeDays: number;
+}) {
+  const due = order.expectedAt ?? new Date(order.orderedAt.getTime() + order.leadTimeDays * DAY_MS);
+  return startOfDay(order.receivedAt) <= startOfDay(due);
+}
+
+/** Whole UTC days from the day an order was placed to the day it arrived. */
+export const daysTaken = (orderedAt: Date, receivedAt: Date) =>
+  Math.round((startOfDay(receivedAt).getTime() - startOfDay(orderedAt).getTime()) / DAY_MS);

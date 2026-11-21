@@ -1,38 +1,24 @@
 "use client";
 
-import { type KeyboardEvent, type PointerEvent, useState } from "react";
 import { formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { ANALYTICS_COPY } from "./copy";
+import { DayAxis, Gridlines, PLOT, PLOT_GRID, ValueAxis, niceMax, useDayPicker } from "./day-chart";
 
 export type ChartDay = { day: Date; units: number; valueCents: number };
 
 /**
- * The axis top: the smallest clean step × a power of ten at or above `value`. Each step
- * halves to a clean middle tick too (1,500 → 750), and they're close enough that the
- * tallest column fills most of the plot.
- */
-function niceMax(value: number) {
-  if (value <= 0) return 1;
-  const power = 10 ** Math.floor(Math.log10(value));
-  const step = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find((s) => s * power >= value)!;
-  return step * power;
-}
-
-/**
  * Net sales a day as columns on one baseline, the last being today so far. The readout
- * above names one day at a time: pointing at the plot (or scrubbing it with a finger)
- * picks the nearest day, and so do the arrow keys once it has focus. With nothing picked
- * it reads the average of the full days. It never animates: it's read many times a visit.
+ * above names the day picked; with nothing picked it reads the average of the full days.
+ * It never animates: it's read many times a visit.
  */
 export function SalesChart({ days, money, language }: { days: ChartDay[]; money: MoneyPrefs; language: Language }) {
   const m = moneyFormat(money, language);
   const f = formats(language);
   const t = ANALYTICS_COPY[language].chart;
   const units = (n: number) => t.units(n, f.count(n));
-  const [active, setActive] = useState<number | null>(null);
-  const last = days.length - 1;
+  const { active, last, plot } = useDayPicker(days.length);
   const full = days.slice(0, last);
   const average = {
     valueCents: full.reduce((sum, d) => sum + d.valueCents, 0) / Math.max(full.length, 1),
@@ -43,31 +29,10 @@ export function SalesChart({ days, money, language }: { days: ChartDay[]; money:
   const top = (niceMax((peak / 100) * m.perDollar) / m.perDollar) * 100;
   const height = (cents: number) => `${(Math.max(cents, 0) / top) * 100}%`;
 
-  const pick = (event: PointerEvent<HTMLDivElement>) => {
-    const box = event.currentTarget.getBoundingClientRect();
-    const index = Math.floor(((event.clientX - box.left) / box.width) * days.length);
-    setActive(Math.min(Math.max(index, 0), last));
-  };
-
-  const step = (event: KeyboardEvent<HTMLDivElement>) => {
-    const moves: Record<string, (from: number) => number> = {
-      ArrowLeft: (from) => Math.max(from - 1, 0),
-      ArrowRight: (from) => Math.min(from + 1, last),
-      Home: () => 0,
-      End: () => last,
-    };
-    if (event.key === "Escape") return setActive(null);
-    const move = moves[event.key];
-    if (!move) return;
-    event.preventDefault();
-    setActive((from) => move(from ?? last + 1));
-  };
-
   const day = active === null ? null : days[active];
   const name = day === null ? t.average : active === last ? t.todaySoFar : f.day(day.day);
   const value = day?.valueCents ?? average.valueCents;
   const sold = units(day === null ? Math.round(average.units) : day.units);
-  const middle = Math.floor(last / 2);
 
   return (
     <div>
@@ -81,41 +46,10 @@ export function SalesChart({ days, money, language }: { days: ChartDay[]; money:
         <p className="mt-1 text-sm text-ink-2">{sold}</p>
       </div>
 
-      <div className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3">
-        {/* The value axis: three clean ticks, the plot's gridlines line up with them. */}
-        <div aria-hidden className="tabular relative h-44 text-right text-xs text-ink-3">
-          {[1, 0.5, 0].map((at) => (
-            <span
-              key={at}
-              className="block translate-y-1/2 leading-none"
-              style={{ position: "absolute", right: 0, bottom: `${at * 100}%` }}
-            >
-              {m.axis(top * at)}
-            </span>
-          ))}
-          {/* Holds the column's width at its widest label. */}
-          <span className="invisible block leading-none">{m.axis(top)}</span>
-        </div>
-
-        <div
-          role="slider"
-          tabIndex={0}
-          aria-label={t.label}
-          aria-valuemin={1}
-          aria-valuemax={days.length}
-          aria-valuenow={(active ?? last) + 1}
-          aria-valuetext={`${name}: ${m.whole(value)}, ${sold}`}
-          onPointerMove={pick}
-          onPointerDown={pick}
-          onPointerLeave={(event) => {
-            if (event.pointerType === "mouse") setActive(null);
-          }}
-          onKeyDown={step}
-          onBlur={() => setActive(null)}
-          className="relative h-44 cursor-crosshair touch-pan-y border-b border-ink select-none"
-        >
-          <div aria-hidden className="absolute inset-x-0 top-0 border-t border-hairline" />
-          <div aria-hidden className="absolute inset-x-0 top-1/2 border-t border-hairline" />
+      <div className={PLOT_GRID}>
+        <ValueAxis top={top} label={m.axis} />
+        <div {...plot} aria-label={t.label} aria-valuetext={`${name}: ${m.whole(value)}, ${sold}`} className={PLOT}>
+          <Gridlines />
           {/* The average full day, ruled across the columns. */}
           {average.valueCents > 0 ? (
             <div
@@ -135,15 +69,7 @@ export function SalesChart({ days, money, language }: { days: ChartDay[]; money:
             ))}
           </div>
         </div>
-
-        <div aria-hidden />
-        <div aria-hidden className="relative mt-2 h-4 text-xs text-ink-3">
-          <span className="absolute left-0">{f.date(days[0].day)}</span>
-          <span className="absolute -translate-x-1/2" style={{ left: `${((middle + 0.5) / days.length) * 100}%` }}>
-            {f.date(days[middle].day)}
-          </span>
-          <span className="absolute right-0">{t.today}</span>
-        </div>
+        <DayAxis days={days.map((d) => d.day)} f={f} today={t.today} />
       </div>
     </div>
   );

@@ -210,6 +210,26 @@
   }
 }
 
+/* Chart fills, in the one ink, for marks that need telling apart without color. Hollow
+   is a mark that missed (a delivery after its due day); hatched is stock that was lost,
+   one direction for write-offs, the other for what counts found missing. Outlines keep
+   them apart in forced colors too. */
+@utility fill-hollow {
+  background-color: var(--color-label);
+  outline: 2px solid var(--color-ink);
+  outline-offset: -2px;
+}
+@utility fill-hatch {
+  background: repeating-linear-gradient(45deg, var(--color-ink) 0 2px, var(--color-label) 2px 5px);
+  outline: 1px solid var(--color-ink);
+  outline-offset: -1px;
+}
+@utility fill-hatch-back {
+  background: repeating-linear-gradient(-45deg, var(--color-ink-3) 0 2px, var(--color-label) 2px 5px);
+  outline: 1px solid var(--color-ink-3);
+  outline-offset: -1px;
+}
+
 /*
  * Motion. Pages and loaded data *print*: they reveal top to bottom, the way a label
  * feeds out of the printer. What leaves is torn off fast so it never competes. Deeper

@@ -104,6 +104,51 @@ describe("getAnalytics", () => {
     expect(sales.daily.filter((d) => d.units === 0)).toHaveLength(26);
   });
 
+  it("follows stock at cost through the period, ending at the closing stock", async () => {
+    const { stock, stockByDay } = await getAnalytics(db, 28, now);
+    expect(stockByDay).toHaveLength(28);
+    expect(stockByDay[0]).toEqual({ day: new Date(Date.UTC(2026, 10, 2)), costCents: stock.opening.costCents });
+    // The delivery ten days ago adds 50 Widgets at $2.50.
+    expect(stockByDay.at(-11)!.costCents - stockByDay.at(-12)!.costCents).toBe(50 * 250);
+    expect(stockByDay.at(-1)!.costCents).toBe(stock.closing.costCents);
+  });
+
+  it("splits everything on the shelves into what was sold, lost and is still there", async () => {
+    const { whereItWent, stock } = await getAnalytics(db, 28, now);
+    expect(whereItWent.whole).toEqual({ units: 120 + 50 + 2 + 1, costCents: 25000 + 8000 + 12500 + 500 + 400 });
+    expect(whereItWent.parts.map((p) => [p.part, p.amount.units])).toEqual([
+      ["sold", 39],
+      ["writtenOff", 3],
+      ["short", 2],
+      ["onHand", 129],
+    ]);
+    const sum = (key: "units" | "costCents") => whereItWent.parts.reduce((total, p) => total + p.amount[key], 0);
+    expect(sum("units")).toBe(whereItWent.whole.units);
+    expect(sum("costCents")).toBe(whereItWent.whole.costCents);
+    expect(whereItWent.parts[3].amount).toEqual(stock.closing);
+  });
+
+  it("lists each supplier's deliveries in the period: days taken, and on time or late", async () => {
+    const late = await createDraft(db, staff, { supplierId: 1, lines: [{ productId: 2, quantity: 5 }] }, daysAgo(20));
+    await placeOrder(db, admin, late.id, daysAgo(20, 9));
+    await receiveOrder(db, staff, late.id, daysAgo(8, 17));
+    const { deliveries } = await getAnalytics(db, 28, now);
+    expect(deliveries).toEqual([
+      {
+        id: 1,
+        name: "Northwind Supply",
+        leadTimeDays: 7,
+        onTime: 1,
+        deliveries: [
+          expect.objectContaining({ number: "PO-0001", days: 4, onTime: true }),
+          expect.objectContaining({ number: "PO-0002", days: 12, onTime: false }),
+        ],
+      },
+    ]);
+    // An order received before the period isn't in it.
+    expect((await getAnalytics(db, 28, daysAgo(-30))).deliveries).toEqual([]);
+  });
+
   it("breaks sales and stock down by category, uncategorised last", async () => {
     const { categories } = await getAnalytics(db, 28, now);
     expect(categories).toEqual([
@@ -156,5 +201,8 @@ describe("getAnalytics", () => {
     expect(analytics.best).toEqual([]);
     expect(analytics.slowest).toEqual([]);
     expect(analytics.ledgerStart).toBeNull();
+    expect(analytics.stockByDay.every((d) => d.costCents === 0)).toBe(true);
+    expect(analytics.whereItWent.whole).toEqual({ units: 0, costCents: 0 });
+    expect(analytics.deliveries).toEqual([]);
   });
 });

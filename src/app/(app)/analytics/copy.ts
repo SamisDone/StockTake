@@ -48,9 +48,37 @@ const en = {
   todaySoFar: "Today so far",
   nothingSold: (days: string) => `Nothing sold in the last ${days} days.`,
 
+  // Where the stock went
+  went: "Where the stock went",
+  wentNote:
+    "Everything that was on the shelves in the period, the opening stock and all that came in, at today's unit costs.",
+  wentWhole: (value: string, units: string) => `${value} of stock · ${units} units`,
+  wentColumn: "What became of it",
+  shareColumn: "Share",
+  wentParts: {
+    sold: "Sold",
+    writtenOff: "Written off",
+    short: "Missing at counts",
+    onHand: "Still on the shelves",
+  },
+
+  // Supplier delivery
+  delivery: "Supplier delivery",
+  deliveryNote:
+    "Days from placing each order to receiving it, against the lead time the supplier quotes. A hollow mark arrived after its due day.",
+  deliveryEmpty: "No orders arrived in this period.",
+  onTime: "On time",
+  late: "Late",
+  quoted: "Quoted lead time",
+  quotes: (days: string) => `Quotes ${days}`,
+  record: (onTime: string, received: string) => `${onTime} of ${received} on time`,
+  deliveryLabel: (supplier: string, days: string, record: string) => `${supplier}: took ${days}. ${record}.`,
+
   // By category
-  categories: "By category",
-  categoriesNote: "Lasts is how long a category's stock would last at this period's cost of sales.",
+  categories: "Sales and margin by category",
+  categoriesNote:
+    "Each sales bar splits into gross margin and the cost of what sold. Lasts is how long a category's stock would last at this period's cost of sales.",
+  costOfSales: "Cost of sales",
   category: "Category",
   grossMargin: "Gross margin",
   stockAtCost: "Stock at cost",
@@ -75,6 +103,12 @@ const en = {
     today: "Today",
     units: (n: number, text: string) => `${text} ${n === 1 ? "unit" : "units"}`,
     label: "Sales by day. Use the arrow keys to read each day.",
+  },
+  stockChart: {
+    now: "Now",
+    sincePeriod: (change: string, day: string) => `${change} since ${day}`,
+    onTheDay: (change: string) => `${change} on the day`,
+    label: "Stock at cost, day by day. Use the arrow keys to read each day.",
   },
 };
 
@@ -121,8 +155,33 @@ const bn: AnalyticsCopy = {
   todaySoFar: "আজ এখন পর্যন্ত",
   nothingSold: (days) => `গত ${days} দিনে কিছু বিক্রি হয়নি।`,
 
-  categories: "শ্রেণি অনুযায়ী",
-  categoriesNote: "চলবে মানে এই সময়কালের বিক্রির খরচের হারে শ্রেণিটির মজুত কত দিন টিকবে।",
+  went: "মজুত কোথায় গেল",
+  wentNote: "এই সময়কালে তাকে যা ছিল, শুরুর মজুত ও যা এসেছে সব মিলিয়ে, আজকের একক কেনা দামে।",
+  wentWhole: (value, units) => `মজুত ${value} · ${units} ইউনিট`,
+  wentColumn: "কী হয়েছে",
+  shareColumn: "অংশ",
+  wentParts: {
+    sold: "বিক্রি",
+    writtenOff: "বাতিল",
+    short: "গণনায় পাওয়া যায়নি",
+    onHand: "এখনও তাকে",
+  },
+
+  delivery: "সরবরাহকারীর ডেলিভারি",
+  deliveryNote:
+    "প্রতিটি অর্ডার দেওয়া থেকে হাতে পাওয়া পর্যন্ত কত দিন লেগেছে, সরবরাহকারীর বলা সময়ের পাশে। ফাঁপা চিহ্ন মানে নির্ধারিত দিনের পরে এসেছে।",
+  deliveryEmpty: "এই সময়কালে কোনো অর্ডার আসেনি।",
+  onTime: "সময়মতো",
+  late: "দেরিতে",
+  quoted: "বলা সময়",
+  quotes: (days) => `বলা সময় ${days}`,
+  record: (onTime, received) => `${received}টির মধ্যে ${onTime}টি সময়মতো`,
+  deliveryLabel: (supplier, days, record) => `${supplier}: লেগেছে ${days}। ${record}।`,
+
+  categories: "শ্রেণি অনুযায়ী বিক্রি ও লাভ",
+  categoriesNote:
+    "প্রতিটি বিক্রির দাগ ভাগ হয় মোট লাভ আর বিক্রি হওয়া পণ্যের কেনা দামে। চলবে মানে এই সময়কালের বিক্রির খরচের হারে শ্রেণিটির মজুত কত দিন টিকবে।",
+  costOfSales: "বিক্রির খরচ",
   category: "শ্রেণি",
   grossMargin: "মোট লাভ",
   stockAtCost: "কেনা দামে মজুত",
@@ -145,6 +204,12 @@ const bn: AnalyticsCopy = {
     today: "আজ",
     units: (_n, text) => `${text} ইউনিট`,
     label: "দিনভিত্তিক বিক্রি। প্রতিটি দিন পড়তে তীর-কী ব্যবহার করুন।",
+  },
+  stockChart: {
+    now: "এখন",
+    sincePeriod: (change, day) => `${day} থেকে ${change}`,
+    onTheDay: (change) => `সেদিন ${change}`,
+    label: "কেনা দামে মজুত, দিনে দিনে। প্রতিটি দিন পড়তে তীর-কী ব্যবহার করুন।",
   },
 };
 

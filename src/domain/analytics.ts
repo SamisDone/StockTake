@@ -1,6 +1,7 @@
-import { type SQL, and, asc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { type AnyColumn, type SQL, and, asc, eq, gte, lt, sql } from "drizzle-orm";
 import type { Database } from "@/db/database";
-import { products, stockMovements } from "@/db/schema";
+import { products, purchaseOrders, stockMovements, suppliers } from "@/db/schema";
+import { arrivedOnTime, daysTaken, poNumber } from "./purchase-orders";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -66,44 +67,56 @@ async function ledgerRows(db: Database, from: Date, to: Date) {
 
 export type LedgerRow = Awaited<ReturnType<typeof ledgerRows>>[number];
 
-/** Net units sold per UTC day (sales less returns), valued at today's prices and costs. */
-async function salesRows(db: Database, from: Date, to: Date) {
+/**
+ * The period's ledger by UTC day: net units sold (sales less returns) valued at today's
+ * prices and costs, and how much every movement that day changed the stock at cost.
+ */
+async function dayRows(db: Database, from: Date, to: Date) {
   const day = sql<number>`cast(${stockMovements.occurredAt} / ${DAY_MS} as integer)`;
+  const selling = sql`${stockMovements.kind} IN ('sale', 'return')`;
+  const sold = (per: SQL | AnyColumn) =>
+    sql<number>`-coalesce(sum(CASE WHEN ${selling} THEN ${stockMovements.quantity} * ${per} END), 0)`.mapWith(Number);
   return db
     .select({
       day: day.mapWith(Number),
-      units: sql<number>`-sum(${stockMovements.quantity})`.mapWith(Number),
-      valueCents: sql<number>`-sum(${stockMovements.quantity} * ${products.unitPriceCents})`.mapWith(Number),
-      costCents: sql<number>`-sum(${stockMovements.quantity} * ${products.unitCostCents})`.mapWith(Number),
+      units: sold(sql`1`),
+      valueCents: sold(products.unitPriceCents),
+      costCents: sold(products.unitCostCents),
+      stockChangeCents: sql<number>`sum(${stockMovements.quantity} * ${products.unitCostCents})`.mapWith(Number),
     })
     .from(stockMovements)
     .innerJoin(products, eq(products.id, stockMovements.productId))
-    .where(
-      and(
-        inArray(stockMovements.kind, ["sale", "return"]),
-        gte(stockMovements.occurredAt, from),
-        lt(stockMovements.occurredAt, to),
-      ),
-    )
+    .where(and(gte(stockMovements.occurredAt, from), lt(stockMovements.occurredAt, to)))
     .groupBy(day)
     .orderBy(day);
 }
 
+type DayRow = Awaited<ReturnType<typeof dayRows>>[number];
+
 export type SalesDay = { day: Date; units: number; valueCents: number; costCents: number };
 
-/** One entry per day of the period, oldest first; a day with no sales is zeros. */
-export function fillDays(rows: Awaited<ReturnType<typeof salesRows>>, from: Date, days: number): SalesDay[] {
+/** Stock at today's unit costs at the end of a day; for today, as it stands now. */
+export type StockDay = { day: Date; costCents: number };
+
+/**
+ * One entry per day of the period, oldest first; a day with no movements is zeros. The
+ * stock series starts from `openingCents` and adds each day's movements to it, so its
+ * last day is the statement's closing stock.
+ */
+export function fillDays(rows: DayRow[], from: Date, days: number, openingCents = 0) {
   const byDay = new Map(rows.map((r) => [r.day, r]));
   const first = Math.floor(from.getTime() / DAY_MS);
-  return Array.from({ length: days }, (_, i) => {
+  const sales: SalesDay[] = [];
+  const stock: StockDay[] = [];
+  let running = openingCents;
+  for (let i = 0; i < days; i++) {
     const row = byDay.get(first + i);
-    return {
-      day: new Date((first + i) * DAY_MS),
-      units: row?.units ?? 0,
-      valueCents: row?.valueCents ?? 0,
-      costCents: row?.costCents ?? 0,
-    };
-  });
+    const day = new Date((first + i) * DAY_MS);
+    sales.push({ day, units: row?.units ?? 0, valueCents: row?.valueCents ?? 0, costCents: row?.costCents ?? 0 });
+    running += row?.stockChangeCents ?? 0;
+    stock.push({ day, costCents: running });
+  }
+  return { sales, stock };
 }
 
 /** Units and their value at today's unit cost. */
@@ -218,6 +231,91 @@ export function slowestSellers(rows: LedgerRow[], days: number) {
     .slice(0, LIST_LENGTH);
 }
 
+/**
+ * What became of everything that was on the shelves in the period (the opening stock and
+ * all that came in): sold, written off, missing at a count, or still there. The parts add
+ * up to the whole, in units and at cost.
+ */
+export function whereItWent(stock: Reconciliation) {
+  const whole: Amount = {
+    units: stock.opening.units + stock.received.units + stock.returned.units + stock.countFound.units,
+    costCents:
+      stock.opening.costCents + stock.received.costCents + stock.returned.costCents + stock.countFound.costCents,
+  };
+  return {
+    whole,
+    parts: [
+      { part: "sold", amount: stock.sold },
+      { part: "writtenOff", amount: stock.writtenOff },
+      { part: "short", amount: stock.countShort },
+      { part: "onHand", amount: stock.closing },
+    ] as const,
+  };
+}
+
+/** The orders that arrived in the period, with their supplier and how they were due. */
+async function deliveryRows(db: Database, from: Date, to: Date) {
+  return db
+    .select({
+      id: purchaseOrders.id,
+      supplierId: suppliers.id,
+      supplier: suppliers.name,
+      leadTimeDays: suppliers.leadTimeDays,
+      orderedAt: purchaseOrders.orderedAt,
+      expectedAt: purchaseOrders.expectedAt,
+      receivedAt: purchaseOrders.receivedAt,
+    })
+    .from(purchaseOrders)
+    .innerJoin(suppliers, eq(suppliers.id, purchaseOrders.supplierId))
+    .where(
+      and(
+        eq(purchaseOrders.status, "received"),
+        gte(purchaseOrders.receivedAt, from),
+        lt(purchaseOrders.receivedAt, to),
+      ),
+    )
+    .orderBy(asc(purchaseOrders.receivedAt), asc(purchaseOrders.id));
+}
+
+/**
+ * Each supplier that delivered in the period: how many days every order took, against
+ * the lead time they quote now, and whether it arrived by its due day. Shortest lead
+ * time first, so the rows climb the shared days axis.
+ */
+export function supplierDelivery(rows: Awaited<ReturnType<typeof deliveryRows>>) {
+  const bySupplier = new Map<
+    number,
+    {
+      id: number;
+      name: string;
+      leadTimeDays: number;
+      deliveries: { id: number; number: string; days: number; onTime: boolean; receivedAt: Date }[];
+    }
+  >();
+  for (const r of rows) {
+    if (!r.orderedAt || !r.receivedAt) continue;
+    const supplier = bySupplier.get(r.supplierId) ?? {
+      id: r.supplierId,
+      name: r.supplier,
+      leadTimeDays: r.leadTimeDays,
+      deliveries: [],
+    };
+    supplier.deliveries.push({
+      id: r.id,
+      number: poNumber(r.id),
+      days: daysTaken(r.orderedAt, r.receivedAt),
+      onTime: arrivedOnTime({ ...r, orderedAt: r.orderedAt, receivedAt: r.receivedAt }),
+      receivedAt: r.receivedAt,
+    });
+    bySupplier.set(r.supplierId, supplier);
+  }
+  return [...bySupplier.values()]
+    .map((s) => ({ ...s, onTime: s.deliveries.filter((d) => d.onTime).length }))
+    .sort((a, b) => a.leadTimeDays - b.leadTimeDays || a.name.localeCompare(b.name));
+}
+
+export type SupplierDelivery = ReturnType<typeof supplierDelivery>[number];
+
 /** The first entry in the ledger, or null for an empty one. */
 async function ledgerStart(db: Database) {
   const [row] = await db.select({ first: sql<number | null>`min(${stockMovements.occurredAt})` }).from(stockMovements);
@@ -231,8 +329,14 @@ async function ledgerStart(db: Database) {
  */
 export async function getAnalytics(db: Database, days: PeriodDays, now = new Date()) {
   const { from, to } = periodRange(days, now);
-  const [rows, sales, start] = await Promise.all([ledgerRows(db, from, to), salesRows(db, from, to), ledgerStart(db)]);
-  const daily = fillDays(sales, from, days);
+  const [rows, byDay, deliveries, start] = await Promise.all([
+    ledgerRows(db, from, to),
+    dayRows(db, from, to),
+    deliveryRows(db, from, to),
+    ledgerStart(db),
+  ]);
+  const stock = reconcile(rows);
+  const { sales: daily, stock: stockByDay } = fillDays(byDay, from, days, stock.opening.costCents);
   const salesCents = daily.reduce((sum, d) => sum + d.valueCents, 0);
   const costCents = daily.reduce((sum, d) => sum + d.costCents, 0);
   return {
@@ -248,7 +352,10 @@ export async function getAnalytics(db: Database, days: PeriodDays, now = new Dat
       marginCents: salesCents - costCents,
       daily,
     },
-    stock: reconcile(rows),
+    stock,
+    stockByDay,
+    whereItWent: whereItWent(stock),
+    deliveries: supplierDelivery(deliveries),
     categories: byCategory(rows, days),
     best: bestSellers(rows, days),
     slowest: slowestSellers(rows, days),

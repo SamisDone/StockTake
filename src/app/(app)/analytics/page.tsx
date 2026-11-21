@@ -24,7 +24,11 @@ import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { getCurrentUser } from "@/server/dal";
 import { getLanguage, getMoneyPrefs } from "@/server/preferences";
 import { ANALYTICS_COPY, type AnalyticsCopy } from "./copy";
+import { Delivery } from "./delivery";
 import { SalesChart } from "./sales-chart";
+import { StockChart } from "./stock-chart";
+import { WhereItWent } from "./where-it-went";
+import { Key, Zone } from "./zone";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: ANALYTICS_COPY[await getLanguage()].title };
@@ -108,7 +112,12 @@ async function Report({
             </Tally>
           </dl>
 
-          <Statement analytics={analytics} now={now} m={m} f={f} t={t} />
+          <Statement analytics={analytics} now={now} money={money} m={m} f={f} t={t} />
+          {/* Where the stock went, and how the stock that came in arrived. */}
+          <div className="grid border-b-2 border-ink lg:grid-cols-2">
+            <WhereItWent analytics={analytics} m={m} f={f} t={t} className="" />
+            <Delivery analytics={analytics} f={f} t={t} className="border-ink max-lg:border-t lg:border-l" />
+          </div>
           <Sales analytics={analytics} now={now} money={money} m={m} f={f} t={t} />
           <Categories analytics={analytics} m={m} f={f} t={t} />
           <div className="grid lg:grid-cols-2">
@@ -143,33 +152,6 @@ function Note({ children }: { children: ReactNode }) {
   return <p className="mt-1 text-sm text-ink-2">{children}</p>;
 }
 
-/** A zone of the report: its heading, a line on how to read it, then its content. */
-function Zone({
-  id,
-  title,
-  note,
-  className = "border-b-2 border-ink",
-  children,
-}: {
-  id: string;
-  title: string;
-  note?: ReactNode;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section aria-labelledby={`${id}-title`} className={`pt-6 pb-8 ${className}`}>
-      <div className="px-5 sm:px-8">
-        <h2 id={`${id}-title`} className="text-lg font-bold">
-          {title}
-        </h2>
-        {note ? <p className="mt-1 max-w-prose text-sm text-ink-2">{note}</p> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
 type Line = { name: string; sign: 1 | -1; amount: Amount };
 
 /**
@@ -180,12 +162,14 @@ type Line = { name: string; sign: 1 | -1; amount: Amount };
 function Statement({
   analytics,
   now,
+  money,
   m,
   f,
   t,
 }: {
   analytics: Analytics;
   now: Date;
+  money: MoneyPrefs;
   m: MoneyFormat;
   f: Formats;
   t: AnalyticsCopy;
@@ -221,7 +205,16 @@ function Statement({
         </>
       }
     >
-      <table className="mt-4 w-full border-collapse text-left">
+      {/* The statement over time: stock at cost each day, from the opening line to the closing one. */}
+      <div className="mt-5 px-5 sm:px-8">
+        <StockChart
+          days={analytics.stockByDay}
+          openingCents={stock.opening.costCents}
+          money={money}
+          language={f.language}
+        />
+      </div>
+      <table className="mt-8 w-full border-collapse text-left">
         <thead>
           <tr className="border-b border-ink">
             <Th className="w-[45%] md:w-[26%]">{t.movement}</Th>
@@ -404,7 +397,15 @@ function Categories({ analytics, m, f, t }: { analytics: Analytics; m: MoneyForm
   const total = categories.reduce((sum, c) => sum + c.salesCents, 0);
   return (
     <Zone id="categories" title={t.categories} note={t.categoriesNote}>
-      <table className="mt-4 w-full border-collapse text-left max-md:block">
+      <div className="mt-4 px-5 sm:px-8">
+        <Key
+          items={[
+            { swatch: <span className="block h-1.5 w-3.5 bg-ink" />, name: t.grossMargin },
+            { swatch: <span className="block h-1.5 w-3.5 bg-ink-3/45" />, name: t.costOfSales },
+          ]}
+        />
+      </div>
+      <table className="mt-3 w-full border-collapse text-left max-md:block">
         <thead className="max-md:hidden">
           <tr className="border-b border-ink">
             <Th>{t.category}</Th>
@@ -433,8 +434,22 @@ function Categories({ analytics, m, f, t }: { analytics: Analytics; m: MoneyForm
                     · {f.count(total > 0 ? Math.round((c.salesCents / total) * 100) : 0)}%
                   </span>
                 </p>
-                <div aria-hidden className="mt-2 h-1.5 bg-liner">
-                  <div className="h-full bg-ink" style={{ width: `${(c.salesCents / top) * 100}%` }} />
+                {/* Sales to scale, split: the margin from the baseline, so margins compare
+                    exactly, then the cost of what sold. */}
+                <div
+                  aria-hidden
+                  className="mt-2 flex h-1.5 gap-0.5"
+                  style={{ width: `${(c.salesCents / top) * 100}%` }}
+                >
+                  {c.marginCents > 0 ? (
+                    <div className="h-full bg-ink" style={{ flex: `${c.marginCents} 1 0` }} />
+                  ) : null}
+                  {c.salesCents - Math.max(c.marginCents, 0) > 0 ? (
+                    <div
+                      className="h-full bg-ink-3/45"
+                      style={{ flex: `${c.salesCents - Math.max(c.marginCents, 0)} 1 0` }}
+                    />
+                  ) : null}
                 </div>
               </td>
               <td className="tabular py-3 pr-4 text-right max-md:p-0 max-md:text-left">
@@ -526,7 +541,10 @@ function ReportPlaceholder({ t }: { t: AnalyticsCopy }) {
       <div className="px-5 pt-6 sm:px-8">
         <p className="text-lg font-bold">{t.statement}</p>
         <div className="mt-2 h-10 max-w-prose bg-liner/70" />
-        <div className="mt-6 space-y-5">
+        {/* The stock chart: its readout, then the plot. */}
+        <div className="mt-5 h-20 w-40 bg-liner/70" />
+        <div className="mt-4 h-44 bg-liner/70" />
+        <div className="mt-8 space-y-5">
           {Array.from({ length: 8 }, (_, i) => (
             <div key={i} className="h-7 bg-liner/70" />
           ))}
