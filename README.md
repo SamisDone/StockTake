@@ -4,7 +4,7 @@ An inventory system whose stock levels you can audit. Every unit on hand traces 
 
 Stocktake rebuilds [StockMaster](https://github.com/SamisDone/StockMaster-Main), a PHP and MySQL course project (CSE 252), on Next.js, Cloudflare Workers and D1.
 
-**Live:** https://stocktake.sarker-samonwita.workers.dev. Open the demo from the landing page as an admin or as staff; no sign-up needed. The app has the dashboard, products, purchase orders, suppliers, the activity log and analytics; the AI assistant is being built.
+**Live:** https://stocktake.stocktake-app.workers.dev. Open the demo from the landing page as an admin or as staff; no sign-up needed. The app has the dashboard, products, purchase orders, suppliers, the activity log and analytics; the AI assistant is being built.
 
 ## What it does
 
