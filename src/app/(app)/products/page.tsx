@@ -10,6 +10,7 @@ import { TallyPlaceholder } from "@/components/stock";
 import { PageTransition, Reveal } from "@/components/transitions";
 import { formatDate } from "@/lib/format";
 import { getCurrentUser, getSessionUser } from "@/server/dal";
+import { getMoneyPrefs } from "@/server/preferences";
 import { type ProductRow, ProductTable } from "./product-table";
 
 export const metadata: Metadata = { title: "Products" };
@@ -61,7 +62,7 @@ async function ProductList() {
   const rows = [...active, ...archived].map(row).sort((a, b) => a.name.localeCompare(b.name));
   const categories = [...new Set(rows.flatMap((row) => (row.category ? [row.category] : [])))].sort();
 
-  return <ProductTable rows={rows} categories={categories} />;
+  return <ProductTable rows={rows} categories={categories} money={await getMoneyPrefs()} />;
 }
 
 /** Adding a product is an admin's job, so only an admin sees the way in. */

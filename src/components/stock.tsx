@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { StockStatus } from "@/domain/forecast";
 import { formatCount, formatDays } from "@/lib/format";
 
@@ -19,11 +19,17 @@ export const FOUR_TALLIES =
 
 /** One field of a label's tally zone: its name small, the value printed large. */
 export function Tally({ name, value, children }: { name: string; value: number | string; children?: ReactNode }) {
+  const text = typeof value === "number" ? formatCount(value) : value;
   return (
-    <div className="min-w-0 border-l border-ink px-5 pt-3 pb-4 first:border-l-0 sm:px-8">
+    <div className="@container min-w-0 border-l border-ink px-5 pt-3 pb-4 first:border-l-0 sm:px-8">
       <dt className="field-name">{name}</dt>
-      <dd className="print-display mt-1 text-[1.75rem] sm:text-5xl">
-        {typeof value === "number" ? formatCount(value) : value}
+      {/* A figure too long for its column (taka grouped in lakhs, three to a phone's row)
+          prints just small enough to fit: condensed figures run under half an em each. */}
+      <dd
+        style={{ "--fit": `calc(100cqi / ${(text.length * 0.46).toFixed(2)})` } as CSSProperties}
+        className="print-display mt-1 text-[length:min(1.75rem,var(--fit))] whitespace-nowrap sm:text-[length:min(3rem,var(--fit))]"
+      >
+        {text}
       </dd>
       {children}
     </div>

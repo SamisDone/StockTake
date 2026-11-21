@@ -8,7 +8,8 @@ import { Choice, Choices } from "@/components/choice";
 import { useArrivalHash, writeHash } from "@/components/hash-state";
 import { MobileName, Th } from "@/components/stock";
 import { NAV_FORWARD } from "@/components/transitions";
-import { formatCount, formatMoney } from "@/lib/format";
+import { formatCount } from "@/lib/format";
+import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { STATUS_WORD } from "./status";
 
 export type OrderRow = {
@@ -42,7 +43,8 @@ const matches = (show: Show, row: OrderRow) =>
  * orders). Open, drafts and placed orders, is where work is, so it's the default. The
  * filter lives in the URL's hash, like the products list's.
  */
-export function OrderTable({ rows }: { rows: OrderRow[] }) {
+export function OrderTable({ rows, money }: { rows: OrderRow[]; money: MoneyPrefs }) {
+  const m = moneyFormat(money);
   const pathname = usePathname();
   const [show, setShow] = useState<Show>("open");
   const [switches, setSwitches] = useState(0);
@@ -105,7 +107,7 @@ export function OrderTable({ rows }: { rows: OrderRow[] }) {
             </thead>
             <tbody className="max-md:block">
               {shown.map((row) => (
-                <Row key={row.id} row={row} />
+                <Row key={row.id} row={row} m={m} />
               ))}
             </tbody>
           </table>
@@ -125,7 +127,7 @@ const EMPTY: Record<Show, string> = {
 };
 
 /** One order: the supplier's name opens it, and the whole row is the hit area. */
-function Row({ row }: { row: OrderRow }) {
+function Row({ row, m }: { row: OrderRow; m: MoneyFormat }) {
   return (
     <tr className="relative border-b border-hairline align-top transition-colors duration-150 last:border-b-0 hover:bg-liner/60 max-md:grid max-md:grid-cols-3 max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8">
       <td className="py-3 pr-4 max-md:col-span-3 max-md:p-0 md:pl-8">
@@ -151,7 +153,7 @@ function Row({ row }: { row: OrderRow }) {
       <td className="tabular py-3 pr-4 text-right max-md:hidden">{formatCount(row.lineCount)}</td>
       <td className="tabular py-3 pr-4 text-right font-semibold max-md:p-0 max-md:text-left">
         <MobileName>Total</MobileName>
-        {formatMoney(row.totalCents)}
+        {m.money(row.totalCents)}
       </td>
       <td className="py-3 whitespace-nowrap text-ink-2 max-md:p-0 md:pr-8">
         <MobileName>Date</MobileName>

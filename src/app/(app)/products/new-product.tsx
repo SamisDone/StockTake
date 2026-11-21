@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { getDb } from "@/db/client";
 import { DEFAULT_LEAD_TIME_DAYS } from "@/domain/forecast";
 import { getCurrentUser } from "@/server/dal";
+import { getMoneyPrefs } from "@/server/preferences";
 import { ProductForm } from "./product-form";
 import { editingOptions } from "./product-label";
 import { EMPTY_PRODUCT } from "./product-values";
@@ -29,9 +30,10 @@ export async function NewProduct({ heading, action }: { heading: 1 | 2; action: 
     );
   }
 
-  const { suppliers, categories } = await editingOptions(await getDb());
+  const [{ suppliers, categories }, money] = await Promise.all([editingOptions(await getDb()), getMoneyPrefs()]);
   return (
     <ProductForm
+      money={money}
       defaults={EMPTY_PRODUCT}
       suppliers={suppliers}
       categories={categories}

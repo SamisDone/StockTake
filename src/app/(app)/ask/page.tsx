@@ -6,6 +6,7 @@ import { getDb } from "@/db/client";
 import { PageHeader } from "@/components/page-header";
 import { PageTransition, Reveal } from "@/components/transitions";
 import { getCurrentUser } from "@/server/dal";
+import { getMoneyPrefs } from "@/server/preferences";
 import { Conversation } from "./conversation";
 
 export const metadata: Metadata = { title: "Ask" };
@@ -25,8 +26,8 @@ export default function AskPage() {
 async function AskLoaded() {
   const user = await getCurrentUser();
   await connection();
-  const allowance = await getAllowance(await getDb(), user.id, new Date());
-  return <Conversation initialAllowance={toWire(allowance)} />;
+  const [allowance, money] = await Promise.all([getAllowance(await getDb(), user.id, new Date()), getMoneyPrefs()]);
+  return <Conversation initialAllowance={toWire(allowance)} money={money} />;
 }
 
 /** The intro and the question field, unprinted, holding their space while the session is read. */

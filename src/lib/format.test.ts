@@ -1,24 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  formatAxisMoney,
-  formatChange,
-  formatDay,
-  formatMoneyChange,
-  formatCount,
-  formatDate,
-  formatDays,
-  formatMargin,
-  formatMoney,
-  formatRate,
-  formatWholeMoney,
-} from "./format";
+import { formatChange, formatDay, formatCount, formatDate, formatDays, formatMargin, formatRate } from "./format";
 
 describe("format", () => {
-  it("prints money from cents", () => {
-    expect(formatMoney(11300)).toBe("$113.00");
-    expect(formatWholeMoney(182670)).toBe("$1,827");
-  });
-
   it("prints days of cover with tenths only while they matter", () => {
     expect(formatDays(0)).toBe("0 days");
     expect(formatDays(1)).toBe("1 day");
@@ -57,17 +40,5 @@ describe("format", () => {
 
   it("prints a chart's day with its weekday, in UTC", () => {
     expect(formatDay(new Date(Date.UTC(2026, 10, 18, 23, 30)))).toBe("Wed, Nov 18");
-  });
-
-  it("prints axis money in full under $10,000 and compact from there", () => {
-    expect(formatAxisMoney(250000)).toBe("$2,500");
-    expect(formatAxisMoney(1200000)).toBe("$12K");
-    expect(formatAxisMoney(0)).toBe("$0");
-  });
-
-  it("signs money changes with a real minus sign", () => {
-    expect(formatMoneyChange(125000)).toBe("+$1,250");
-    expect(formatMoneyChange(-8000)).toBe("−$80");
-    expect(formatMoneyChange(20)).toBe("$0");
   });
 });

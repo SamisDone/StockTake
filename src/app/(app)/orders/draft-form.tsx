@@ -4,7 +4,8 @@ import { ChevronDown, Plus, X } from "lucide-react";
 import { startTransition, useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { Field, fieldProps } from "@/components/field";
 import { useLabelEditor } from "@/components/label-editor";
-import { formatCount, formatMoney } from "@/lib/format";
+import { formatCount } from "@/lib/format";
+import { DOLLARS, type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { centsToInput, parseCents, parseUnits } from "@/lib/parse";
 import { type DraftFormState, saveDraft } from "@/server/order-actions";
 import type { DraftLine, DraftValues, ProductChoice, SupplierChoice } from "./draft-values";
@@ -26,6 +27,7 @@ function readLine(line: DraftLine) {
  * existing draft keeps its own. Nothing is sent until an admin places it.
  */
 export function DraftForm({
+  money,
   order,
   suppliers,
   products,
@@ -33,6 +35,8 @@ export function DraftForm({
   today,
   action,
 }: {
+  /** How this person reads money. Unit costs are typed in dollars either way. */
+  money: MoneyPrefs;
   /** Set when editing a draft. Without it the form writes a new order. */
   order?: { id: number; number: string };
   /** Who a new order can go to; an existing draft passes only its own supplier. */
@@ -46,6 +50,7 @@ export function DraftForm({
   action: ReactNode;
 }) {
   const editing = order !== undefined;
+  const m = moneyFormat(money);
   const editor = useLabelEditor();
   const [state, dispatch, pending] = useActionState(saveDraft, initial);
 
@@ -241,6 +246,7 @@ export function DraftForm({
                     figures={read[index]}
                     product={byId.get(line.productId)}
                     errors={errors}
+                    m={m}
                     fresh={line.productId === added}
                     onChange={(change) => update(line.productId, change)}
                     onRemove={() => remove(index)}
@@ -323,7 +329,7 @@ export function DraftForm({
                   : null}
               </span>
             </p>
-            <p className="print-display tabular shrink-0 text-[1.75rem] sm:text-5xl">{formatMoney(totalCents)}</p>
+            <p className="print-display tabular shrink-0 text-[1.75rem] sm:text-5xl">{m.money(totalCents)}</p>
           </div>
         </section>
 
@@ -397,6 +403,8 @@ export function DraftForm({
   );
 }
 
+const usd = moneyFormat(DOLLARS);
+
 /**
  * One line, as a row of the label's table. On a phone the product takes its own row
  * and the figures sit below it, each with its name; at the desk they share one row
@@ -407,6 +415,7 @@ function LineRow({
   figures,
   product,
   errors,
+  m,
   fresh,
   onChange,
   onRemove,
@@ -415,6 +424,7 @@ function LineRow({
   figures: ReturnType<typeof readLine>;
   product: ProductChoice | undefined;
   errors: Record<string, string>;
+  m: MoneyFormat;
   /** Just added: it prints in. */
   fresh: boolean;
   onChange: (change: Partial<DraftLine>) => void;
@@ -435,7 +445,11 @@ function LineRow({
         <p className="text-xs text-ink-3">
           <span className="font-mono">{line.sku}</span>
           {product ? <> · {formatCount(product.onHand)} on hand</> : null}
-          <span id={`${costKey}-usual`}> · usually {formatMoney(line.catalogCents)}</span>
+          <span id={`${costKey}-usual`}>
+            {/* The field takes dollars, so the usual cost is in dollars too, converted after it for taka. */} · usually{" "}
+            {usd.money(line.catalogCents)}
+            {m.hint(line.catalogCents) ? ` (${m.hint(line.catalogCents)})` : null}
+          </span>
           {product && product.suggested > 0 ? <> · forecast says {formatCount(product.suggested)}</> : null}
         </p>
       </div>
@@ -489,7 +503,7 @@ function LineRow({
         <p aria-hidden className="field-name md:hidden">
           Line total
         </p>
-        <p className="tabular font-semibold md:pt-2.5">{figures.total === null ? "–" : formatMoney(figures.total)}</p>
+        <p className="tabular font-semibold md:pt-2.5">{figures.total === null ? "–" : m.money(figures.total)}</p>
       </div>
 
       <button

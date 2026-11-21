@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import { getCurrentUser } from "@/server/dal";
 import { signOut } from "@/server/auth-actions";
+import { getMoneyPrefs } from "@/server/preferences";
+import { CurrencySwitch } from "@/components/currency-switch";
 import { Nav } from "./nav";
 
 /**
@@ -59,34 +61,38 @@ function Wordmark() {
   );
 }
 
-/** On a phone: who is signed in, in which role, and the way out, in one line. */
+/** On a phone: who is signed in, in which role, the currency, and the way out, in one line. */
 async function PersonCompact() {
   const user = await getCurrentUser();
+  const money = await getMoneyPrefs();
   return (
     <div className="flex min-w-0 items-center gap-3 text-sm">
       <p className="min-w-0 truncate">
         <span className="font-semibold">{user.name}</span>
         <span className="text-ink-2"> · {user.role === "admin" ? "Admin" : "Staff"}</span>
       </p>
+      <CurrencySwitch money={money} compact />
       <SignOutButton compact />
     </div>
   );
 }
 
-/** Who is signed in, and the way out. A name tag stuck to the liner. */
+/** Who is signed in, the currency they read money in, and the way out. A name tag stuck to the liner. */
 async function Person() {
   const user = await getCurrentUser();
+  const money = await getMoneyPrefs();
   return (
     <div className="rounded-control bg-label px-3 pt-2.5 pb-1.5">
       <p className="truncate font-semibold">{user.name}</p>
       <p className="text-sm text-ink-2">{user.role === "admin" ? "Admin" : "Staff"}</p>
+      <CurrencySwitch money={money} />
       <SignOutButton />
     </div>
   );
 }
 
 function PersonFallback() {
-  return <div aria-hidden className="h-27 rounded-control bg-liner-deep" />;
+  return <div aria-hidden className="h-50 rounded-control bg-liner-deep" />;
 }
 
 function SignOutButton({ compact = false }: { compact?: boolean }) {

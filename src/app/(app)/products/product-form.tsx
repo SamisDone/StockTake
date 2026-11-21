@@ -4,7 +4,8 @@ import { Archive, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { Field, fieldProps } from "@/components/field";
-import { formatCount, formatMargin, formatMoney } from "@/lib/format";
+import { formatCount, formatMargin } from "@/lib/format";
+import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { parseCents } from "@/lib/parse";
 import {
   type ArchiveFormState,
@@ -24,6 +25,7 @@ const initial: ProductFormState = {};
  */
 export function ProductForm({
   productId,
+  money,
   defaults,
   suppliers,
   categories,
@@ -34,6 +36,8 @@ export function ProductForm({
 }: {
   /** Set when editing. Without it the form adds a product. */
   productId?: number;
+  /** How this person reads money; amounts are typed in dollars either way. */
+  money: MoneyPrefs;
   defaults: ProductValues;
   suppliers: SupplierOption[];
   categories: string[];
@@ -44,6 +48,7 @@ export function ProductForm({
   archive?: ArchiveFacts;
 }) {
   const editing = productId !== undefined;
+  const m = moneyFormat(money);
   const editor = useLabelEditor();
   const router = useRouter();
   const [state, formAction, pending] = useActionState(saveProduct, initial);
@@ -212,6 +217,7 @@ export function ProductForm({
               error={errors.unitCost}
               defaultValue={values.unitCost}
               onChange={setCost}
+              converted={costCents === null ? null : m.hint(costCents)}
               hint="What one unit costs from the supplier."
             />
             <MoneyField
@@ -220,12 +226,13 @@ export function ProductForm({
               error={errors.unitPrice}
               defaultValue={values.unitPrice}
               onChange={setPrice}
+              converted={priceCents === null ? null : m.hint(priceCents)}
               hint={
                 priceCents === null || costCents === null
                   ? "What one unit sells for."
                   : priceCents === 0
                     ? "No price, so no margin."
-                    : `${formatMargin(costCents, priceCents)} margin at ${formatMoney(costCents)} cost.`
+                    : `${formatMargin(costCents, priceCents)} margin at ${m.money(costCents)} cost.`
               }
             />
 
@@ -286,17 +293,22 @@ export function ProductForm({
         </fieldset>
       </form>
 
-      {archive ? <ArchiveZone facts={archive} headingLevel={headingLevel === 1 ? 2 : 3} /> : null}
+      {archive ? <ArchiveZone facts={archive} m={m} headingLevel={headingLevel === 1 ? 2 : 3} /> : null}
     </>
   );
 }
 
-/** Dollars and cents, with the dollar sign printed in the field rather than typed. */
+/**
+ * Dollars and cents, with the dollar sign printed in the field rather than typed. Stock
+ * is kept in dollars, so that's what's typed; someone reading in taka sees the figure
+ * converted at the end of the hint.
+ */
 function MoneyField({
   name,
   label,
   error,
   hint,
+  converted,
   defaultValue,
   onChange,
 }: {
@@ -304,11 +316,12 @@ function MoneyField({
   label: string;
   error?: string;
   hint: string;
+  converted: string | null;
   defaultValue: string;
   onChange: (text: string) => void;
 }) {
   return (
-    <Field name={name} label={label} error={error} hint={hint}>
+    <Field name={name} label={label} error={error} hint={converted ? `${hint} ${converted}` : hint}>
       <div className="flex items-baseline gap-1">
         <span aria-hidden className={`text-lg font-medium ${error ? "text-ink" : "text-ink-3"}`}>
           $
@@ -360,7 +373,7 @@ const archiveInitial: ArchiveFormState = {};
  * Once archived, the refreshed label has no form, so the editor prints the label
  * again, archived and with Restore, so it's undone in one press.
  */
-function ArchiveZone({ facts, headingLevel }: { facts: ArchiveFacts; headingLevel: 2 | 3 }) {
+function ArchiveZone({ facts, m, headingLevel }: { facts: ArchiveFacts; m: MoneyFormat; headingLevel: 2 | 3 }) {
   const editor = useLabelEditor();
   const [state, formAction, pending] = useActionState(setProductArchived, archiveInitial);
   const Heading = headingLevel === 2 ? "h2" : "h3";
@@ -378,7 +391,7 @@ function ArchiveZone({ facts, headingLevel }: { facts: ArchiveFacts; headingLeve
             <p className="mt-1 max-w-prose text-sm text-ink-2">
               Takes {facts.name} off the list and freezes its stock. The ledger stays, and an admin can restore it.
               {facts.onHand > 0
-                ? ` Its ${formatCount(facts.onHand)} units on hand, ${formatMoney(facts.valueCents)} at cost, leave the totals while it's archived.`
+                ? ` Its ${formatCount(facts.onHand)} units on hand, ${m.money(facts.valueCents)} at cost, leave the totals while it's archived.`
                 : null}
             </p>
             {/* Holds its line while empty, so nothing moves when it speaks. */}

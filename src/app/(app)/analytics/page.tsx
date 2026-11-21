@@ -18,16 +18,10 @@ import { FilterLink, FilterRow, FilterRowPlaceholder } from "@/components/filter
 import { PageHeader } from "@/components/page-header";
 import { FOUR_TALLIES, MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
-import {
-  formatChange,
-  formatCount,
-  formatDate,
-  formatDay,
-  formatDays,
-  formatMoneyChange,
-  formatWholeMoney,
-} from "@/lib/format";
+import { formatChange, formatCount, formatDate, formatDay, formatDays } from "@/lib/format";
+import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { getCurrentUser } from "@/server/dal";
+import { getMoneyPrefs } from "@/server/preferences";
 import { SalesChart } from "./sales-chart";
 
 export const metadata: Metadata = { title: "Analytics" };
@@ -60,7 +54,8 @@ async function Report({ searchParams }: { searchParams: PageProps<"/analytics">[
   // The period ends now.
   await connection();
   const now = new Date();
-  const analytics = await getAnalytics(await getDb(), days, now);
+  const [analytics, money] = await Promise.all([getAnalytics(await getDb(), days, now), getMoneyPrefs()]);
+  const m = moneyFormat(money);
   const { sales, stock } = analytics;
   const lost = stock.writtenOff.costCents + stock.countShort.costCents - stock.countFound.costCents;
   // Counts can find more than they miss; the note says which way they came out.
@@ -85,20 +80,20 @@ async function Report({ searchParams }: { searchParams: PageProps<"/analytics">[
       <ViewTransition key={days} enter="print" exit="tear" default="none">
         <div>
           <dl className={`grid border-b-2 border-ink ${FOUR_TALLIES}`}>
-            <Tally name="Sales" value={formatWholeMoney(sales.valueCents)}>
+            <Tally name="Sales" value={m.whole(sales.valueCents)}>
               <Note>{formatCount(sales.units)} units at list price</Note>
             </Tally>
-            <Tally name="Gross margin" value={formatWholeMoney(sales.marginCents)}>
+            <Tally name="Gross margin" value={m.whole(sales.marginCents)}>
               <Note>
                 {sales.valueCents > 0
                   ? `${Math.round((sales.marginCents / sales.valueCents) * 100)}% of sales`
                   : "No sales"}
               </Note>
             </Tally>
-            <Tally name="Stock at cost" value={formatWholeMoney(stock.onHand.costCents)}>
+            <Tally name="Stock at cost" value={m.whole(stock.onHand.costCents)}>
               <Note>{formatCount(stock.onHand.units)} units on hand</Note>
             </Tally>
-            <Tally name="Lost stock" value={formatWholeMoney(lost)}>
+            <Tally name="Lost stock" value={m.whole(lost)}>
               <Note>
                 {formatCount(stock.writtenOff.units)} written off, {formatCount(Math.abs(netShort))} net{" "}
                 {netShort < 0 ? "over" : "short"} in counts
@@ -106,9 +101,9 @@ async function Report({ searchParams }: { searchParams: PageProps<"/analytics">[
             </Tally>
           </dl>
 
-          <Statement analytics={analytics} now={now} />
-          <Sales analytics={analytics} now={now} />
-          <Categories analytics={analytics} />
+          <Statement analytics={analytics} now={now} m={m} />
+          <Sales analytics={analytics} now={now} money={money} m={m} />
+          <Categories analytics={analytics} m={m} />
           <div className="grid lg:grid-cols-2">
             <ProductList
               id="best"
@@ -116,7 +111,7 @@ async function Report({ searchParams }: { searchParams: PageProps<"/analytics">[
               note="By sales at list price, net of returns."
               empty="Nothing sold in this period."
               products={analytics.best}
-              figure={(p) => ({ value: formatWholeMoney(p.salesCents), detail: `${formatCount(p.netSold)} units` })}
+              figure={(p) => ({ value: m.whole(p.salesCents), detail: `${formatCount(p.netSold)} units` })}
             />
             <ProductList
               id="slowest"
@@ -127,7 +122,7 @@ async function Report({ searchParams }: { searchParams: PageProps<"/analytics">[
               className="border-ink max-lg:border-t lg:border-l"
               figure={(p) => ({
                 value: p.lastsDays === null ? "No sales" : formatDays(p.lastsDays),
-                detail: `${formatCount(p.onHand)} on hand · ${formatWholeMoney(p.stockCents)}`,
+                detail: `${formatCount(p.onHand)} on hand · ${m.whole(p.stockCents)}`,
               })}
             />
           </div>
@@ -175,7 +170,7 @@ type Line = { name: string; sign: 1 | -1; amount: Amount };
  * to, with each line's bar floating from the running total before it to the one after,
  * all on one scale. The foot checks the sum against the products' own on-hand counts.
  */
-function Statement({ analytics, now }: { analytics: Analytics; now: Date }) {
+function Statement({ analytics, now, m }: { analytics: Analytics; now: Date; m: MoneyFormat }) {
   const { stock, from } = analytics;
   const lines: Line[] = [
     { name: "Received", sign: 1, amount: stock.received },
@@ -203,7 +198,8 @@ function Statement({ analytics, now }: { analytics: Analytics; now: Date }) {
       note={
         <>
           What was on the shelves on {formatDate(from, now)}, plus every movement the ledger recorded since, is
-          what&apos;s on hand now. Money is at today&apos;s unit costs.
+          what&apos;s on hand now. Money is at today&apos;s unit costs
+          {m.currency === "BDT" ? " and today's taka rate" : ""}.
           {analytics.startsInside && analytics.ledgerStart ? (
             <>
               {" "}
@@ -228,7 +224,7 @@ function Statement({ analytics, now }: { analytics: Analytics; now: Date }) {
           <StatementRow
             name={`Opening stock, ${formatDate(from, now)}`}
             units={formatCount(stock.opening.units)}
-            cost={formatWholeMoney(stock.opening.costCents)}
+            cost={m.whole(stock.opening.costCents)}
             bar={[0, stock.opening.units]}
             scale={scale}
             total
@@ -238,7 +234,7 @@ function Statement({ analytics, now }: { analytics: Analytics; now: Date }) {
               key={name}
               name={name}
               units={formatChange(sign * amount.units)}
-              cost={formatMoneyChange(sign * amount.costCents)}
+              cost={m.change(sign * amount.costCents)}
               bar={spans[i]}
               scale={scale}
             />
@@ -248,7 +244,7 @@ function Statement({ analytics, now }: { analytics: Analytics; now: Date }) {
           <StatementRow
             name="On hand now"
             units={formatCount(stock.closing.units)}
-            cost={formatWholeMoney(stock.closing.costCents)}
+            cost={m.whole(stock.closing.costCents)}
             bar={[0, stock.closing.units]}
             scale={scale}
             closing
@@ -320,7 +316,7 @@ function StatementRow({
   );
 }
 
-function Sales({ analytics, now }: { analytics: Analytics; now: Date }) {
+function Sales({ analytics, now, money, m }: { analytics: Analytics; now: Date; money: MoneyPrefs; m: MoneyFormat }) {
   const { daily } = analytics.sales;
   const any = daily.some((d) => d.units !== 0);
   return (
@@ -332,7 +328,7 @@ function Sales({ analytics, now }: { analytics: Analytics; now: Date }) {
       {any ? (
         <>
           <div className="mt-5 px-5 sm:px-8">
-            <SalesChart days={daily.map(({ day, units, valueCents }) => ({ day, units, valueCents }))} />
+            <SalesChart money={money} days={daily.map(({ day, units, valueCents }) => ({ day, units, valueCents }))} />
           </div>
           <details className="group mt-6">
             <summary className="press-quiet mx-2 flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-liner sm:mx-5 [&::-webkit-details-marker]:hidden">
@@ -360,7 +356,7 @@ function Sales({ analytics, now }: { analytics: Analytics; now: Date }) {
                       {d.day.getUTCFullYear() !== now.getUTCFullYear() ? `, ${d.day.getUTCFullYear()}` : ""}
                     </th>
                     <td className="tabular py-2 pr-4 text-right text-sm">{formatCount(d.units)}</td>
-                    <td className="tabular py-2 pr-5 text-right text-sm sm:pr-8">{formatWholeMoney(d.valueCents)}</td>
+                    <td className="tabular py-2 pr-5 text-right text-sm sm:pr-8">{m.whole(d.valueCents)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -375,7 +371,7 @@ function Sales({ analytics, now }: { analytics: Analytics; now: Date }) {
 }
 
 /** Sales, margin and stock by category. Each sales bar is the category's share, on one scale. */
-function Categories({ analytics }: { analytics: Analytics }) {
+function Categories({ analytics, m }: { analytics: Analytics; m: MoneyFormat }) {
   const { categories } = analytics;
   const top = Math.max(...categories.map((c) => c.salesCents), 1);
   const total = categories.reduce((sum, c) => sum + c.salesCents, 0);
@@ -410,7 +406,7 @@ function Categories({ analytics }: { analytics: Analytics }) {
               <td className="py-3 pr-6 max-md:col-span-3 max-md:p-0">
                 <MobileName>Sales</MobileName>
                 <p className="text-sm">
-                  <span className="font-semibold">{formatWholeMoney(c.salesCents)}</span>
+                  <span className="font-semibold">{m.whole(c.salesCents)}</span>
                   <span className="text-ink-3"> · {total > 0 ? Math.round((c.salesCents / total) * 100) : 0}%</span>
                 </p>
                 <div aria-hidden className="mt-2 h-1.5 bg-liner">
@@ -419,14 +415,14 @@ function Categories({ analytics }: { analytics: Analytics }) {
               </td>
               <td className="tabular py-3 pr-4 text-right max-md:p-0 max-md:text-left">
                 <MobileName>Gross margin</MobileName>
-                {formatWholeMoney(c.marginCents)}
+                {m.whole(c.marginCents)}
                 <p className="text-sm text-ink-2">
                   {c.salesCents > 0 ? `${Math.round((c.marginCents / c.salesCents) * 100)}%` : "–"}
                 </p>
               </td>
               <td className="tabular py-3 pr-4 text-right max-md:p-0 max-md:text-left">
                 <MobileName>Stock at cost</MobileName>
-                {formatWholeMoney(c.stockCents)}
+                {m.whole(c.stockCents)}
               </td>
               <td className="tabular py-3 text-right max-md:p-0 max-md:text-left md:pr-8">
                 <MobileName>Lasts</MobileName>

@@ -9,6 +9,7 @@ import type { AskEvent, AskRequest, Refusal, WireAllowance } from "@/assistant/p
 import type { Proposal, Ref } from "@/assistant/tools";
 import { AnswerText } from "./answer";
 import { ProposalSlip } from "./proposal";
+import type { MoneyPrefs } from "@/lib/money";
 
 /**
  * The Ask page: a conversation held in the browser. Each question is POSTed with the
@@ -65,7 +66,7 @@ async function* readEvents(response: Response) {
   }
 }
 
-export function Conversation({ initialAllowance }: { initialAllowance: WireAllowance }) {
+export function Conversation({ initialAllowance, money }: { initialAllowance: WireAllowance; money: MoneyPrefs }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [allowance, setAllowance] = useState(initialAllowance);
@@ -178,6 +179,7 @@ export function Conversation({ initialAllowance }: { initialAllowance: WireAllow
             >
               <TurnView
                 turn={turn}
+                money={money}
                 onPrinted={() => update(turn.id, () => ({ fresh: false }))}
                 onRetry={() => void send(turn.question, turn.id)}
                 onWritten={(written) => update(turn.id, () => ({ written }))}
@@ -298,12 +300,14 @@ function Intro({ onPick, disabled }: { onPick: (question: string) => void; disab
 
 function TurnView({
   turn,
+  money,
   onPrinted,
   onRetry,
   onWritten,
   canRetry,
 }: {
   turn: Turn;
+  money: MoneyPrefs;
   onPrinted: () => void;
   onRetry: () => void;
   onWritten: (written: { id: number; number: string }) => void;
@@ -329,7 +333,7 @@ function TurnView({
         <div className={`mt-3 ${print}`} onAnimationEnd={onPrinted}>
           <AnswerText text={turn.answer.text} refs={turn.answer.refs} />
           {turn.answer.proposal ? (
-            <ProposalSlip proposal={turn.answer.proposal} written={turn.written} onWritten={onWritten} />
+            <ProposalSlip proposal={turn.answer.proposal} money={money} written={turn.written} onWritten={onWritten} />
           ) : null}
           <Working steps={turn.answer.steps} />
         </div>

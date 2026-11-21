@@ -29,6 +29,13 @@
       "when": 1795240427863,
       "tag": "0003_assistant_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1795242403541,
+      "tag": "0004_exchange_rates",
+      "breakpoints": true
     }
   ]
 }

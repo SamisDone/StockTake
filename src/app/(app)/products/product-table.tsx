@@ -8,7 +8,8 @@ import type { StockStatus } from "@/domain/forecast";
 import { Choice, Choices } from "@/components/choice";
 import { useArrivalHash, writeHash } from "@/components/hash-state";
 import { CoverBar, MobileName, StatusMark, Tally, Th } from "@/components/stock";
-import { formatCount, formatMoney, formatWholeMoney } from "@/lib/format";
+import { formatCount } from "@/lib/format";
+import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 
 export type ProductRow = {
   id: number;
@@ -35,7 +36,16 @@ const SHOWS: Show[] = ["all", "attention", "archived"];
  * typing costs no request. The filters live in the URL's hash (see hash-state.ts for
  * why not the query); a query in a link, the form this page used to write, is still read.
  */
-export function ProductTable({ rows, categories }: { rows: ProductRow[]; categories: string[] }) {
+export function ProductTable({
+  rows,
+  categories,
+  money,
+}: {
+  rows: ProductRow[];
+  categories: string[];
+  money: MoneyPrefs;
+}) {
+  const m = moneyFormat(money);
   const pathname = usePathname();
   const params = useSearchParams();
   const knownCategory = (wanted: string | null) => (wanted && categories.includes(wanted) ? wanted : "");
@@ -136,7 +146,7 @@ export function ProductTable({ rows, categories }: { rows: ProductRow[]; categor
             </p>
           </Tally>
           <Tally name="Units on hand" value={units} />
-          <Tally name="Value at cost" value={formatWholeMoney(value)} />
+          <Tally name="Value at cost" value={m.whole(value)} />
         </dl>
 
         <section aria-label="Products" className="pt-2 pb-8">
@@ -166,7 +176,7 @@ export function ProductTable({ rows, categories }: { rows: ProductRow[]; categor
               </thead>
               <tbody className="max-md:block">
                 {shown.map((row) => (
-                  <Row key={row.id} row={row} selected={pathname === `/products/${row.id}`} />
+                  <Row key={row.id} row={row} m={m} selected={pathname === `/products/${row.id}`} />
                 ))}
               </tbody>
             </table>
@@ -178,7 +188,7 @@ export function ProductTable({ rows, categories }: { rows: ProductRow[]; categor
 }
 
 /** One product: the name opens its label over the list, and the whole row is the hit area. */
-function Row({ row, selected }: { row: ProductRow; selected: boolean }) {
+function Row({ row, selected, m }: { row: ProductRow; selected: boolean; m: MoneyFormat }) {
   return (
     <tr
       className={`relative border-b border-hairline align-top transition-colors duration-150 last:border-b-0 max-md:grid max-md:grid-cols-[4.5rem_minmax(0,1fr)_6.5rem] max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8 ${
@@ -220,7 +230,7 @@ function Row({ row, selected }: { row: ProductRow; selected: boolean }) {
       </td>
       <td className="tabular py-3 text-right max-md:p-0 max-md:text-left md:pr-8">
         <MobileName>Value</MobileName>
-        {formatMoney(row.valueCents)}
+        {m.money(row.valueCents)}
       </td>
     </tr>
   );

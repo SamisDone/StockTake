@@ -10,10 +10,13 @@ import {
   suppliers,
   users,
 } from "@/db/schema";
-import { formatMoney } from "@/lib/format";
+import { DOLLARS, moneyFormat } from "@/lib/money";
 import { type Actor, requireAdmin } from "./actor";
 import { logActivity } from "./activity";
 import { DomainError, parseInput, violates } from "./errors";
+
+/** The activity log records amounts as they were written: in dollars, the currency stock is kept in. */
+const dollars = moneyFormat(DOLLARS);
 
 export const poNumber = (id: number) => `PO-${String(id).padStart(4, "0")}`;
 
@@ -178,7 +181,7 @@ async function resolveDraft(db: Database, input: z.output<typeof draftInput>, no
   });
 
   const totalCents = lines.reduce((total, line) => total + line.quantity * line.unitCostCents, 0);
-  const summary = `${lines.length} ${lines.length === 1 ? "line" : "lines"}, ${formatMoney(totalCents)}`;
+  const summary = `${lines.length} ${lines.length === 1 ? "line" : "lines"}, ${dollars.money(totalCents)}`;
   return { supplier, lines, summary };
 }
 
@@ -273,7 +276,7 @@ export async function placeOrder(db: Database, actor: Actor, id: number, now = n
           action: "purchase_order.placed",
           entityType: "purchase_order",
           entityId: id,
-          summary: `Placed ${poNumber(id)} with ${order.supplierName} for ${formatMoney(total)}`,
+          summary: `Placed ${poNumber(id)} with ${order.supplierName} for ${dollars.money(total)}`,
         },
         now,
       ),

@@ -1,7 +1,8 @@
 "use client";
 
 import { type KeyboardEvent, type PointerEvent, useState } from "react";
-import { formatAxisMoney, formatCount, formatDate, formatDay, formatWholeMoney } from "@/lib/format";
+import { formatCount, formatDate, formatDay } from "@/lib/format";
+import { type MoneyPrefs, moneyFormat } from "@/lib/money";
 
 export type ChartDay = { day: Date; units: number; valueCents: number };
 
@@ -25,7 +26,8 @@ const units = (n: number) => `${formatCount(n)} ${n === 1 ? "unit" : "units"}`;
  * picks the nearest day, and so do the arrow keys once it has focus. With nothing picked
  * it reads the average of the full days. It never animates: it's read many times a visit.
  */
-export function SalesChart({ days }: { days: ChartDay[] }) {
+export function SalesChart({ days, money }: { days: ChartDay[]; money: MoneyPrefs }) {
+  const m = moneyFormat(money);
   const [active, setActive] = useState<number | null>(null);
   const last = days.length - 1;
   const full = days.slice(0, last);
@@ -33,7 +35,9 @@ export function SalesChart({ days }: { days: ChartDay[] }) {
     valueCents: full.reduce((sum, d) => sum + d.valueCents, 0) / Math.max(full.length, 1),
     units: full.reduce((sum, d) => sum + d.units, 0) / Math.max(full.length, 1),
   };
-  const top = niceMax(Math.max(...days.map((d) => d.valueCents), average.valueCents));
+  // The top is a clean figure in the currency it reads in, so the ticks are too.
+  const peak = Math.max(...days.map((d) => d.valueCents), average.valueCents);
+  const top = (niceMax((peak / 100) * m.perDollar) / m.perDollar) * 100;
   const height = (cents: number) => `${(Math.max(cents, 0) / top) * 100}%`;
 
   const pick = (event: PointerEvent<HTMLDivElement>) => {
@@ -70,7 +74,7 @@ export function SalesChart({ days }: { days: ChartDay[] }) {
           {day === null ? <span aria-hidden className="h-px w-3 bg-ink-3" /> : null}
           {name}
         </p>
-        <p className="print-display mt-1 text-[1.75rem] sm:text-4xl">{formatWholeMoney(value)}</p>
+        <p className="print-display mt-1 text-[1.75rem] sm:text-4xl">{m.whole(value)}</p>
         <p className="mt-1 text-sm text-ink-2">{sold}</p>
       </div>
 
@@ -83,11 +87,11 @@ export function SalesChart({ days }: { days: ChartDay[] }) {
               className="block translate-y-1/2 leading-none"
               style={{ position: "absolute", right: 0, bottom: `${at * 100}%` }}
             >
-              {formatAxisMoney(top * at)}
+              {m.axis(top * at)}
             </span>
           ))}
           {/* Holds the column's width at its widest label. */}
-          <span className="invisible block leading-none">{formatAxisMoney(top)}</span>
+          <span className="invisible block leading-none">{m.axis(top)}</span>
         </div>
 
         <div
@@ -97,7 +101,7 @@ export function SalesChart({ days }: { days: ChartDay[] }) {
           aria-valuemin={1}
           aria-valuemax={days.length}
           aria-valuenow={(active ?? last) + 1}
-          aria-valuetext={`${name}: ${formatWholeMoney(value)}, ${sold}`}
+          aria-valuetext={`${name}: ${m.whole(value)}, ${sold}`}
           onPointerMove={pick}
           onPointerDown={pick}
           onPointerLeave={(event) => {

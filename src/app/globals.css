@@ -17,7 +17,7 @@
   --color-hairline: #d9dad4; /* row dividers inside a zone */
   --color-stock: #ffd400; /* hi-vis label stock: attention only */
 
-  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-archivo), var(--font-bengali), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-martian-mono), ui-monospace, monospace;
 
   --radius-label: 10px; /* die-cut corner of a label sheet */

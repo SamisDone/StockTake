@@ -13,9 +13,11 @@ import { countMovements, listMovements } from "@/domain/stock";
 import { listSuppliers } from "@/domain/suppliers";
 import { CoverTrack, Tally, TallyPlaceholder } from "@/components/stock";
 import { explainStock } from "@/lib/explain";
-import { formatChange, formatCount, formatDate, formatDays, formatMargin, formatMoney, formatRate } from "@/lib/format";
+import { formatChange, formatCount, formatDate, formatDays, formatMargin, formatRate } from "@/lib/format";
+import { type MoneyFormat, moneyFormat } from "@/lib/money";
 import { centsToInput } from "@/lib/parse";
 import { getCurrentUser } from "@/server/dal";
+import { getMoneyPrefs } from "@/server/preferences";
 import { EditButton, LabelEditor } from "@/components/label-editor";
 import { ProductForm } from "./product-form";
 import type { SupplierOption } from "./product-values";
@@ -53,12 +55,14 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
   }
   const isAdmin = user.role === "admin";
   const canEdit = isAdmin && !product.archivedAt;
-  const [movements, total, editing] = await Promise.all([
+  const [movements, total, editing, money] = await Promise.all([
     listMovements(db, id, { limit: LEDGER_LIMIT }),
     countMovements(db, id),
     canEdit ? editingOptions(db, product.supplierId) : null,
+    getMoneyPrefs(),
   ]);
 
+  const m = moneyFormat(money);
   const Title = heading;
   const sub = heading === "h1" ? 2 : 3;
   const Sub = heading === "h1" ? "h2" : "h3";
@@ -100,7 +104,7 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
       </dl>
 
       {/* Frozen stock needs no reorder advice; the archived band below says what applies. */}
-      {product.archivedAt ? null : <Status product={product} />}
+      {product.archivedAt ? null : <Status product={product} m={m} />}
 
       <dl className="grid grid-cols-2 gap-px border-b-2 border-ink bg-ink sm:grid-cols-4">
         <Detail name="Demand" value={product.dailyDemand > 0 ? formatRate(product.dailyDemand) : "No sales"}>
@@ -132,9 +136,9 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
             ? `${product.leadTimeDays}‑day lead time`
             : `${product.leadTimeDays}‑day lead time assumed`}
         </Detail>
-        <Detail name="Unit cost" value={formatMoney(product.unitCostCents)} />
-        <Detail name="Unit price" value={formatMoney(product.unitPriceCents)} />
-        <Detail name="Value at cost" value={formatMoney(product.onHand * product.unitCostCents)} />
+        <Detail name="Unit cost" value={m.money(product.unitCostCents)} />
+        <Detail name="Unit price" value={m.money(product.unitPriceCents)} />
+        <Detail name="Value at cost" value={m.money(product.onHand * product.unitCostCents)} />
         <Detail name="Margin" value={formatMargin(product.unitCostCents, product.unitPriceCents)} />
       </dl>
 
@@ -188,6 +192,7 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
         editing ? (
           <ProductForm
             productId={product.id}
+            money={money}
             defaults={{
               name: product.name,
               sku: product.sku,
@@ -232,7 +237,7 @@ export async function editingOptions(db: Database, currentSupplierId: number | n
 }
 
 /** Why the product has its status: plain for healthy stock, yellow stock for a reorder, reverse print when out. */
-function Status({ product }: { product: StockForecast }) {
+function Status({ product, m }: { product: StockForecast; m: MoneyFormat }) {
   const tone =
     product.status === "out" ? "bg-ink text-label" : product.status === "reorder" ? "bg-stock text-ink" : "text-ink";
   const lead = { out: "Out of stock.", reorder: "Reorder.", ok: "Enough stock." }[product.status];
@@ -244,7 +249,7 @@ function Status({ product }: { product: StockForecast }) {
           <>
             {" "}
             Suggested order: <strong className="font-bold">{formatCount(product.suggestedQuantity)} units</strong>,{" "}
-            {formatMoney(product.suggestedQuantity * product.unitCostCents)} at cost.
+            {m.money(product.suggestedQuantity * product.unitCostCents)} at cost.
           </>
         ) : null}
       </p>

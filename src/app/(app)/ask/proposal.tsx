@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useActionState } from "react";
 import type { Proposal } from "@/assistant/tools";
 import { NAV_FORWARD } from "@/components/transitions";
-import { formatCount, formatMoney } from "@/lib/format";
+import { formatCount } from "@/lib/format";
+import { type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { type ProposalFormState, draftFromProposal } from "@/server/order-actions";
 
 /**
@@ -16,14 +17,17 @@ import { type ProposalFormState, draftFromProposal } from "@/server/order-action
  */
 export function ProposalSlip({
   proposal,
+  money,
   written,
   onWritten,
 }: {
   proposal: Proposal;
+  money: MoneyPrefs;
   written: { id: number; number: string } | null;
   onWritten: (draft: { id: number; number: string }) => void;
 }) {
   const router = useRouter();
+  const m = moneyFormat(money);
   const [state, formAction, pending] = useActionState(async (previous: ProposalFormState, formData: FormData) => {
     const result = await draftFromProposal(previous, formData);
     if (result.saved) {
@@ -65,7 +69,7 @@ export function ProposalSlip({
               </td>
               <td className="tabular py-2.5 pr-3 text-right whitespace-nowrap">{formatCount(line.quantity)}</td>
               <td className="tabular py-2.5 text-right whitespace-nowrap text-ink-2">
-                {formatMoney(line.quantity * line.unitCostCents)}
+                {m.money(line.quantity * line.unitCostCents)}
               </td>
             </tr>
           ))}
@@ -73,9 +77,7 @@ export function ProposalSlip({
             <th scope="row" className="py-2.5 text-left font-semibold" colSpan={2}>
               Total
             </th>
-            <td className="tabular py-2.5 text-right font-bold whitespace-nowrap">
-              {formatMoney(proposal.totalCents)}
-            </td>
+            <td className="tabular py-2.5 text-right font-bold whitespace-nowrap">{m.money(proposal.totalCents)}</td>
           </tr>
         </tbody>
       </table>

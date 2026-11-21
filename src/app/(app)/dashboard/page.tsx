@@ -3,11 +3,13 @@ import { connection } from "next/server";
 import { getDb } from "@/db/client";
 import Link from "next/link";
 import { type StockForecast, getStockForecasts } from "@/domain/forecast";
-import { formatCount, formatMoney, formatWholeMoney } from "@/lib/format";
+import { formatCount } from "@/lib/format";
+import { type MoneyFormat, moneyFormat } from "@/lib/money";
 import { PageHeader } from "@/components/page-header";
 import { CoverBar, MobileName, StatusMark, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
 import { getCurrentUser } from "@/server/dal";
+import { getMoneyPrefs } from "@/server/preferences";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -29,6 +31,7 @@ async function Attention() {
   // Forecasts are relative to now, so they belong to the request, never to a prerender.
   await connection();
   const forecasts = await getStockForecasts(await getDb());
+  const m = moneyFormat(await getMoneyPrefs());
   const attention = forecasts.filter((f) => f.status !== "ok");
   const out = attention.filter((f) => f.status === "out").length;
   const reorderCost = attention.reduce((sum, f) => sum + f.suggestedQuantity * f.unitCostCents, 0);
@@ -38,7 +41,7 @@ async function Attention() {
       <dl className="grid grid-cols-3 border-b-2 border-ink">
         <Tally name="Out of stock" value={out} />
         <Tally name="Reorder now" value={attention.length - out} />
-        <Tally name="Cost to reorder" value={formatWholeMoney(reorderCost)} />
+        <Tally name="Cost to reorder" value={m.whole(reorderCost)} />
       </dl>
 
       <section aria-labelledby="attention-title" className="pt-6 pb-8">
@@ -78,7 +81,7 @@ async function Attention() {
               </thead>
               <tbody className="max-md:block max-md:border-t max-md:border-ink">
                 {attention.map((f) => (
-                  <AttentionRow key={f.id} forecast={f} />
+                  <AttentionRow key={f.id} forecast={f} m={m} />
                 ))}
               </tbody>
             </table>
@@ -89,7 +92,7 @@ async function Attention() {
   );
 }
 
-function AttentionRow({ forecast: f }: { forecast: Forecast }) {
+function AttentionRow({ forecast: f, m }: { forecast: Forecast; m: MoneyFormat }) {
   const suggestedCost = f.suggestedQuantity * f.unitCostCents;
 
   return (
@@ -126,7 +129,7 @@ function AttentionRow({ forecast: f }: { forecast: Forecast }) {
       <td className="tabular py-3 text-right max-md:p-0 max-md:text-left md:pr-8">
         <MobileName>Order</MobileName>
         <span className="font-semibold">{formatCount(f.suggestedQuantity)} units</span>
-        <p className="text-sm text-ink-2">{formatMoney(suggestedCost)}</p>
+        <p className="text-sm text-ink-2">{m.money(suggestedCost)}</p>
       </td>
     </tr>
   );

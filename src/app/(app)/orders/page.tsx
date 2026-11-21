@@ -8,8 +8,10 @@ import { type SupplierSuggestion, type SuggestedLine, getReorderSuggestions } fr
 import { PageHeader } from "@/components/page-header";
 import { MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
-import { formatCount, formatMoney, formatWholeMoney } from "@/lib/format";
+import { formatCount } from "@/lib/format";
+import { type MoneyFormat, moneyFormat } from "@/lib/money";
 import { getCurrentUser } from "@/server/dal";
+import { getMoneyPrefs } from "@/server/preferences";
 import { DraftButton } from "./draft-button";
 import { type OrderRow, OrderTable } from "./order-table";
 import { orderWhen } from "./status";
@@ -49,6 +51,8 @@ async function Orders() {
   await connection();
   const db = await getDb();
   const now = new Date();
+  const money = await getMoneyPrefs();
+  const m = moneyFormat(money);
   const [orders, suggestions] = await Promise.all([listOrders(db), getReorderSuggestions(db, now)]);
 
   // Only what the table prints crosses to the browser.
@@ -72,11 +76,11 @@ async function Orders() {
     <>
       <dl className="grid grid-cols-3 border-b-2 border-ink">
         <Tally name="Drafts" value={orders.filter((o) => o.status === "draft").length} />
-        <Tally name="On order" value={formatWholeMoney(placed.reduce((sum, o) => sum + o.totalCents, 0))} />
+        <Tally name="On order" value={m.whole(placed.reduce((sum, o) => sum + o.totalCents, 0))} />
         <Tally name="Late" value={rows.filter((r) => r.late).length} />
       </dl>
-      <Suggestions suppliers={suggestions.suppliers} unsupplied={suggestions.unsupplied} />
-      <OrderTable rows={rows} />
+      <Suggestions suppliers={suggestions.suppliers} unsupplied={suggestions.unsupplied} m={m} />
+      <OrderTable rows={rows} money={money} />
     </>
   );
 }
@@ -85,7 +89,15 @@ async function Orders() {
  * What the forecast says to order, one row per supplier. Drafting makes an order a
  * person can still change; nothing is sent until an admin places it.
  */
-function Suggestions({ suppliers, unsupplied }: { suppliers: SupplierSuggestion[]; unsupplied: SuggestedLine[] }) {
+function Suggestions({
+  suppliers,
+  unsupplied,
+  m,
+}: {
+  suppliers: SupplierSuggestion[];
+  unsupplied: SuggestedLine[];
+  m: MoneyFormat;
+}) {
   return (
     <section aria-labelledby="suggested-title" className="border-b-2 border-ink pt-6 pb-6">
       <div className="px-5 sm:px-8">
@@ -114,7 +126,7 @@ function Suggestions({ suppliers, unsupplied }: { suppliers: SupplierSuggestion[
           </thead>
           <tbody className="max-md:block">
             {suppliers.map((s) => (
-              <SuggestionRow key={s.supplierId} suggestion={s} />
+              <SuggestionRow key={s.supplierId} suggestion={s} m={m} />
             ))}
           </tbody>
         </table>
@@ -142,7 +154,7 @@ function Suggestions({ suppliers, unsupplied }: { suppliers: SupplierSuggestion[
   );
 }
 
-function SuggestionRow({ suggestion: s }: { suggestion: SupplierSuggestion }) {
+function SuggestionRow({ suggestion: s, m }: { suggestion: SupplierSuggestion; m: MoneyFormat }) {
   const drafts = [...new Set(s.lines.flatMap((line) => (line.draftId === null ? [] : [line.draftId])))];
   return (
     <tr className="border-b border-hairline align-top last:border-b-0 max-md:grid max-md:grid-cols-2 max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8">
@@ -164,7 +176,7 @@ function SuggestionRow({ suggestion: s }: { suggestion: SupplierSuggestion }) {
       <td className="tabular py-3 pr-4 text-right whitespace-nowrap max-md:p-0 max-md:text-left">
         <MobileName>Cost</MobileName>
         {s.toDraft > 0 ? (
-          <span className="font-semibold">{formatMoney(s.totalCents)}</span>
+          <span className="font-semibold">{m.money(s.totalCents)}</span>
         ) : (
           <span className="text-ink-2">–</span>
         )}

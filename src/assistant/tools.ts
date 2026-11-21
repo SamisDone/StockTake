@@ -8,7 +8,8 @@ import { deliveryRecord, getOrder, listOrders } from "@/domain/purchase-orders";
 import { getReorderSuggestions } from "@/domain/reorder";
 import { listMovements } from "@/domain/stock";
 import { getSupplier, listSuppliers } from "@/domain/suppliers";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { DOLLARS, type MoneyFormat, moneyFormat } from "@/lib/money";
 
 /**
  * The assistant's tools: a few typed, read-only queries over the domain layer. The
@@ -16,7 +17,8 @@ import { formatDate, formatMoney } from "@/lib/format";
  * runs, and the model never sees or writes SQL. Drafting an order only proposes one; the
  * person writes it from the proposal in the UI, through the usual Server Action.
  *
- * What a tool returns to the model is reshaped for reading: money as formatted text,
+ * What a tool returns to the model is reshaped for reading: money as formatted text in
+ * the currency the person reads in,
  * dates as UTC days, figures rounded, so the model repeats numbers rather than computing
  * them.
  */
@@ -50,7 +52,7 @@ export type ToolOutcome = {
   proposal?: Proposal;
 };
 
-type Context = { db: Database; now: Date };
+type Context = { db: Database; now: Date; money: MoneyFormat };
 
 type Tool<S extends z.ZodObject> = {
   name: string;
@@ -85,7 +87,7 @@ const orderRef = (o: { id: number; number: string; supplierName: string }): Ref 
 const STATUS_WORDS = { out: "out of stock", reorder: "reorder now", ok: "enough stock" } as const;
 
 /** A product's stock picture, as the model reads it. */
-function stockFacts(f: StockForecast, now: Date) {
+function stockFacts(f: StockForecast, now: Date, money: MoneyFormat) {
   return {
     productId: f.id,
     sku: f.sku,
@@ -103,8 +105,8 @@ function stockFacts(f: StockForecast, now: Date) {
     runsOutOn: f.onHand === 0 ? null : day(f.stockoutAt, now),
     leadTimeDays: f.leadTimeDays,
     suggestedOrder: f.suggestedQuantity,
-    unitCost: formatMoney(f.unitCostCents),
-    price: formatMoney(f.unitPriceCents),
+    unitCost: money.money(f.unitCostCents),
+    price: money.money(f.unitPriceCents),
   };
 }
 
@@ -125,7 +127,7 @@ const searchProducts = tool({
       .describe("out: none on hand. reorder: order now. ok: enough stock."),
     limit: z.number().int().min(1).max(25).optional().describe("At most this many, most urgent first. Default 10."),
   }),
-  async run({ db, now }, { query, status, limit = 10 }) {
+  async run({ db, now, money }, { query, status, limit = 10 }) {
     const words = query?.toLowerCase().split(/\s+/) ?? [];
     const matched = (await getStockForecasts(db, now)).filter((f) => {
       if (status && f.status !== status) return false;
@@ -135,7 +137,7 @@ const searchProducts = tool({
     const shown = matched.slice(0, limit);
     const filters = [query && `“${query}”`, status && STATUS_WORDS[status]].filter(Boolean).join(", ");
     return {
-      data: { matched: matched.length, shown: shown.length, products: shown.map((f) => stockFacts(f, now)) },
+      data: { matched: matched.length, shown: shown.length, products: shown.map((f) => stockFacts(f, now, money)) },
       refs: shown.map(productRef),
       summary: `Searched products${filters ? ` for ${filters}` : ""}: ${plural(matched.length, "match", "matches")}`,
     };
@@ -148,12 +150,12 @@ const getProductTool = tool({
     "One product's stock picture and its latest stock movements (receipts, sales, counts, returns, write-offs), " +
     "newest first, with the balance after each.",
   input: z.object({ productId: recordId }),
-  async run({ db, now }, { productId }) {
+  async run({ db, now, money }, { productId }) {
     const f = await getProductForecast(db, productId, now);
     const movements = await listMovements(db, productId, { limit: 12 });
     return {
       data: {
-        ...stockFacts(f, now),
+        ...stockFacts(f, now, money),
         archived: f.archivedAt !== null,
         description: f.description,
         latestMovements: movements.map((m) => ({
@@ -212,7 +214,7 @@ const getSupplierTool = tool({
   description:
     "One supplier: contact details, lead time, rating with the latest reviews, its products' stock, and its open orders.",
   input: z.object({ supplierId: recordId }),
-  async run({ db, now }, { supplierId }) {
+  async run({ db, now, money }, { supplierId }) {
     const [supplier, forecasts, orders] = await Promise.all([
       getSupplier(db, supplierId),
       getStockForecasts(db, now),
@@ -235,7 +237,7 @@ const getSupplierTool = tool({
         latestReviews: supplier.reviews
           .slice(0, 3)
           .map((r) => ({ by: r.userName, stars: r.rating, comment: r.comment })),
-        products: products.map((f) => stockFacts(f, now)),
+        products: products.map((f) => stockFacts(f, now, money)),
         openOrders: open.map((o) => ({ orderId: o.id, number: o.number, status: o.status, due: day(o.dueAt, now) })),
       },
       refs: [supplierRef(supplier), ...products.map(productRef), ...open.map(orderRef)],
@@ -257,7 +259,7 @@ const listOrdersTool = tool({
     supplierId: recordId.optional(),
     limit: z.number().int().min(1).max(25).optional().describe("Default 15."),
   }),
-  async run({ db, now }, { status, late, supplierId, limit = 15 }) {
+  async run({ db, now, money }, { status, late, supplierId, limit = 15 }) {
     const today = startOfDay(now);
     const isLate = (o: { status: string; dueAt: Date | null }) =>
       o.status === "ordered" && o.dueAt !== null && startOfDay(o.dueAt) < today;
@@ -277,7 +279,7 @@ const listOrdersTool = tool({
           supplier: o.supplierName,
           supplierId: o.supplierId,
           lines: o.lineCount,
-          total: formatMoney(o.totalCents),
+          total: money.money(o.totalCents),
           created: day(o.createdAt, now),
           placed: day(o.orderedAt, now),
           due: day(o.dueAt, now),
@@ -294,7 +296,7 @@ const getOrderTool = tool({
   name: "get_order",
   description: "One purchase order with its lines: product, quantity, unit cost and line total.",
   input: z.object({ orderId: recordId }),
-  async run({ db, now }, { orderId }) {
+  async run({ db, now, money }, { orderId }) {
     const o = await getOrder(db, orderId);
     return {
       data: {
@@ -315,10 +317,10 @@ const getOrderTool = tool({
           sku: l.sku,
           name: l.name,
           quantity: l.quantity,
-          unitCost: formatMoney(l.unitCostCents),
-          lineTotal: formatMoney(l.lineTotalCents),
+          unitCost: money.money(l.unitCostCents),
+          lineTotal: money.money(l.lineTotalCents),
         })),
-        total: formatMoney(o.totalCents),
+        total: money.money(o.totalCents),
       },
       refs: [
         orderRef(o),
@@ -341,14 +343,14 @@ const salesSummary = tool({
       .optional()
       .describe("28 or 90. Default 28."),
   }),
-  async run({ db, now }, { days = 28 }) {
+  async run({ db, now, money }, { days = 28 }) {
     const a = await getAnalytics(db, days, now);
     const figures = (p: (typeof a.best)[number]) => ({
       productId: p.id,
       sku: p.sku,
       name: p.name,
       unitsSold: p.netSold,
-      sales: formatMoney(p.salesCents),
+      sales: money.money(p.salesCents),
       onHand: p.onHand,
       stockLastsDays: round(p.lastsDays),
     });
@@ -357,16 +359,16 @@ const salesSummary = tool({
         from: day(a.from, now),
         to: day(new Date(a.to.getTime() - 1), now),
         unitsSold: a.sales.units,
-        sales: formatMoney(a.sales.valueCents),
-        margin: formatMoney(a.sales.marginCents),
+        sales: money.money(a.sales.valueCents),
+        margin: money.money(a.sales.marginCents),
         bestSellers: a.best.map(figures),
         slowestMoving: a.slowest.map(figures),
         categories: a.categories.map((c) => ({
           name: c.name,
           products: c.products,
-          sales: formatMoney(c.salesCents),
-          margin: formatMoney(c.marginCents),
-          stockValue: formatMoney(c.stockCents),
+          sales: money.money(c.salesCents),
+          margin: money.money(c.marginCents),
+          stockValue: money.money(c.stockCents),
         })),
       },
       refs: [...a.best, ...a.slowest].map(productRef),
@@ -389,7 +391,7 @@ const draftPurchaseOrder = tool({
       .max(50)
       .optional(),
   }),
-  async run({ db, now }, { supplierId, lines }) {
+  async run({ db, now, money }, { supplierId, lines }) {
     const [supplier, forecasts] = await Promise.all([getSupplier(db, supplierId), getStockForecasts(db, now)]);
     if (supplier.archivedAt)
       throw new DomainError("invalid_state", `${supplier.name} is archived and takes no orders.`);
@@ -445,12 +447,12 @@ const draftPurchaseOrder = tool({
           name: l.name,
           sku: l.sku,
           quantity: l.quantity,
-          unitCost: formatMoney(l.unitCostCents),
+          unitCost: money.money(l.unitCostCents),
         })),
-        total: formatMoney(proposal.totalCents),
+        total: money.money(proposal.totalCents),
       },
       refs: [supplierRef(supplier), ...chosen.map(({ forecast }) => productRef(forecast))],
-      summary: `Proposed an order to ${supplier.name}: ${plural(proposalLines.length, "line")}, ${formatMoney(proposal.totalCents)}`,
+      summary: `Proposed an order to ${supplier.name}: ${plural(proposalLines.length, "line")}, ${money.money(proposal.totalCents)}`,
       proposal,
     };
   },
@@ -494,7 +496,12 @@ export type ToolRun = { ok: true; outcome: ToolOutcome } | { ok: false; error: s
  * that doesn't parse, doesn't match the tool's schema or names a missing record comes
  * back as an error the model can read and correct, never as an exception.
  */
-export async function runTool(context: Context, name: string, rawArguments: string): Promise<ToolRun> {
+export async function runTool(
+  given: Omit<Context, "money"> & { money?: MoneyFormat },
+  name: string,
+  rawArguments: string,
+): Promise<ToolRun> {
+  const context: Context = { ...given, money: given.money ?? moneyFormat(DOLLARS) };
   const definition = TOOLS.find((t) => t.name === name);
   if (!definition) return { ok: false, error: `There is no tool called ${name}.` };
 

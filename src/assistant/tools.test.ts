@@ -5,6 +5,7 @@ import { getStockForecasts } from "@/domain/forecast";
 import { getReorderSuggestions } from "@/domain/reorder";
 import { demoPasswordHash, demoStatements, resetStatements } from "@/seed/demo";
 import { createTestDb } from "@/test/db";
+import { moneyFormat } from "@/lib/money";
 import { TOOL_DEFINITIONS, type ToolOutcome, runTool } from "./tools";
 
 const now = new Date(Date.UTC(2026, 10, 20, 12));
@@ -106,6 +107,19 @@ describe("search_products", () => {
     expect(p.unitCost).toMatch(/^\$\d/);
     // Dates come as the pages print them, so the model repeats them that way.
     expect(p.runsOutOn === null || /^[A-Z][a-z]{2} \d{1,2}(, \d{4})?$/.test(String(p.runsOutOn))).toBe(true);
+  });
+
+  it("gives money in taka, converted, to someone who reads in taka", async () => {
+    const money = moneyFormat({ currency: "BDT", bdtPerUsd: 100, rateAsOf: "2026-11-20" });
+    const [dollars, taka] = await Promise.all(
+      [undefined, money].map((m) => runTool({ db, now, money: m }, "search_products", '{"limit":1}')),
+    );
+    if (!dollars.ok || !taka.ok) throw new Error("search_products failed");
+    const cost = (run: typeof dollars) =>
+      ((run.ok ? run.outcome.data : {}) as { products: { unitCost: string }[] }).products[0].unitCost;
+    const cents = Math.round(Number(cost(dollars).replace(/[$,]/g, "")) * 100);
+    expect(cost(taka)).toBe(money.money(cents));
+    expect(cost(taka)).toMatch(/^৳/);
   });
 });
 

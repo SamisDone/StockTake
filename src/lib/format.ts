@@ -1,16 +1,4 @@
-const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-
-/** Formats integer cents as dollars, e.g. 11300 → "$113.00". */
-export function formatMoney(cents: number) {
-  return money.format(cents / 100);
-}
-
-const wholeMoney = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-
-/** Cents as whole dollars, for totals printed large, e.g. 182670 → "$1,827". */
-export function formatWholeMoney(cents: number) {
-  return wholeMoney.format(Math.round(cents / 100));
-}
+// Money is formatted per person, in src/lib/money.ts.
 
 /** Days of cover: one decimal while it's short enough for tenths to matter, e.g. "3.4 days". */
 export function formatDays(days: number) {
@@ -71,22 +59,4 @@ const weekdayDate = new Intl.DateTimeFormat("en-US", {
 /** A UTC day with its weekday, for a single day read off a chart: "Wed, Nov 18". */
 export function formatDay(date: Date) {
   return weekdayDate.format(date);
-}
-
-const compactMoney = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-/** Whole dollars for an axis: in full under $10,000, compact from there, e.g. "$2,500", "$12K". */
-export function formatAxisMoney(cents: number) {
-  return cents < 1_000_000 ? formatWholeMoney(cents) : compactMoney.format(cents / 100);
-}
-
-/** Whole dollars with a sign, a real minus for money taken off: "+$1,250", "−$80", "$0". */
-export function formatMoneyChange(cents: number) {
-  const whole = Math.round(cents / 100);
-  return whole > 0 ? `+${formatWholeMoney(cents)}` : whole < 0 ? `−${formatWholeMoney(-cents)}` : formatWholeMoney(0);
 }

@@ -5,6 +5,7 @@ import type { SessionUser } from "@/domain/auth";
 import { AssistantError, type RunModel, ask } from "@/assistant/ask";
 import { type AskEvent, type askRequest, toWire } from "@/assistant/protocol";
 import { claimQuestion, getAllowance, recordNeurons, releaseQuestion } from "@/assistant/usage";
+import type { MoneyFormat } from "@/lib/money";
 
 /**
  * Answers a signed-in person's question as a stream of events. The question is counted
@@ -17,12 +18,15 @@ export function answerStream({
   input,
   run,
   now,
+  money,
 }: {
   db: Database;
   user: SessionUser;
   input: z.output<typeof askRequest>;
   run: RunModel;
   now: Date;
+  /** How the person reads money. Dollars when left out. */
+  money?: MoneyFormat;
 }) {
   const encoder = new TextEncoder();
   return new ReadableStream<Uint8Array>({
@@ -44,6 +48,7 @@ export function answerStream({
           now,
           question: input.question,
           history: input.history,
+          money,
           onStep: (step) => send({ type: "step", step }),
         });
         await recordNeurons(db, user.id, claim.day, neurons);

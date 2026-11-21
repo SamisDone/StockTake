@@ -11,8 +11,10 @@ import { PageHeader } from "@/components/page-header";
 import { Stars, formatRating } from "@/components/stars";
 import { MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
-import { formatCount, formatDate, formatWholeMoney } from "@/lib/format";
+import { formatCount, formatDate } from "@/lib/format";
+import { type MoneyFormat, moneyFormat } from "@/lib/money";
 import { getCurrentUser, getSessionUser } from "@/server/dal";
+import { getMoneyPrefs } from "@/server/preferences";
 
 export const metadata: Metadata = { title: "Suppliers" };
 
@@ -82,11 +84,13 @@ async function SupplierList() {
   await connection();
   const db = await getDb();
   const now = new Date();
-  const [suppliers, forecasts, orders] = await Promise.all([
+  const [suppliers, forecasts, orders, money] = await Promise.all([
     listSuppliers(db, { includeArchived: true }),
     getStockForecasts(db, now),
     listOrders(db),
+    getMoneyPrefs(),
   ]);
+  const m = moneyFormat(money);
 
   const rows: Row[] = suppliers.map((s) => {
     const theirs = orders.filter((o) => o.supplierId === s.id);
@@ -112,7 +116,7 @@ async function SupplierList() {
     <>
       <dl className="grid grid-cols-3 border-b-2 border-ink">
         <Tally name="Suppliers" value={active.length} />
-        <Tally name="On order" value={formatWholeMoney(active.reduce((sum, r) => sum + r.onOrderCents, 0))} />
+        <Tally name="On order" value={m.whole(active.reduce((sum, r) => sum + r.onOrderCents, 0))} />
         <Tally
           name="On time"
           value={record.received === 0 ? "–" : `${Math.round((record.onTime / record.received) * 100)}%`}
@@ -131,6 +135,7 @@ async function SupplierList() {
           <p className="px-5 pt-4 font-semibold sm:px-8">No suppliers yet.</p>
         ) : (
           <SupplierTable
+            m={m}
             rows={active}
             caption="Suppliers by name. Select one to see its products, orders and reviews."
           />
@@ -169,7 +174,7 @@ async function SupplierList() {
   );
 }
 
-function SupplierTable({ rows, caption }: { rows: Row[]; caption: string }) {
+function SupplierTable({ rows, caption, m }: { rows: Row[]; caption: string; m: MoneyFormat }) {
   return (
     <table className="w-full border-collapse text-left max-lg:block">
       <caption className="sr-only">{caption}</caption>
@@ -185,7 +190,7 @@ function SupplierTable({ rows, caption }: { rows: Row[]; caption: string }) {
       </thead>
       <tbody className="max-lg:block">
         {rows.map((row) => (
-          <SupplierRow key={row.id} row={row} />
+          <SupplierRow key={row.id} row={row} m={m} />
         ))}
       </tbody>
     </table>
@@ -193,7 +198,7 @@ function SupplierTable({ rows, caption }: { rows: Row[]; caption: string }) {
 }
 
 /** One supplier: the name opens it, and the whole row is the hit area. */
-function SupplierRow({ row }: { row: Row }) {
+function SupplierRow({ row, m }: { row: Row; m: MoneyFormat }) {
   return (
     <tr className="relative border-b border-hairline align-top transition-colors duration-150 last:border-b-0 hover:bg-liner/60 max-lg:grid max-lg:grid-cols-2 max-lg:gap-x-5 max-lg:gap-y-3 max-lg:px-5 max-lg:py-4 sm:max-lg:grid-cols-4 sm:max-lg:px-8">
       <td className="py-3 pr-4 max-lg:col-span-full max-lg:p-0 lg:pl-8">
@@ -222,7 +227,7 @@ function SupplierRow({ row }: { row: Row }) {
       </td>
       <td className="py-3 pr-4 whitespace-nowrap max-lg:p-0 lg:text-right">
         <MobileName>On order</MobileName>
-        {row.onOrderCents > 0 ? formatWholeMoney(row.onOrderCents) : <span className="text-ink-2">–</span>}
+        {row.onOrderCents > 0 ? m.whole(row.onOrderCents) : <span className="text-ink-2">–</span>}
       </td>
       <td className="py-3 pr-4 whitespace-nowrap max-lg:p-0 lg:text-right">
         <MobileName>On time</MobileName>

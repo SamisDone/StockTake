@@ -19,13 +19,24 @@
  *   review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
  */
 import type { Metadata, Viewport } from "next";
-import { Archivo, Martian_Mono } from "next/font/google";
+import { Archivo, Martian_Mono, Noto_Sans_Bengali } from "next/font/google";
 import "./globals.css";
 
 const archivo = Archivo({
   subsets: ["latin"],
   axes: ["wdth"],
   variable: "--font-archivo",
+});
+
+/**
+ * Bengali script, behind Archivo: the taka sign (৳) and Bangla text. Only its Bengali
+ * range is declared, so it's fetched only on a page that prints one of those characters.
+ */
+const notoBengali = Noto_Sans_Bengali({
+  subsets: ["bengali"],
+  axes: ["wdth"],
+  variable: "--font-bengali",
+  preload: false,
 });
 
 const martianMono = Martian_Mono({
@@ -45,7 +56,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${archivo.variable} ${martianMono.variable}`}>
+    <html lang="en" className={`${archivo.variable} ${notoBengali.variable} ${martianMono.variable}`}>
       <body>{children}</body>
     </html>
   );

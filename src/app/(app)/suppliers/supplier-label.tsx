@@ -13,8 +13,10 @@ import { EditButton, LabelEditor } from "@/components/label-editor";
 import { Stars, formatRating } from "@/components/stars";
 import { CoverBar, FOUR_TALLIES, MobileName, StatusMark, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { NAV_FORWARD } from "@/components/transitions";
-import { formatCount, formatDate, formatMoney } from "@/lib/format";
+import { formatCount, formatDate } from "@/lib/format";
+import { type MoneyFormat, moneyFormat } from "@/lib/money";
 import { getCurrentUser } from "@/server/dal";
+import { getMoneyPrefs } from "@/server/preferences";
 import { DraftButton } from "../orders/draft-button";
 import { STATUS_WORD, orderWhen } from "../orders/status";
 import { RestoreSupplier } from "./restore-supplier";
@@ -52,7 +54,12 @@ export async function SupplierLabel({ id, action }: { id: number; action: ReactN
     if (error instanceof DomainError && error.code === "not_found") notFound();
     throw error;
   }
-  const [forecasts, orders] = await Promise.all([getStockForecasts(db, now), listOrders(db, { supplierId: id })]);
+  const [forecasts, orders, money] = await Promise.all([
+    getStockForecasts(db, now),
+    listOrders(db, { supplierId: id }),
+    getMoneyPrefs(),
+  ]);
+  const m = moneyFormat(money);
   const { suppliers: groups } = await getReorderSuggestions(db, now, forecasts);
   const products = forecasts.filter((f) => f.supplierId === id);
   const low = products.filter((p) => p.status !== "ok").length;
@@ -146,7 +153,7 @@ export async function SupplierLabel({ id, action }: { id: number; action: ReactN
         </Tally>
       </dl>
 
-      <Status supplier={supplier} suggestion={suggestion} isAdmin={isAdmin} />
+      <Status supplier={supplier} suggestion={suggestion} isAdmin={isAdmin} m={m} />
 
       <section aria-labelledby="products-title" className="border-b-2 border-ink pt-5 pb-6">
         <div className="px-5 sm:px-8">
@@ -259,7 +266,7 @@ export async function SupplierLabel({ id, action }: { id: number; action: ReactN
                       {orderWhen(o, now)}
                     </span>
                   </div>
-                  <span className="tabular font-semibold">{formatMoney(o.totalCents)}</span>
+                  <span className="tabular font-semibold">{m.money(o.totalCents)}</span>
                 </li>
               );
             })}
@@ -337,10 +344,12 @@ function Status({
   supplier,
   suggestion,
   isAdmin,
+  m,
 }: {
   supplier: Supplier;
   suggestion: Awaited<ReturnType<typeof getReorderSuggestions>>["suppliers"][number] | undefined;
   isAdmin: boolean;
+  m: MoneyFormat;
 }) {
   if (supplier.archivedAt) {
     return (
@@ -362,7 +371,7 @@ function Status({
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b-2 border-ink bg-stock px-5 py-4 sm:px-8">
         <p className="min-w-0 flex-1 basis-72 text-sm">
           <strong className="font-bold">Reorder.</strong> {list} {names.length === 1 ? "is" : "are"} running low. A
-          draft puts the forecast&apos;s quantities on one order, {formatMoney(suggestion.totalCents)} at today&apos;s
+          draft puts the forecast&apos;s quantities on one order, {m.money(suggestion.totalCents)} at today&apos;s
           costs; nothing is sent until an admin places it.
         </p>
         <DraftButton supplierId={supplier.id} supplierName={supplier.name} />

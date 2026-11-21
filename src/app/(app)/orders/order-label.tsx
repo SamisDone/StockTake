@@ -8,9 +8,11 @@ import { getOrder } from "@/domain/purchase-orders";
 import { getOrderableProducts } from "@/domain/reorder";
 import { EditButton, LabelEditor } from "@/components/label-editor";
 import { Tally, TallyPlaceholder } from "@/components/stock";
-import { formatCount, formatDate, formatDays, formatMoney } from "@/lib/format";
+import { formatCount, formatDate, formatDays } from "@/lib/format";
+import { moneyFormat } from "@/lib/money";
 import { centsToInput } from "@/lib/parse";
 import { getCurrentUser } from "@/server/dal";
+import { getMoneyPrefs } from "@/server/preferences";
 import { DraftForm } from "./draft-form";
 import { dayInput } from "./draft-values";
 import { OrderControls } from "./order-controls";
@@ -34,6 +36,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  */
 export async function OrderLabel({ id, action }: { id: number; action: ReactNode }) {
   const user = await getCurrentUser();
+  const m = moneyFormat(await getMoneyPrefs());
   await connection();
   const db = await getDb();
   const now = new Date();
@@ -69,7 +72,7 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
       <dl className="grid grid-cols-3 border-b-2 border-ink">
         <Tally name="Lines" value={order.lines.length} />
         <Tally name="Units" value={units} />
-        <Tally name="Total" value={formatMoney(order.totalCents)} />
+        <Tally name="Total" value={m.money(order.totalCents)} />
       </dl>
 
       <Status order={order} late={late} now={now} />
@@ -114,11 +117,9 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
                 </td>
                 <td className="tabular py-2.5 pr-4 text-right">{formatCount(line.quantity)}</td>
                 <td className="tabular py-2.5 pr-4 text-right text-ink-2 max-sm:hidden">
-                  {formatMoney(line.unitCostCents)}
+                  {m.money(line.unitCostCents)}
                 </td>
-                <td className="tabular py-2.5 pr-5 text-right font-semibold sm:pr-8">
-                  {formatMoney(line.lineTotalCents)}
-                </td>
+                <td className="tabular py-2.5 pr-5 text-right font-semibold sm:pr-8">{m.money(line.lineTotalCents)}</td>
               </tr>
             ))}
           </tbody>
@@ -126,7 +127,7 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
         {/* The total, reverse-printed: the figure the order commits to. */}
         <div className="mt-3 flex items-baseline justify-between gap-4 bg-ink px-5 py-3 text-label sm:px-8">
           <p className="font-semibold">Total</p>
-          <p className="print-display text-[1.75rem] sm:text-5xl">{formatMoney(order.totalCents)}</p>
+          <p className="print-display text-[1.75rem] sm:text-5xl">{m.money(order.totalCents)}</p>
         </div>
       </section>
 
@@ -183,6 +184,7 @@ async function DraftEditor({ order, now, action }: { order: Order; now: Date; ac
   const catalog = new Map(products.map((p) => [p.id, p.unitCostCents]));
   return (
     <DraftForm
+      money={await getMoneyPrefs()}
       order={{ id: order.id, number: order.number }}
       suppliers={[{ id: order.supplierId, name: order.supplierName, leadTimeDays: order.leadTimeDays }]}
       products={products}

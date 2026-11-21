@@ -3,7 +3,9 @@ import type { ChatCompletion, RunModel } from "@/assistant/ask";
 import { askRequest } from "@/assistant/protocol";
 import { getDb } from "@/db/client";
 import { answerStream } from "@/server/ask";
+import { moneyFormat } from "@/lib/money";
 import { getSessionUser } from "@/server/dal";
+import { getMoneyPrefs } from "@/server/preferences";
 
 /**
  * POST a question, get the answer as newline-delimited JSON events (see
@@ -22,7 +24,8 @@ export async function POST(request: Request) {
   const run: RunModel = (model, input) =>
     env.AI.run(model as Parameters<typeof env.AI.run>[0], input as never) as Promise<ChatCompletion>;
 
-  const stream = answerStream({ db: await getDb(), user, input: parsed.data, run, now: new Date() });
+  const money = moneyFormat(await getMoneyPrefs());
+  const stream = answerStream({ db: await getDb(), user, input: parsed.data, run, now: new Date(), money });
   return new Response(stream, {
     headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" },
   });

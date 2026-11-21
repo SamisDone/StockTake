@@ -4,6 +4,7 @@ import { getDb } from "@/db/client";
 import { getOrderableProducts } from "@/domain/reorder";
 import { listSuppliers } from "@/domain/suppliers";
 import { getCurrentUser } from "@/server/dal";
+import { getMoneyPrefs } from "@/server/preferences";
 import { DraftForm } from "./draft-form";
 import { type SupplierChoice, dayInput } from "./draft-values";
 
@@ -35,6 +36,7 @@ export async function NewOrder({
 
   return (
     <DraftForm
+      money={await getMoneyPrefs()}
       suppliers={suppliers}
       products={products}
       defaults={{ supplierId: chosen ? String(chosen.id) : "", lines: [], expectedAt: "", notes: "" }}

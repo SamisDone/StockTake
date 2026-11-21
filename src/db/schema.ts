@@ -234,3 +234,19 @@ export const assistantUsage = sqliteTable(
     check("assistant_usage_neurons", sql`${t.neurons} >= 0`),
   ],
 );
+
+/**
+ * What one US dollar buys in another currency, refreshed from a public rate source. Money
+ * is stored in US cents; another currency is only ever a conversion for display.
+ */
+export const exchangeRates = sqliteTable(
+  "exchange_rates",
+  {
+    currency: text("currency").primaryKey(),
+    perUsd: real("per_usd").notNull(),
+    /** The day the source published the rate, as YYYY-MM-DD. */
+    asOf: text("as_of").notNull(),
+    fetchedAt: timestamp("fetched_at").notNull(),
+  },
+  (t) => [check("exchange_rates_positive", sql`${t.perUsd} > 0`)],
+);
