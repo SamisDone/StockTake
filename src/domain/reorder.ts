@@ -104,6 +104,45 @@ export async function getReorderSuggestions(db: Database, now = new Date()) {
   return { suppliers: [...bySupplier.values()], unsupplied };
 }
 
+/** A product an order can be written for, as the order form offers it. */
+export type OrderableProduct = {
+  id: number;
+  sku: string;
+  name: string;
+  supplierId: number;
+  onHand: number;
+  unitCostCents: number;
+  /** What the forecast says to order now; 0 when it says nothing. */
+  suggested: number;
+  /** Where a new line starts: the suggestion, else the product's reorder quantity. */
+  quantity: number;
+};
+
+/**
+ * Every active product that has a supplier, most urgent first, for writing an order by
+ * hand. A new line starts at what the forecast suggests, so adding a running-low
+ * product needs no arithmetic; anything else starts at its usual reorder quantity.
+ */
+export async function getOrderableProducts(db: Database, now = new Date()): Promise<OrderableProduct[]> {
+  const forecasts = await getStockForecasts(db, now);
+  return forecasts.flatMap((f) =>
+    f.supplierId === null
+      ? []
+      : [
+          {
+            id: f.id,
+            sku: f.sku,
+            name: f.name,
+            supplierId: f.supplierId,
+            onHand: f.onHand,
+            unitCostCents: f.unitCostCents,
+            suggested: f.suggestedQuantity,
+            quantity: f.suggestedQuantity || Math.max(f.reorderQuantity, 1),
+          },
+        ],
+  );
+}
+
 /**
  * Drafts an order to one supplier for every suggested line not on a draft yet, worked
  * out again here rather than taken from the page. A person still reviews and places it.

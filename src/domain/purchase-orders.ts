@@ -130,8 +130,17 @@ async function guarded<T>(db: Database, id: number, operation: Operation, write:
   }
 }
 
-/** Validates the supplier and products and resolves each line's unit cost. */
-async function resolveDraft(db: Database, input: z.output<typeof draftInput>) {
+/** Midnight UTC at the start of `now`'s day: dates on an order are whole UTC days. */
+const startOfDay = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+
+/**
+ * Validates the supplier, the expected date and the products, and resolves each line's
+ * unit cost. An order goes to one supplier, so every line must be one of its products.
+ */
+async function resolveDraft(db: Database, input: z.output<typeof draftInput>, now: Date) {
+  if (input.expectedAt && input.expectedAt < startOfDay(now)) {
+    throw new DomainError("invalid_input", "The expected date can't be before today.", "expectedAt");
+  }
   const [supplier] = await db
     .select({ id: suppliers.id, name: suppliers.name, archivedAt: suppliers.archivedAt })
     .from(suppliers)
@@ -146,6 +155,7 @@ async function resolveDraft(db: Database, input: z.output<typeof draftInput>) {
     .select({
       id: products.id,
       name: products.name,
+      supplierId: products.supplierId,
       unitCostCents: products.unitCostCents,
       archivedAt: products.archivedAt,
     })
@@ -157,6 +167,9 @@ async function resolveDraft(db: Database, input: z.output<typeof draftInput>) {
     const product = byId.get(line.productId);
     if (!product) throw new DomainError("not_found", "One of those products doesn't exist.");
     if (product.archivedAt) throw new DomainError("invalid_state", `${product.name} is archived.`);
+    if (product.supplierId !== supplier.id) {
+      throw new DomainError("invalid_state", `${supplier.name} doesn't supply ${product.name}.`);
+    }
     return {
       productId: line.productId,
       quantity: line.quantity,
@@ -172,7 +185,7 @@ async function resolveDraft(db: Database, input: z.output<typeof draftInput>) {
 /** Creates a draft order with its lines and activity entry in one atomic batch. */
 export async function createDraft(db: Database, actor: Actor, raw: DraftInput, now = new Date()) {
   const input = parseInput(draftInput, raw);
-  const { supplier, lines, summary } = await resolveDraft(db, input);
+  const { supplier, lines, summary } = await resolveDraft(db, input, now);
 
   // A batch can't pass the new order's ID between statements, so the lines and the log
   // entry look it up as max(id). The batch runs atomically, so no other insert can land
@@ -209,7 +222,7 @@ export async function createDraft(db: Database, actor: Actor, raw: DraftInput, n
 export async function updateDraft(db: Database, actor: Actor, id: number, raw: DraftInput, now = new Date()) {
   const input = parseInput(draftInput, raw);
   await loadOrderFor(db, id, "edit");
-  const { supplier, lines, summary } = await resolveDraft(db, input);
+  const { supplier, lines, summary } = await resolveDraft(db, input, now);
 
   await guarded(db, id, "edit", () =>
     db.batch([

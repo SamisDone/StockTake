@@ -1,0 +1,513 @@
+"use client";
+
+import { ChevronDown, Plus, X } from "lucide-react";
+import { startTransition, useActionState, useEffect, useRef, useState, type ReactNode } from "react";
+import { Field, fieldProps } from "@/components/field";
+import { useLabelEditor } from "@/components/label-editor";
+import { formatCount, formatMoney } from "@/lib/format";
+import { centsToInput, parseCents, parseUnits } from "@/lib/parse";
+import { type DraftFormState, saveDraft } from "@/server/order-actions";
+import type { DraftLine, DraftValues, ProductChoice, SupplierChoice } from "./draft-values";
+
+const initial: DraftFormState = {};
+
+/** A line's figures as read from what was typed: null where they can't be read yet. */
+function readLine(line: DraftLine) {
+  const quantity = parseUnits(line.quantity);
+  const cents = parseCents(line.unitCost);
+  return { quantity, cents, total: quantity !== null && cents !== null ? quantity * cents : null };
+}
+
+/**
+ * A draft written by hand: the order label's own Lines table with its figures opened up
+ * for writing. Quantities and unit costs are typed in place, every total follows as
+ * they're typed, and products are added from the supplier's catalog, running-low ones
+ * first at the quantity the forecast suggests. A new order also picks its supplier; an
+ * existing draft keeps its own. Nothing is sent until an admin places it.
+ */
+export function DraftForm({
+  order,
+  suppliers,
+  products,
+  defaults,
+  today,
+  action,
+}: {
+  /** Set when editing a draft. Without it the form writes a new order. */
+  order?: { id: number; number: string };
+  /** Who a new order can go to; an existing draft passes only its own supplier. */
+  suppliers: SupplierChoice[];
+  /** What can go on a line, for every supplier offered. */
+  products: ProductChoice[];
+  defaults: DraftValues;
+  /** Today as a date input holds it, the earliest expected date. */
+  today: string;
+  /** The way out, top right. */
+  action: ReactNode;
+}) {
+  const editing = order !== undefined;
+  const editor = useLabelEditor();
+  const [state, dispatch, pending] = useActionState(saveDraft, initial);
+
+  const [supplierId, setSupplierId] = useState(defaults.supplierId);
+  const [lines, setLines] = useState(defaults.lines);
+  const [added, setAdded] = useState<number | null>(null);
+  const [picked, setPicked] = useState("");
+  const [expectedAt, setExpectedAt] = useState(defaults.expectedAt);
+  const [notes, setNotes] = useState(defaults.notes);
+  const [said, setSaid] = useState("");
+
+  // Focus moves after the lines change: to a new line's quantity, or past a removed one.
+  const focusNext = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusNext.current) return;
+    const target = document.getElementById(focusNext.current);
+    focusNext.current = null;
+    target?.focus();
+    if (target instanceof HTMLInputElement) target.select();
+  });
+
+  // A refused entry takes focus to the first field at fault, which is described by its message.
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (state.fields) formRef.current?.querySelector<HTMLElement>("[aria-invalid]")?.focus();
+  }, [state.fields]);
+
+  useEffect(() => {
+    if (state.saved && editing) editor?.close("Saved changes.");
+    // Only a new answer means anything here. A new order redirects to its label instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.saved]);
+
+  const supplier = suppliers.find((s) => String(s.id) === supplierId);
+  const catalog = products.filter((p) => String(p.supplierId) === supplierId);
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const onOrder = new Set(lines.map((line) => line.productId));
+  const available = catalog.filter((p) => !onOrder.has(p.id));
+  const low = available.filter((p) => p.suggested > 0);
+  const rest = available.filter((p) => p.suggested === 0).sort((a, b) => a.name.localeCompare(b.name));
+
+  const read = lines.map(readLine);
+  const unread = read.filter((r) => r.total === null).length;
+  const totalCents = read.reduce((sum, r) => sum + (r.total ?? 0), 0);
+  const units = read.reduce((sum, r) => sum + (r.quantity ?? 0), 0);
+  const errors = state.fields ?? {};
+
+  const update = (productId: number, change: Partial<DraftLine>) =>
+    setLines((current) => current.map((line) => (line.productId === productId ? { ...line, ...change } : line)));
+
+  const add = () => {
+    const product = byId.get(Number(picked));
+    if (!product) return;
+    setLines((current) => [
+      ...current,
+      {
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        catalogCents: product.unitCostCents,
+        quantity: String(product.quantity),
+        unitCost: centsToInput(product.unitCostCents),
+      },
+    ]);
+    setAdded(product.id);
+    setPicked("");
+    setSaid(`Added ${product.name}, ${formatCount(product.quantity)} units.`);
+    focusNext.current = `quantity-${product.id}`;
+  };
+
+  const remove = (index: number) => {
+    const line = lines[index];
+    const neighbour = lines[index + 1] ?? lines[index - 1];
+    setLines((current) => current.filter((l) => l.productId !== line.productId));
+    setSaid(`Removed ${line.name}.`);
+    focusNext.current = neighbour ? `remove-${neighbour.productId}` : "add-product";
+  };
+
+  const chooseSupplier = (next: string) => {
+    setSupplierId(next);
+    setPicked("");
+    if (lines.length > 0) {
+      setLines([]);
+      setSaid("Cleared the lines: they were the other supplier's products.");
+    }
+  };
+
+  const leadTime = supplier?.leadTimeDays;
+
+  return (
+    <form
+      ref={formRef}
+      noValidate
+      aria-busy={pending}
+      onSubmit={(event) => {
+        // Sent by hand so React doesn't reset the form: every field here is held in state.
+        event.preventDefault();
+        editor?.returnFocus();
+        const data = new FormData(event.currentTarget);
+        startTransition(() => dispatch(data));
+      }}
+      onKeyDown={(event) => {
+        if (editing && event.key === "Escape" && editor) {
+          event.preventDefault();
+          editor.close();
+        }
+      }}
+    >
+      {order ? <input type="hidden" name="orderId" value={order.id} /> : null}
+      <header className="flex items-start justify-between gap-4 px-5 pt-6 pb-3 sm:px-8 sm:pt-8">
+        <div className="min-w-0">
+          <h1 id="order-title" className="text-lg font-bold">
+            {order ? `Edit ${order.number}` : "New order"}
+          </h1>
+          <p className="mt-1 max-w-prose text-sm text-ink-2">
+            {editing
+              ? `Lines to ${supplier?.name ?? "the supplier"}, what they cost, and when it's due. Changes go in the activity log.`
+              : "It starts as a draft. Nothing is sent until an admin places it."}
+          </p>
+        </div>
+        {action}
+      </header>
+
+      <fieldset disabled={pending} className="min-w-0">
+        <legend className="sr-only">{editing ? "The draft" : "The new order"}</legend>
+
+        {editing ? null : (
+          <div className="border-t-2 border-ink">
+            <Field
+              name="supplierId"
+              label="Supplier"
+              error={errors.supplierId}
+              hint={
+                supplier
+                  ? `Delivers in ${formatCount(supplier.leadTimeDays)} days.${lines.length > 0 ? " Choosing another supplier clears the lines." : ""}`
+                  : "An order goes to one supplier, for the products it supplies."
+              }
+            >
+              <div className="relative">
+                <select
+                  {...fieldProps("supplierId", { error: errors.supplierId, hint: true })}
+                  value={supplierId}
+                  onChange={(event) => chooseSupplier(event.target.value)}
+                  autoFocus
+                  className="field-input cursor-pointer appearance-none pr-8"
+                >
+                  <option value="">Choose a supplier</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  aria-hidden
+                  size={18}
+                  strokeWidth={2}
+                  className="pointer-events-none absolute top-[calc(50%-0.1875rem)] right-0 -translate-y-1/2"
+                />
+              </div>
+            </Field>
+          </div>
+        )}
+
+        <section aria-labelledby="draft-lines-title" className="border-t-2 border-ink pt-5">
+          <h2 id="draft-lines-title" className="px-5 text-lg font-bold sm:px-8">
+            Lines
+          </h2>
+
+          {lines.length === 0 ? (
+            <p className="mt-2 max-w-prose px-5 pb-4 text-sm text-ink-2 sm:px-8">
+              {supplier
+                ? `Nothing on it yet. Add what ${supplier.name} should send.`
+                : "Choose a supplier, then add what it should send."}
+            </p>
+          ) : (
+            <div className="mt-3">
+              <div
+                aria-hidden
+                className="grid grid-cols-[minmax(0,1fr)_7rem_8.5rem_7rem_2.75rem] gap-x-3 border-b border-ink px-5 pb-2 max-md:hidden sm:px-8"
+              >
+                <span className="field-name">Product</span>
+                <span className="field-name text-right">Quantity</span>
+                <span className="field-name text-right">Unit cost</span>
+                <span className="field-name text-right">Line total</span>
+                <span />
+              </div>
+              <ul>
+                {lines.map((line, index) => (
+                  <LineRow
+                    key={line.productId}
+                    line={line}
+                    figures={read[index]}
+                    product={byId.get(line.productId)}
+                    errors={errors}
+                    fresh={line.productId === added}
+                    onChange={(change) => update(line.productId, change)}
+                    onRemove={() => remove(index)}
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="flex items-end gap-2 border-t border-hairline px-5 pt-3 pb-4 sm:px-8">
+            <div className="min-w-0 flex-1">
+              <label htmlFor="add-product" className="field-name block">
+                Add a product
+              </label>
+              <div className="relative mt-1">
+                <select
+                  id="add-product"
+                  value={picked}
+                  onChange={(event) => setPicked(event.target.value)}
+                  disabled={!supplier || available.length === 0}
+                  className="h-11 w-full cursor-pointer appearance-none rounded-none border border-ink bg-label pr-9 pl-2.5 text-base font-medium outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--color-ink)] disabled:cursor-default disabled:border-hairline disabled:text-ink-3"
+                >
+                  <option value="">
+                    {!supplier
+                      ? "Choose a supplier first"
+                      : catalog.length === 0
+                        ? `${supplier.name} has nothing else to order`
+                        : available.length === 0
+                          ? `Everything ${supplier.name} supplies is on it`
+                          : "Choose a product"}
+                  </option>
+                  {low.length > 0 ? (
+                    <optgroup label="Running low">
+                      {low.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} (order {formatCount(p.suggested)})
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                  {rest.length > 0 ? (
+                    <optgroup label={low.length > 0 ? "Everything else" : `From ${supplier?.name}`}>
+                      {rest.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                </select>
+                <ChevronDown
+                  aria-hidden
+                  size={18}
+                  strokeWidth={2}
+                  className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2"
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={add}
+              disabled={!picked}
+              className="press-quiet flex h-11 shrink-0 items-center gap-1.5 rounded-control px-3.5 font-semibold text-ink enabled:hover:bg-liner disabled:text-ink-3"
+            >
+              <Plus aria-hidden size={18} strokeWidth={2.25} />
+              Add
+            </button>
+          </div>
+
+          {/* The total, reverse-printed as on the label, following every figure typed. A line
+              whose figures can't be read yet is left out, and it says so. */}
+          <div className="flex items-baseline justify-between gap-4 bg-ink px-5 py-3 text-label sm:px-8">
+            <p className="min-w-0 font-semibold">
+              Total
+              <span className="ml-2 text-sm font-normal">
+                {formatCount(lines.length)} {lines.length === 1 ? "line" : "lines"}, {formatCount(units)}{" "}
+                {units === 1 ? "unit" : "units"}
+                {unread > 0
+                  ? ` · ${unread === 1 ? "1 line isn't" : `${formatCount(unread)} lines aren't`} counted`
+                  : null}
+              </span>
+            </p>
+            <p className="print-display tabular shrink-0 text-[1.75rem] sm:text-5xl">{formatMoney(totalCents)}</p>
+          </div>
+        </section>
+
+        <div className="grid gap-px border-b-2 border-ink bg-ink sm:grid-cols-2">
+          <Field
+            name="expectedAt"
+            label="Expected"
+            optional
+            error={errors.expectedAt}
+            hint={
+              supplier && leadTime !== undefined
+                ? `The date ${supplier.name} gave. Left empty, it's due ${formatCount(leadTime)} days after it's placed.`
+                : "The date the supplier gave. Left empty, its lead time decides."
+            }
+          >
+            <input
+              {...fieldProps("expectedAt", { error: errors.expectedAt, hint: true })}
+              type="date"
+              min={today}
+              value={expectedAt}
+              onChange={(event) => setExpectedAt(event.target.value)}
+              className="field-input"
+            />
+          </Field>
+          <Field name="notes" label="Notes" optional error={errors.notes}>
+            <textarea
+              {...fieldProps("notes", { error: errors.notes })}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              maxLength={1000}
+              rows={2}
+              className="field-input resize-y text-base font-normal"
+            />
+          </Field>
+        </div>
+
+        {state.error ? (
+          <p role="alert" className="bg-stock px-5 py-3 text-sm font-medium sm:px-8">
+            {state.error.message}
+          </p>
+        ) : null}
+
+        <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-3 px-5 pt-3 pb-5 sm:px-8">
+          <p role="status" className="min-h-5 min-w-0 basis-full text-sm font-medium sm:flex-1 sm:basis-auto">
+            {pending ? (editing ? "Saving…" : "Drafting…") : null}
+          </p>
+          {editing ? (
+            <button
+              type="button"
+              onClick={() => editor?.close()}
+              className="press-quiet min-h-12 rounded-control px-4 font-semibold text-ink-2 enabled:hover:bg-liner enabled:hover:text-ink max-sm:flex-1"
+            >
+              Cancel
+            </button>
+          ) : null}
+          <button
+            type="submit"
+            className="group h-12 shrink-0 rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 enabled:hover:bg-ink-lift disabled:cursor-progress disabled:bg-ink-2 max-sm:flex-1"
+          >
+            <span className="inline-block transition-transform duration-150 ease-out group-enabled:group-active:scale-[0.96]">
+              {editing ? "Save changes" : "Draft order"}
+            </span>
+          </button>
+        </div>
+      </fieldset>
+
+      <p role="status" className="sr-only">
+        {said}
+      </p>
+    </form>
+  );
+}
+
+/**
+ * One line, as a row of the label's table. On a phone the product takes its own row
+ * and the figures sit below it, each with its name; at the desk they share one row
+ * under the table's heading.
+ */
+function LineRow({
+  line,
+  figures,
+  product,
+  errors,
+  fresh,
+  onChange,
+  onRemove,
+}: {
+  line: DraftLine;
+  figures: ReturnType<typeof readLine>;
+  product: ProductChoice | undefined;
+  errors: Record<string, string>;
+  /** Just added: it prints in. */
+  fresh: boolean;
+  onChange: (change: Partial<DraftLine>) => void;
+  onRemove: () => void;
+}) {
+  const qtyKey = `quantity-${line.productId}`;
+  const costKey = `unitCost-${line.productId}`;
+  const qtyError = errors[qtyKey];
+  const costError = errors[costKey];
+
+  return (
+    <li
+      className={`grid grid-cols-3 gap-x-3 gap-y-2 border-b border-hairline px-5 py-3 last:border-b-0 sm:px-8 md:grid-cols-[minmax(0,1fr)_7rem_8.5rem_7rem_2.75rem] md:items-start ${fresh ? "print-in" : ""}`}
+    >
+      <input type="hidden" name="productId" value={line.productId} />
+      <div className="min-w-0 max-md:col-span-2 md:pt-2.5">
+        <p className="font-semibold">{line.name}</p>
+        <p className="text-xs text-ink-3">
+          <span className="font-mono">{line.sku}</span>
+          {product ? <> · {formatCount(product.onHand)} on hand</> : null}
+          <span id={`${costKey}-usual`}> · usually {formatMoney(line.catalogCents)}</span>
+          {product && product.suggested > 0 ? <> · forecast says {formatCount(product.suggested)}</> : null}
+        </p>
+      </div>
+
+      <div className="min-w-0">
+        <label htmlFor={qtyKey} className="field-name block md:sr-only">
+          Quantity<span className="sr-only"> of {line.name}</span>
+        </label>
+        <div
+          className={`flex h-11 items-center border border-ink px-2.5 focus-within:shadow-[inset_0_0_0_1px_var(--color-ink)] ${qtyError ? "bg-stock" : "bg-label"}`}
+        >
+          <input
+            id={qtyKey}
+            name="quantity"
+            value={line.quantity}
+            onChange={(event) => onChange({ quantity: event.target.value })}
+            inputMode="numeric"
+            autoComplete="off"
+            aria-invalid={qtyError ? true : undefined}
+            aria-describedby={qtyError ? `${qtyKey}-error` : undefined}
+            className="tabular w-full min-w-0 bg-transparent text-right text-base font-medium outline-none"
+          />
+        </div>
+      </div>
+
+      <div className="min-w-0">
+        <label htmlFor={costKey} className="field-name block md:sr-only">
+          Unit cost<span className="sr-only"> of {line.name}</span>
+        </label>
+        <div
+          className={`flex h-11 items-center gap-1 border border-ink px-2.5 focus-within:shadow-[inset_0_0_0_1px_var(--color-ink)] ${costError ? "bg-stock" : "bg-label"}`}
+        >
+          <span aria-hidden className={costError ? "text-ink" : "text-ink-3"}>
+            $
+          </span>
+          <input
+            id={costKey}
+            name="unitCost"
+            value={line.unitCost}
+            onChange={(event) => onChange({ unitCost: event.target.value })}
+            inputMode="decimal"
+            autoComplete="off"
+            aria-invalid={costError ? true : undefined}
+            aria-describedby={costError ? `${costKey}-error` : `${costKey}-usual`}
+            className="tabular w-full min-w-0 bg-transparent text-right text-base font-medium outline-none"
+          />
+        </div>
+      </div>
+
+      <div className="min-w-0 text-right">
+        <p aria-hidden className="field-name md:hidden">
+          Line total
+        </p>
+        <p className="tabular font-semibold md:pt-2.5">{figures.total === null ? "–" : formatMoney(figures.total)}</p>
+      </div>
+
+      <button
+        type="button"
+        id={`remove-${line.productId}`}
+        onClick={onRemove}
+        aria-label={`Remove ${line.name}`}
+        className="press-quiet flex size-11 items-center justify-center justify-self-end rounded-control text-ink-2 hover:bg-liner hover:text-ink max-md:col-start-3 max-md:row-start-1 max-md:-mt-2 max-md:-mr-3"
+      >
+        <X aria-hidden size={18} strokeWidth={2.25} />
+      </button>
+
+      {qtyError || costError ? (
+        <div role="alert" className="col-span-full text-sm font-medium">
+          {qtyError ? <p id={`${qtyKey}-error`}>{qtyError}</p> : null}
+          {costError ? <p id={`${costKey}-error`}>{costError}</p> : null}
+        </div>
+      ) : null}
+    </li>
+  );
+}

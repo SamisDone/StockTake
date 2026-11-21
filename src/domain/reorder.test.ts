@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "@/db/database";
 import { products } from "@/db/schema";
 import { createDraft, getOrder, placeOrder } from "@/domain/purchase-orders";
-import { draftSuggestedOrder, getReorderSuggestions } from "@/domain/reorder";
+import { draftSuggestedOrder, getOrderableProducts, getReorderSuggestions } from "@/domain/reorder";
 import { createTestDb } from "@/test/db";
 import { admin, seedBasics, staff } from "@/test/fixtures";
 
@@ -62,6 +62,31 @@ describe("getReorderSuggestions", () => {
     await placeOrder(db, admin, order.id);
     const [northwind] = (await getReorderSuggestions(db, now)).suppliers;
     expect(northwind.lines.map((l) => l.name)).toEqual(["Gadget"]);
+  });
+});
+
+describe("getOrderableProducts", () => {
+  it("lists each supplier's active products, starting at the forecast's quantity", async () => {
+    await db.insert(products).values([
+      { id: 3, sku: "LOOSE-1", name: "Loose part", unitCostCents: 100, unitPriceCents: 300 },
+      {
+        id: 4,
+        sku: "OLD-1",
+        name: "Old part",
+        supplierId: 1,
+        unitCostCents: 100,
+        unitPriceCents: 300,
+        archivedAt: now,
+      },
+    ]);
+    const { id } = await createDraft(db, staff, { supplierId: 1, lines: [{ productId: 1, quantity: 50 }] }, now);
+    await placeOrder(db, admin, id, now);
+
+    // Widget is covered by the placed order, so it starts at its reorder quantity instead.
+    expect((await getOrderableProducts(db, now)).map((p) => [p.name, p.supplierId, p.suggested, p.quantity])).toEqual([
+      ["Gadget", 1, 20, 20],
+      ["Widget", 1, 0, 50],
+    ]);
   });
 });
 

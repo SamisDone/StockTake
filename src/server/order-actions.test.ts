@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/db/database";
 import { products, purchaseOrders } from "@/db/schema";
 import { createSession } from "@/domain/auth";
-import { createDraft, placeOrder } from "@/domain/purchase-orders";
+import { createDraft, getOrder, placeOrder } from "@/domain/purchase-orders";
 import { createTestDb } from "@/test/db";
 import { admin, seedBasics, staff } from "@/test/fixtures";
 import { fakeRequest, redirectOf } from "@/test/next-request";
-import { changeOrder, draftFromSuggestions } from "./order-actions";
+import { changeOrder, draftFromSuggestions, saveDraft } from "./order-actions";
 import { SESSION_COOKIE } from "./session-cookie";
 
 const request = vi.hoisted(() => ({ current: undefined as unknown as ReturnType<typeof fakeRequest> }));
@@ -107,5 +107,79 @@ describe("changeOrder", () => {
   it("refuses an unknown change", async () => {
     const state = await changeOrder({}, form({ orderId: "1", intent: "delete" }));
     expect(state.error?.message).toBe("Choose what to do with the order.");
+  });
+});
+
+/** A draft form as the browser sends it: one productId, quantity and unitCost per line. */
+function draftForm(fields: Record<string, string>, lines: [productId: string, quantity: string, unitCost: string][]) {
+  const data = form(fields);
+  for (const [productId, quantity, unitCost] of lines) {
+    data.append("productId", productId);
+    data.append("quantity", quantity);
+    data.append("unitCost", unitCost);
+  }
+  return data;
+}
+
+describe("saveDraft", () => {
+  it("writes a new order from scratch and opens it", async () => {
+    const data = draftForm({ supplierId: "1", expectedAt: "2099-01-15", notes: " Ring first " }, [
+      ["1", "1,200", "2.40"],
+      ["2", "6", "$4"],
+    ]);
+    expect(await redirectOf(saveDraft({}, data))).toBe("/orders/1");
+
+    const order = await getOrder(db, 1);
+    expect(order).toMatchObject({ status: "draft", notes: "Ring first", createdByName: "Sam Okafor" });
+    expect(order.expectedAt).toEqual(new Date(Date.UTC(2099, 0, 15)));
+    expect(order.lines.map((l) => [l.productId, l.quantity, l.unitCostCents])).toEqual([
+      [1, 1200, 240],
+      [2, 6, 400],
+    ]);
+  });
+
+  it("replaces a draft's lines, keeping its supplier", async () => {
+    const { id } = await createDraft(db, staff, { supplierId: 1, lines: [{ productId: 1, quantity: 30 }] });
+    const state = await saveDraft({}, draftForm({ orderId: String(id), expectedAt: "" }, [["2", "8", "4.10"]]));
+
+    expect(state.saved?.id).toBe(id);
+    expect(refresh).toHaveBeenCalledOnce();
+    const order = await getOrder(db, id);
+    expect(order.lines.map((l) => [l.productId, l.quantity, l.unitCostCents])).toEqual([[2, 8, 410]]);
+    expect(order.supplierName).toBe("Northwind Supply");
+  });
+
+  it("says what's wrong with each line, next to it", async () => {
+    const state = await saveDraft(
+      {},
+      draftForm({ supplierId: "1" }, [
+        ["1", "0", "2.50"],
+        ["2", "3", "four"],
+      ]),
+    );
+    expect(state.fields).toEqual({
+      "quantity-1": "Order 1 unit or more.",
+      "unitCost-2": "Enter the cost in dollars and cents, like 4.50.",
+    });
+  });
+
+  it("asks for a supplier and at least one line", async () => {
+    expect((await saveDraft({}, draftForm({}, [["1", "1", "1"]]))).fields).toEqual({
+      supplierId: "Choose who the order is for.",
+    });
+    expect((await saveDraft({}, draftForm({ supplierId: "1" }, []))).error?.message).toBe("Add at least one product.");
+  });
+
+  it("puts a refused expected date next to its field", async () => {
+    const state = await saveDraft({}, draftForm({ supplierId: "1", expectedAt: "2020-01-01" }, [["1", "1", "1"]]));
+    expect(state.fields).toEqual({ expectedAt: "The expected date can't be before today." });
+  });
+
+  it("says when a draft can't be edited any more", async () => {
+    const { id } = await createDraft(db, staff, { supplierId: 1, lines: [{ productId: 1, quantity: 30 }] });
+    await placeOrder(db, admin, id);
+    const state = await saveDraft({}, draftForm({ orderId: String(id) }, [["1", "5", "2.50"]]));
+    expect(state.error?.message).toBe("PO-0001 has been placed, so it can't be edited.");
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

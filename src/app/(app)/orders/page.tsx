@@ -1,3 +1,4 @@
+import { Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -17,7 +18,23 @@ export const metadata: Metadata = { title: "Purchase orders" };
 export default function OrdersPage() {
   return (
     <PageTransition>
-      <PageHeader title="Purchase orders" />
+      <PageHeader
+        title="Purchase orders"
+        actions={
+          // Anyone can draft an order, so this needs no session and prints with the page.
+          <Link
+            href="/orders/new"
+            prefetch={false}
+            transitionTypes={NAV_FORWARD}
+            className="group flex h-12 items-center rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 hover:bg-ink-lift"
+          >
+            <span className="flex items-center gap-2 transition-transform duration-150 ease-out group-active:scale-[0.96]">
+              <Plus aria-hidden size={18} strokeWidth={2.5} />
+              New order
+            </span>
+          </Link>
+        }
+      />
       <Reveal fallback={<OrdersPlaceholder />}>
         <Orders />
       </Reveal>

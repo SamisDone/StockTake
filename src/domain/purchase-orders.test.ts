@@ -110,6 +110,29 @@ describe("createDraft", () => {
       .where(eq(suppliers.id, 1));
     await expect(createDraft(db, staff, twoLines)).rejects.toMatchObject({ code: "invalid_state" });
   });
+
+  it("only takes products the supplier sells", async () => {
+    await db.insert(suppliers).values({ id: 2, name: "Copperleaf Tools", leadTimeDays: 5 });
+    await expect(createDraft(db, staff, { ...twoLines, supplierId: 2 })).rejects.toMatchObject({
+      code: "invalid_state",
+      message: "Copperleaf Tools doesn't supply Widget.",
+    });
+  });
+
+  it("takes an expected date from the day it's drafted on, not before", async () => {
+    const draftedOn = new Date(Date.UTC(2026, 10, 5, 18));
+    const sameDay = new Date(Date.UTC(2026, 10, 5));
+    const { id } = await createDraft(db, staff, { ...twoLines, expectedAt: sameDay }, draftedOn);
+    expect((await getOrder(db, id)).expectedAt).toEqual(sameDay);
+
+    await expect(
+      createDraft(db, staff, { ...twoLines, expectedAt: new Date(Date.UTC(2026, 10, 4)) }, draftedOn),
+    ).rejects.toMatchObject({
+      code: "invalid_input",
+      field: "expectedAt",
+      message: "The expected date can't be before today.",
+    });
+  });
 });
 
 describe("updateDraft", () => {
@@ -119,6 +142,14 @@ describe("updateDraft", () => {
     const order = await getOrder(db, id);
     expect(order.notes).toBe("Rush");
     expect(order.lines.map((l) => [l.sku, l.quantity])).toEqual([["GAD-002", 4]]);
+  });
+
+  it("sets and clears the expected date", async () => {
+    const { id } = await createDraft(db, staff, twoLines, at(1));
+    await updateDraft(db, staff, id, { ...twoLines, expectedAt: at(9) }, at(2));
+    expect((await getOrder(db, id)).expectedAt).toEqual(at(9));
+    await updateDraft(db, staff, id, twoLines, at(3));
+    expect((await getOrder(db, id)).expectedAt).toBeNull();
   });
 
   it("refuses once the order is placed", async () => {

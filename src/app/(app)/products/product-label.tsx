@@ -15,7 +15,7 @@ import { explainStock } from "@/lib/explain";
 import { formatChange, formatCount, formatDate, formatDays, formatMargin, formatMoney, formatRate } from "@/lib/format";
 import { centsToInput } from "@/lib/parse";
 import { getCurrentUser } from "@/server/dal";
-import { EditButton, LabelEditor } from "./label-editor";
+import { EditButton, LabelEditor } from "@/components/label-editor";
 import { ProductForm } from "./product-form";
 import type { SupplierOption } from "./product-values";
 import { RecordStock } from "./record-stock";
@@ -167,6 +167,7 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
   if (!isAdmin) return label;
   return (
     <LabelEditor
+      gone="Archived. It can be restored from its label."
       form={
         editing ? (
           <ProductForm

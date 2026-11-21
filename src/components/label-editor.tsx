@@ -23,12 +23,25 @@ export function useLabelEditor() {
 }
 
 /**
- * Edits a product in place. The printed label (`children`) and its form (`form`) take
- * turns in the same spot on the sheet: no route, no history entry, so Back still means
- * "close". Switching fades the new side in (never on first render), the way a filter
- * change does.
+ * Edits a label in place (a product's details, a draft order's lines). The printed
+ * label (`children`) and its form (`form`) take turns in the same spot on the sheet: no
+ * route, no history entry, so Back still means "close". Switching fades the new side in
+ * (never on first render), the way a filter change does.
  */
-export function LabelEditor({ form, children }: { form: ReactNode; children: ReactNode }) {
+export function LabelEditor({
+  form,
+  gone,
+  children,
+}: {
+  /** The form, or nothing once the label can't be edited. */
+  form: ReactNode;
+  /**
+   * Announced when the form goes away under the person: the label was refreshed into
+   * one that can't be edited (archived, or no longer a draft).
+   */
+  gone: string;
+  children: ReactNode;
+}) {
   const [editing, setEditing] = useState(false);
   const [switches, setSwitches] = useState(0);
   const [said, setSaid] = useState("");
@@ -37,13 +50,13 @@ export function LabelEditor({ form, children }: { form: ReactNode; children: Rea
   const [focusFrom, setFocusFrom] = useState<Element | null | undefined>(undefined);
   const root = useRef<HTMLDivElement>(null);
 
-  // The product can stop being editable under the form: archiving it refreshes the
-  // label with no form. Print the label again, which now carries Restore.
+  // The label can stop being editable under the form: archiving a product, or someone
+  // placing the draft, refreshes it with no form. Print the label again.
   if (editing && !form) {
     setEditing(false);
     setSwitches((n) => n + 1);
     setFocusFrom((from) => (from === undefined ? null : from));
-    setSaid("Archived. It can be restored from its label.");
+    setSaid(gone);
   }
 
   // Leaving the route keeps it alive, hidden in <Activity>; come back to the label.

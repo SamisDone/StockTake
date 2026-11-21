@@ -5,9 +5,14 @@ import type { ReactNode } from "react";
 import { getDb } from "@/db/client";
 import { DomainError } from "@/domain/errors";
 import { getOrder } from "@/domain/purchase-orders";
+import { getOrderableProducts } from "@/domain/reorder";
+import { EditButton, LabelEditor } from "@/components/label-editor";
 import { Tally, TallyPlaceholder } from "@/components/stock";
 import { formatCount, formatDate, formatDays, formatMoney } from "@/lib/format";
+import { centsToInput } from "@/lib/parse";
 import { getCurrentUser } from "@/server/dal";
+import { DraftForm } from "./draft-form";
+import { dayInput } from "./draft-values";
 import { OrderControls } from "./order-controls";
 import { STATUS_WORD } from "./status";
 
@@ -24,7 +29,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * A purchase order printed as one label: who it's for, what state it's in and why,
- * what can be done with it next, its lines with the total, and its history.
+ * what can be done with it next, its lines with the total, and its history. While it's
+ * a draft, anyone can edit its lines in place; once placed, they're fixed.
  */
 export async function OrderLabel({ id, action }: { id: number; action: ReactNode }) {
   const user = await getCurrentUser();
@@ -41,8 +47,9 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
   }
   const units = order.lines.reduce((total, line) => total + line.quantity, 0);
   const late = order.dueAt !== null && order.dueAt < now;
+  const draft = order.status === "draft";
 
-  return (
+  const label = (
     <article aria-labelledby="order-title">
       <header className="flex items-start justify-between gap-4 border-b-2 border-ink px-5 pt-6 pb-4 sm:px-8 sm:pt-8">
         <div className="min-w-0">
@@ -53,7 +60,10 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
             <span className="font-mono text-xs">{order.number}</span> · {STATUS_WORD[order.status]}
           </p>
         </div>
-        {action}
+        <div className="flex shrink-0 items-start gap-1">
+          {draft ? <EditButton /> : null}
+          {action}
+        </div>
       </header>
 
       <dl className="grid grid-cols-3 border-b-2 border-ink">
@@ -154,6 +164,45 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
       </section>
     </article>
   );
+
+  if (!draft) return label;
+  return (
+    <LabelEditor
+      gone="It's no longer a draft, so its lines can't be changed."
+      form={<DraftEditor order={order} now={now} action={action} />}
+    >
+      {label}
+    </LabelEditor>
+  );
+}
+
+/** A draft's lines, notes and expected date, opened up for writing; its supplier stays. */
+async function DraftEditor({ order, now, action }: { order: Order; now: Date; action: ReactNode }) {
+  const db = await getDb();
+  const products = (await getOrderableProducts(db, now)).filter((p) => p.supplierId === order.supplierId);
+  const catalog = new Map(products.map((p) => [p.id, p.unitCostCents]));
+  return (
+    <DraftForm
+      order={{ id: order.id, number: order.number }}
+      suppliers={[{ id: order.supplierId, name: order.supplierName, leadTimeDays: order.leadTimeDays }]}
+      products={products}
+      defaults={{
+        supplierId: String(order.supplierId),
+        lines: order.lines.map((line) => ({
+          productId: line.productId,
+          sku: line.sku,
+          name: line.name,
+          catalogCents: catalog.get(line.productId) ?? line.unitCostCents,
+          quantity: String(line.quantity),
+          unitCost: centsToInput(line.unitCostCents),
+        })),
+        expectedAt: order.expectedAt ? dayInput(order.expectedAt) : "",
+        notes: order.notes ?? "",
+      }}
+      today={dayInput(now)}
+      action={action}
+    />
+  );
 }
 
 /**
@@ -165,7 +214,9 @@ function Status({ order, late, now }: { order: Order; late: boolean; now: Date }
   let text: string;
   if (order.status === "draft") {
     lead = "Draft.";
-    text = `Nothing has been sent. Placing it sends it to ${order.supplierName}, and its units count as on order from then.`;
+    text = `Nothing has been sent. Placing it sends it to ${order.supplierName}, and its units count as on order from then.${
+      order.expectedAt ? ` It's expected ${formatDate(order.expectedAt, now)}, the date they gave.` : ""
+    }`;
   } else if (order.status === "ordered") {
     const due = order.dueAt ? formatDate(order.dueAt, now) : null;
     const basis = order.expectedAt ? "the date they gave" : `a ${order.leadTimeDays}‑day lead time`;

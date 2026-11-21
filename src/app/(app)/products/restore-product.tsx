@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { type ArchiveFormState, setProductArchived } from "@/server/product-actions";
-import { useLabelEditor } from "./label-editor";
+import { useLabelEditor } from "@/components/label-editor";
 
 const initial: ArchiveFormState = {};
 
