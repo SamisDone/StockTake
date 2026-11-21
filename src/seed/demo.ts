@@ -176,6 +176,7 @@ export function resetStatements(rulesMigrationSql: string) {
   return [
     ...blocking.map((name) => `DROP TRIGGER IF EXISTS \`${name}\`;`),
     "DELETE FROM sessions;",
+    "DELETE FROM assistant_usage;",
     "DELETE FROM activity_log;",
     "DELETE FROM stock_movements;",
     "DELETE FROM purchase_order_lines;",

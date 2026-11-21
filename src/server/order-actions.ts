@@ -172,3 +172,39 @@ export async function saveDraft(_previous: DraftFormState, formData: FormData): 
   refresh();
   return { saved: { id, at: Date.now() } };
 }
+
+/** What a proposal's form gets back: why it couldn't be written, or the draft it became. */
+export type ProposalFormState = { error?: { message: string }; saved?: { id: number; number: string } };
+
+/**
+ * Writes a draft from a proposal the assistant made, once the person confirms it. Lines
+ * arrive as `productId` and `quantity` pairs; costs are each product's current cost.
+ * The domain checks it all again (the supplier's own active products, sane quantities),
+ * so the proposal is only ever a starting point. It doesn't redirect: the Ask page marks
+ * the proposal as written, then opens the draft.
+ */
+export async function draftFromProposal(_previous: ProposalFormState, formData: FormData): Promise<ProposalFormState> {
+  const { db, user } = await authorize();
+  const supplierId = positiveId(field(formData, "supplierId"));
+  if (supplierId === null) return { error: { message: "That supplier doesn't exist." } };
+
+  const ids = formData.getAll("productId");
+  const quantities = formData.getAll("quantity");
+  const lines: DraftInput["lines"] = [];
+  for (const [i, raw] of ids.entries()) {
+    const productId = typeof raw === "string" ? positiveId(raw) : null;
+    const quantity = parseUnits(String(quantities[i] ?? ""));
+    if (productId === null || quantity === null || quantity < 1 || quantity > MAX_UNITS) {
+      return { error: { message: "A line of the proposal isn't valid any more. Ask again for a new one." } };
+    }
+    lines.push({ productId, quantity });
+  }
+  if (lines.length === 0) return { error: { message: "The proposal has no lines." } };
+
+  try {
+    const { id } = await createDraft(db, user, { supplierId, notes: "Proposed in Ask.", lines });
+    return { saved: { id, number: poNumber(id) } };
+  } catch (error) {
+    return formError(error);
+  }
+}

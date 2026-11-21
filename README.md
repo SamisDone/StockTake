@@ -4,7 +4,7 @@ An inventory system whose stock levels you can audit. Every unit on hand traces 
 
 Stocktake rebuilds [StockMaster](https://github.com/SamisDone/StockMaster-Main), a PHP and MySQL course project (CSE 252), on Next.js, Cloudflare Workers and D1.
 
-**Live:** https://stocktake.web-applications.workers.dev. Open the demo from the landing page as an admin or as staff; no sign-up needed. The app has the dashboard, products, purchase orders, suppliers, the activity log and analytics; the AI assistant is being built.
+**Live:** https://stocktake.web-applications.workers.dev. Open the demo from the landing page as an admin or as staff; no sign-up needed. The app has the dashboard, products, purchase orders, suppliers, the activity log, analytics, and Ask, an assistant that answers questions about the stock.
 
 ## What it does
 
@@ -14,6 +14,7 @@ Stocktake rebuilds [StockMaster](https://github.com/SamisDone/StockMaster-Main),
 - **Suppliers.** Lead times, and one 1–5 star review per person.
 - **Activity log.** Who did what, append-only.
 - **Analytics.** A period's stock reconciled from the ledger (opening stock plus every movement equals what's on hand, checked against the products' own counts), sales by day, a breakdown by category, and the best and slowest sellers. Sales are valued at today's list prices, since the ledger records units.
+- **Ask.** Questions in plain language, answered by a language model that can only look things up through a few typed, read-only queries. Each answer links the records it names and lists what it looked up, and it can propose a purchase order that a person reviews and writes.
 - **Roles.** Admins manage the catalog and place or cancel orders; staff record stock and receive deliveries.
 
 ## How the integrity works
@@ -26,6 +27,16 @@ The rules live in the database, in [`drizzle/0001_ledger_rules.sql`](drizzle/000
 - Each order line can be received once (a unique index), and the order can only be marked received once every line has its receipt. Receiving the same order twice, even concurrently, fails as a whole.
 
 D1 has no interactive transactions, so multi-statement writes use `db.batch()`, which is atomic. Each rule has a test in [`src/db/schema.test.ts`](src/db/schema.test.ts) that runs the real migrations. The refusals quoted on the landing page are tested the same way ([`src/lib/refusals.test.ts`](src/lib/refusals.test.ts)), so the page can't claim a rule the database doesn't enforce.
+
+## How the assistant works
+
+Ask runs on [Workers AI](https://developers.cloudflare.com/workers-ai/) (`@cf/zai-org/glm-4.7-flash`, set in [`src/assistant/config.ts`](src/assistant/config.ts)) through the Worker's `AI` binding, so there's no API key.
+
+- The model gets eight tools ([`src/assistant/tools.ts`](src/assistant/tools.ts)): search products, read a product, list or read suppliers, list or read orders, summarise sales, and propose an order. Each is a typed query over the same domain functions the pages use. Arguments are parsed with zod before anything runs, and a bad call goes back to the model as an error it can correct. The model never writes SQL and can't change anything.
+- Tools hand the model figures already formatted (money as text, dates as the pages print them), so it repeats numbers rather than computing them.
+- Proposing an order writes nothing. The person sees the lines and writes the draft through the same Server Action and domain checks as any other draft.
+- The answer streams back as events: a line per lookup as it runs, then the answer. Links in the answer come only from records the tools returned, never from the model's text.
+- Workers AI's free plan allows 10,000 neurons a day. Each account gets 20 questions a UTC day, and all accounts share a budget kept under the allocation. A question is counted before the model is called and given back if no answer comes. When either runs out, the page says so.
 
 ## Stack
 
@@ -45,7 +56,7 @@ pnpm db:seed:local      # load the demo dataset (repeatable; it resets first)
 pnpm dev                # http://localhost:3000
 ```
 
-The local database lives in `.wrangler/state/` and needs no Cloudflare account. `next dev` reaches it through the same `DB` binding as production.
+The local database lives in `.wrangler/state/` and needs no Cloudflare account. `next dev` reaches it through the same `DB` binding as production. Ask is the exception: Workers AI always runs on Cloudflare, so it needs `pnpm wrangler login`, and questions asked locally count against your account's daily allocation.
 
 The demo dataset is 120 days of simulated trading for a small distributor, generated deterministically and ending yesterday. It includes two demo people, both with the password `stocktake-demo`:
 

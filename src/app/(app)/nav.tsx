@@ -8,6 +8,7 @@ import { Suspense } from "react";
 /** The app's sections. Each one joins this list when its page is built. */
 const SECTIONS: { href: Route; label: string }[] = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/ask", label: "Ask" },
   { href: "/products", label: "Products" },
   { href: "/orders", label: "Orders" },
   { href: "/suppliers", label: "Suppliers" },

@@ -3,6 +3,7 @@
 // Runtime types generated with workerd@1.20261118.1 2026-11-15 global_fetch_strictly_public,nodejs_compat
 interface __BaseEnv_CloudflareEnv {
 	DB: D1Database;
+	AI: Ai;
 	ASSETS: Fetcher;
 	WORKER_SELF_REFERENCE: Fetcher /* stocktake */;
 }

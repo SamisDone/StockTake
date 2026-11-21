@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { check, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // Timestamps are Unix milliseconds. The database fills them in by default; the demo
 // seed passes explicit values so the dataset is deterministic.
@@ -210,4 +210,27 @@ export const activityLog = sqliteTable(
     occurredAt: timestamp("occurred_at").notNull().default(now),
   },
   (t) => [index("activity_log_occurred").on(t.occurredAt), index("activity_log_entity").on(t.entityType, t.entityId)],
+);
+
+/**
+ * What the assistant has used, per person per UTC day: questions asked and the Workers
+ * AI neurons they cost. The daily cap is checked against it before the model is called.
+ */
+export const assistantUsage = sqliteTable(
+  "assistant_usage",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** The UTC day, as YYYY-MM-DD. */
+    day: text("day").notNull(),
+    questions: integer("questions").notNull().default(0),
+    neurons: real("neurons").notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.day] }),
+    index("assistant_usage_day").on(t.day),
+    check("assistant_usage_questions", sql`${t.questions} >= 0`),
+    check("assistant_usage_neurons", sql`${t.neurons} >= 0`),
+  ],
 );

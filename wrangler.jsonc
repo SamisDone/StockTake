@@ -23,6 +23,10 @@
       "migrations_dir": "drizzle",
     },
   ],
+  // Workers AI, for the assistant. Always runs remotely, also under `next dev`.
+  "ai": {
+    "binding": "AI",
+  },
   "observability": {
     "enabled": true,
   },

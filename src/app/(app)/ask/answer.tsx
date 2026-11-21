@@ -1,0 +1,54 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+import type { Ref } from "@/assistant/tools";
+import { NAV_FORWARD } from "@/components/transitions";
+import { type Inline, parseAnswer, refHref } from "@/lib/answer-text";
+
+/**
+ * An answer, printed as prose. Records it names link to their own pages; SKUs and PO
+ * numbers keep the machine voice.
+ */
+export function AnswerText({ text, refs }: { text: string; refs: Ref[] }) {
+  return (
+    <div className="max-w-prose space-y-3 leading-relaxed">
+      {parseAnswer(text, refs).map((block, i) =>
+        block.type === "paragraph" ? (
+          <p key={i}>{inlines(block.content)}</p>
+        ) : block.ordered ? (
+          <ol key={i} className="list-decimal space-y-1 pl-6 marker:text-ink-2">
+            {block.items.map((item, j) => (
+              <li key={j}>{inlines(item)}</li>
+            ))}
+          </ol>
+        ) : (
+          <ul key={i} className="list-disc space-y-1 pl-6 marker:text-ink-2">
+            {block.items.map((item, j) => (
+              <li key={j}>{inlines(item)}</li>
+            ))}
+          </ul>
+        ),
+      )}
+    </div>
+  );
+}
+
+function inlines(content: Inline[]): ReactNode[] {
+  return content.map((part, i) => {
+    if (part.type === "text") return part.text;
+    if (part.type === "bold") return <strong key={i}>{inlines(part.children)}</strong>;
+    const machine = part.ref.code !== undefined && part.text.toLowerCase() === part.ref.code.toLowerCase();
+    return (
+      <Link
+        key={i}
+        href={refHref(part.ref)}
+        prefetch={false}
+        transitionTypes={NAV_FORWARD}
+        className={`font-semibold underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink ${
+          machine ? "font-mono text-[0.875em] font-normal" : ""
+        }`}
+      >
+        {part.text}
+      </Link>
+    );
+  });
+}

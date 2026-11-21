@@ -7,7 +7,7 @@ import { createDraft, getOrder, placeOrder } from "@/domain/purchase-orders";
 import { createTestDb } from "@/test/db";
 import { admin, seedBasics, staff } from "@/test/fixtures";
 import { fakeRequest, redirectOf } from "@/test/next-request";
-import { changeOrder, draftFromSuggestions, saveDraft } from "./order-actions";
+import { changeOrder, draftFromProposal, draftFromSuggestions, saveDraft } from "./order-actions";
 import { SESSION_COOKIE } from "./session-cookie";
 
 const request = vi.hoisted(() => ({ current: undefined as unknown as ReturnType<typeof fakeRequest> }));
@@ -181,5 +181,38 @@ describe("saveDraft", () => {
     const state = await saveDraft({}, draftForm({ orderId: String(id) }, [["1", "5", "2.50"]]));
     expect(state.error?.message).toBe("PO-0001 has been placed, so it can't be edited.");
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("draftFromProposal", () => {
+  const proposal = (lines: [string, string][], supplierId = "1") => {
+    const data = new FormData();
+    data.set("supplierId", supplierId);
+    for (const [productId, quantity] of lines) {
+      data.append("productId", productId);
+      data.append("quantity", quantity);
+    }
+    return data;
+  };
+
+  it("writes the confirmed proposal as a draft at today's costs, without redirecting", async () => {
+    const state = await draftFromProposal(
+      {},
+      proposal([
+        ["1", "30"],
+        ["2", "5"],
+      ]),
+    );
+    expect(state).toEqual({ saved: { id: 1, number: "PO-0001" } });
+    expect(await status(1)).toBe("draft");
+    const order = await getOrder(db, 1);
+    expect(order).toMatchObject({ notes: "Proposed in Ask.", totalCents: 30 * 250 + 5 * 400 });
+    expect(request.current.redirect).not.toHaveBeenCalled();
+  });
+
+  it("refuses what the domain refuses, and lines that don't parse", async () => {
+    expect((await draftFromProposal({}, proposal([["1", "30"]], "9"))).error).toBeDefined();
+    expect((await draftFromProposal({}, proposal([["1", "0"]]))).error?.message).toMatch(/isn't valid any more/);
+    expect((await draftFromProposal({}, proposal([]))).error?.message).toBe("The proposal has no lines.");
   });
 });
