@@ -207,6 +207,12 @@ export const activityLog = sqliteTable(
     entityType: text("entity_type").notNull(),
     entityId: integer("entity_id").notNull(),
     summary: text("summary").notNull(),
+    /**
+     * The facts the summary was written from, as JSON, so each reader sees the entry in
+     * their own language. The summary stays the English record; entries from before
+     * migration 0005 have no facts and show it.
+     */
+    facts: text("facts", { mode: "json" }).$type<Record<string, unknown>>(),
     occurredAt: timestamp("occurred_at").notNull().default(now),
   },
   (t) => [index("activity_log_occurred").on(t.occurredAt), index("activity_log_entity").on(t.entityType, t.entityId)],

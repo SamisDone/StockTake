@@ -1,0 +1,98 @@
+import { formats } from "@/lib/format";
+import type { Copy } from "@/lib/i18n";
+
+/** What Server Actions say back to a form, in both languages. */
+
+const en = {
+  noProduct: "That product doesn't exist.",
+  noSupplier: "That supplier doesn't exist.",
+  noOrder: "That purchase order doesn't exist.",
+
+  // Signing in
+  enterEmail: "Enter your email address.",
+  enterPassword: "Enter your password.",
+  noDemo: "The demo account isn't set up on this database. Run the demo seed first.",
+  wrongPassword: "That email and password don't match an account. Check the password, or use a demo account above.",
+
+  // Stock
+  chooseKind: "Choose what you're recording.",
+  enterCount: "Enter the number you counted on the shelf, as a whole number.",
+  enterUnits: (max: number) => `Enter how many units, as a whole number from 1 to ${formats("en").count(max)}.`,
+  countMatches: (counted: number) => `Counted ${formats("en").count(counted)}, which matches.`,
+  countAdjusted: (counted: number, difference: number) =>
+    `Counted ${formats("en").count(counted)}, so the ledger was adjusted by ${formats("en").change(difference)}.`,
+  recorded: (kind: "sale" | "return" | "write_off", quantity: number, onHand: number) =>
+    `Recorded ${{ sale: "a sale", return: "a return", write_off: "a write-off" }[kind]} of ${formats("en").count(quantity)}. ${formats("en").count(onHand)} on hand.`,
+
+  // Orders
+  chooseIntent: "Choose what to do with the order.",
+  placed: (order: string, supplier: string) => `Placed ${order} with ${supplier}.`,
+  cancelled: (order: string) => `Cancelled ${order}.`,
+  received: (order: string, units: number) =>
+    `Received ${order}: ${formats("en").count(units)} units booked into stock.`,
+  chooseSupplier: "Choose who the order is for.",
+  orderAtLeastOne: "Order 1 unit or more.",
+  orderAtMost: (max: number) => `Order ${formats("en").count(max)} units or fewer.`,
+  enterCost: "Enter the cost in dollars and cents, like 4.50.",
+  costTooLarge: "That cost is more than an order can take.",
+  enterDate: "Enter a date, or leave it empty.",
+  addProduct: "Add at least one product.",
+  proposalStale: "A line of the proposal isn't valid any more. Ask again for a new one.",
+  proposalEmpty: "The proposal has no lines.",
+
+  // Catalog
+  enterMoney: (what: "cost" | "price") => `Enter the ${what} in dollars and cents, like 4.50.`,
+  enterUnitsZero: "Enter a whole number of units, 0 or more.",
+  enterSku: "Enter a SKU.",
+  enterDays: "Enter a whole number of days, 0 or more.",
+  chooseStars: "Choose 1 to 5 stars.",
+  reviewSaved: "Saved your review.",
+  reviewRemoved: "Removed your review.",
+};
+
+const b = formats("bn");
+
+const bn: typeof en = {
+  noProduct: "এই পণ্যটি নেই।",
+  noSupplier: "এই সরবরাহকারী নেই।",
+  noOrder: "এই ক্রয় অর্ডারটি নেই।",
+
+  enterEmail: "আপনার ইমেইল ঠিকানা লিখুন।",
+  enterPassword: "আপনার পাসওয়ার্ড লিখুন।",
+  noDemo: "এই ডেটাবেসে ডেমো অ্যাকাউন্ট তৈরি হয়নি। আগে ডেমো সিড চালান।",
+  wrongPassword:
+    "এই ইমেইল ও পাসওয়ার্ডে কোনো অ্যাকাউন্ট মেলেনি। পাসওয়ার্ড আবার দেখুন, অথবা ওপরের ডেমো অ্যাকাউন্ট ব্যবহার করুন।",
+
+  chooseKind: "কী লিখে রাখছেন, বেছে নিন।",
+  enterCount: "তাকে যত গুনেছেন, সেই সংখ্যাটি পূর্ণসংখ্যায় লিখুন।",
+  enterUnits: (max) => `কত ইউনিট, ১ থেকে ${b.count(max)}-এর মধ্যে পূর্ণসংখ্যায় লিখুন।`,
+  countMatches: (counted) => `গোনা হলো ${b.count(counted)}, হিসাবের সাথে মিলে গেছে।`,
+  countAdjusted: (counted, difference) =>
+    `গোনা হলো ${b.count(counted)}, তাই খাতায় ${b.change(difference)} সমন্বয় করা হয়েছে।`,
+  recorded: (kind, quantity, onHand) =>
+    `${b.count(quantity)}টি ${{ sale: "বিক্রি", return: "ফেরত", write_off: "বাতিল" }[kind]} লেখা হলো। মজুত এখন ${b.count(onHand)}।`,
+
+  chooseIntent: "অর্ডারটি নিয়ে কী করবেন, বেছে নিন।",
+  placed: (order, supplier) => `${supplier}-কে ${order} দেওয়া হলো।`,
+  cancelled: (order) => `${order} বাতিল হলো।`,
+  received: (order, units) => `${order} বুঝে নেওয়া হলো: ${b.count(units)} ইউনিট মজুতে যোগ হয়েছে।`,
+  chooseSupplier: "অর্ডারটি কার জন্য, বেছে নিন।",
+  orderAtLeastOne: "অন্তত ১ ইউনিট অর্ডার করুন।",
+  orderAtMost: (max) => `${b.count(max)} ইউনিট বা তার কম অর্ডার করুন।`,
+  enterCost: "খরচ ডলার ও সেন্টে লিখুন, যেমন ৪.৫০।",
+  costTooLarge: "এই খরচ একটি অর্ডারের সীমার চেয়ে বেশি।",
+  enterDate: "একটি তারিখ দিন, অথবা খালি রাখুন।",
+  addProduct: "অন্তত একটি পণ্য যোগ করুন।",
+  proposalStale: "প্রস্তাবের একটি লাইন আর বৈধ নেই। নতুন প্রস্তাবের জন্য আবার জিজ্ঞেস করুন।",
+  proposalEmpty: "প্রস্তাবে কোনো লাইন নেই।",
+
+  enterMoney: (what) => `${what === "cost" ? "কেনা দাম" : "বিক্রয় মূল্য"} ডলার ও সেন্টে লিখুন, যেমন ৪.৫০।`,
+  enterUnitsZero: "ইউনিটের সংখ্যা পূর্ণসংখ্যায় লিখুন, ০ বা তার বেশি।",
+  enterSku: "একটি SKU লিখুন।",
+  enterDays: "দিনের সংখ্যা পূর্ণসংখ্যায় লিখুন, ০ বা তার বেশি।",
+  chooseStars: "১ থেকে ৫ তারা বেছে নিন।",
+  reviewSaved: "আপনার রিভিউ সংরক্ষণ হলো।",
+  reviewRemoved: "আপনার রিভিউ সরানো হলো।",
+};
+
+export const ACTION_COPY: Copy<typeof en> = { en, bn };

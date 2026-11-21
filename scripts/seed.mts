@@ -1,11 +1,16 @@
 // Writes .seed/demo.sql: a reset of every table followed by the demo dataset.
 // Run through `pnpm db:seed:local` or `pnpm db:seed:remote`.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { demoPasswordHash, demoStatements, resetStatements, todayUtc } from "../src/seed/demo.ts";
 
-const rules = readFileSync("drizzle/0001_ledger_rules.sql", "utf8");
+// Every migration in order: the reset recreates each blocking trigger from its latest definition.
+const migrations = readdirSync("drizzle")
+  .filter((name) => name.endsWith(".sql"))
+  .sort()
+  .map((name) => readFileSync(`drizzle/${name}`, "utf8"))
+  .join("\n");
 const statements = [
-  ...resetStatements(rules),
+  ...resetStatements(migrations),
   ...demoStatements({ anchor: todayUtc(), passwordHash: await demoPasswordHash() }),
 ];
 

@@ -3,13 +3,19 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useActionState, useState, type ReactNode } from "react";
 import { DemoStub } from "@/components/demo-doors";
+import { LanguageSwitch } from "@/components/language-switch";
 import { Mark } from "@/components/logo";
 import { DEMO_ROLES } from "@/lib/demo-roles";
+import { type Copy, LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { signIn } from "@/server/auth-actions";
 import { initialFormState } from "@/server/form-state";
 
-/** The sign-in label: tear-off demo stubs on top, the email and password fields below. */
-export function LoginLabel() {
+/**
+ * The sign-in label: tear-off demo stubs on top, the email and password fields below.
+ * Prerendered once per language (`/login` and `/bn/login`); proxy.ts serves the reader's.
+ */
+export function LoginLabel({ language }: { language: Language }) {
+  const t = COPY[language];
   const [state, formAction, pending] = useActionState(signIn, initialFormState);
   // Which control sent the form, so only that one says it's working.
   const [via, setVia] = useState<string | null>(null);
@@ -21,6 +27,7 @@ export function LoginLabel() {
   return (
     <form
       action={formAction}
+      lang={LANGUAGE_TAGS[language]}
       className="sheet w-full max-w-104 overflow-hidden"
       aria-labelledby="login-title"
       aria-busy={busy}
@@ -30,20 +37,27 @@ export function LoginLabel() {
       </Suspense>
 
       <header className="border-b-2 border-ink px-6 pt-6 pb-4">
-        <h1 id="login-title" className="print-display flex items-center gap-3 text-[2.75rem] uppercase">
+        <h1 id="login-title" lang="en" className="print-display flex items-center gap-3 text-[2.75rem] uppercase">
           <Mark size={48} />
           Stocktake
         </h1>
-        <p className="mt-1.5 text-sm text-ink-2">Inventory you can audit</p>
+        {/* The wordmark takes the label's width on a phone, so the language sits on the
+            tagline's line; the negative margins keep its 44px target from growing the header. */}
+        <div className="mt-1.5 flex items-center justify-between gap-4">
+          <p className="min-w-0 text-sm text-ink-2">{t.tagline}</p>
+          <div className="-my-3 -mr-3">
+            <LanguageSwitch language={language} variant="toggle" prerendered />
+          </div>
+        </div>
       </header>
 
       <fieldset disabled={busy} className="border-b-2 border-dashed border-ink">
-        <legend className="sr-only">Try the demo</legend>
+        <legend className="sr-only">{t.tryDemo}</legend>
         <p aria-hidden className="field-name px-6 pt-3">
-          Try the demo
+          {t.tryDemo}
         </p>
         <div className="grid grid-cols-2">
-          {DEMO_ROLES.map(({ role, label, duty }, index) => (
+          {DEMO_ROLES[language].map(({ role, label, duty }, index) => (
             <DemoStub
               key={role}
               role={role}
@@ -51,13 +65,14 @@ export function LoginLabel() {
               duty={duty}
               busy={busy && via === role}
               onPress={() => setVia(role)}
+              language={language}
               divided={index > 0}
             />
           ))}
         </div>
       </fieldset>
 
-      <Field name="email" label="Email" error={fieldError("email")}>
+      <Field name="email" label={t.email} error={fieldError("email")}>
         <input
           id="email"
           name="email"
@@ -70,7 +85,7 @@ export function LoginLabel() {
           className="field-input"
         />
       </Field>
-      <Field name="password" label="Password" error={fieldError("password")} last>
+      <Field name="password" label={t.password} error={fieldError("password")} last>
         <input
           id="password"
           name="password"
@@ -97,7 +112,7 @@ export function LoginLabel() {
         className="group focus-inset flex min-h-14 w-full items-center justify-center border-t-2 border-ink bg-ink font-semibold text-label transition-colors duration-150 enabled:hover:bg-ink-lift disabled:cursor-progress disabled:bg-ink-2"
       >
         <span className="inline-block transition-transform duration-150 ease-out group-enabled:group-active:scale-[0.96]">
-          {busy && via === "form" ? "Signing in…" : "Sign in"}
+          {busy && via === "form" ? t.signingIn : t.signIn}
         </span>
       </button>
     </form>
@@ -145,3 +160,35 @@ function NextField() {
   const next = useSearchParams().get("next");
   return next ? <input type="hidden" name="next" value={next} /> : null;
 }
+
+const COPY: Copy<{
+  title: string;
+  tagline: string;
+  tryDemo: string;
+  email: string;
+  password: string;
+  signIn: string;
+  signingIn: string;
+}> = {
+  en: {
+    title: "Sign in",
+    tagline: "Inventory you can audit",
+    tryDemo: "Try the demo",
+    email: "Email",
+    password: "Password",
+    signIn: "Sign in",
+    signingIn: "Signing in…",
+  },
+  bn: {
+    title: "সাইন ইন",
+    tagline: "যে মজুতের হিসাব যাচাই করা যায়",
+    tryDemo: "ডেমো দেখুন",
+    email: "ইমেইল",
+    password: "পাসওয়ার্ড",
+    signIn: "সাইন ইন",
+    signingIn: "সাইন ইন হচ্ছে…",
+  },
+};
+
+/** The page title in each language. */
+export const LOGIN_TITLE: Copy<string> = { en: COPY.en.title, bn: COPY.bn.title };

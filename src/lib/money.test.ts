@@ -25,8 +25,15 @@ describe("moneyFormat", () => {
     expect(taka.hint(245)).toBe("≈ ৳305.03");
   });
 
-  it("prints Bangla digits in Bangla", () => {
+  it("prints Bangla digits in Bangla, grouped in lakhs, sign first", () => {
     const bn = moneyFormat({ currency: "BDT", bdtPerUsd: 100, rateAsOf: "2026-11-21" }, "bn");
-    expect(bn.whole(1_234_500)).toBe("১২,৩৪,৫০০৳");
+    expect(bn.whole(1_234_500)).toBe("৳১২,৩৪,৫০০");
+    expect(bn.money(1234)).toBe("৳১,২৩৪.০০");
+    expect(bn.change(-100)).toBe("−৳১০০");
+    expect(bn.axis(10_000_000)).toBe("৳১ কো");
+    expect(bn.hint(245)).toBe("≈ ৳২৪৫.০০");
+    const usd = moneyFormat(DOLLARS, "bn");
+    expect(usd.money(12_345_600)).toBe("$১,২৩,৪৫৬.০০");
+    expect(usd.hint(100)).toBeNull();
   });
 });

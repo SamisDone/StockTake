@@ -1,6 +1,7 @@
 import { type SQL, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/db/database";
 import { products, purchaseOrderLines, purchaseOrders, stockMovements, suppliers } from "@/db/schema";
+import { said } from "./error-copy";
 import { DomainError } from "./errors";
 import { outer } from "./input";
 
@@ -121,6 +122,6 @@ export async function getArchivedForecasts(db: Database, now = new Date()) {
 /** One product's forecast, archived or not. */
 export async function getProductForecast(db: Database, productId: number, now = new Date()) {
   const [row] = await forecastRows(db, eq(products.id, productId), now);
-  if (!row) throw new DomainError("not_found", "That product doesn't exist.");
+  if (!row) throw new DomainError("not_found", said("noProduct"));
   return row;
 }

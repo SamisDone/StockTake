@@ -10,6 +10,9 @@ import type { Proposal, Ref } from "@/assistant/tools";
 import { AnswerText } from "./answer";
 import { ProposalSlip } from "./proposal";
 import type { MoneyPrefs } from "@/lib/money";
+import { formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
+import { ASK_COPY, type AskCopy } from "./copy";
 
 /**
  * The Ask page: a conversation held in the browser. Each question is POSTed with the
@@ -17,13 +20,6 @@ import type { MoneyPrefs } from "@/lib/money";
  * the answer, which prints in. The page stays alive in the background while the person
  * follows a link, so the conversation is still there when they come back.
  */
-
-const STARTERS = [
-  "What's out of stock, and when can we get more?",
-  "Which orders are late?",
-  "What sold best over the last 28 days?",
-  "Draft an order for the supplier with the most products running low.",
-];
 
 type Answered = { text: string; refs: Ref[]; proposal: Proposal | null; steps: Step[] };
 type Problem = Refusal | "signed-out" | "network";
@@ -37,18 +33,6 @@ type Turn = {
   /** Prints in once, when it first appears; never again when the page is shown again. */
   fresh: boolean;
   written: { id: number; number: string } | null;
-};
-
-const LIMIT_COPY: Record<"questions" | "allowance", (cap: number) => string> = {
-  questions: (cap) =>
-    `You've asked all ${cap} of today's questions on this account. They come back at 00:00 UTC; everything else works as usual.`,
-  allowance: () =>
-    "Today's free Workers AI allowance has run out. It's shared by everyone using this demo and comes back at 00:00 UTC. Everything else works as usual.",
-};
-
-const PROBLEM_COPY: Record<"failed" | "network", string> = {
-  failed: "The model didn't answer, so this question wasn't counted.",
-  network: "The question didn't reach the server, so it wasn't counted. Check the connection.",
 };
 
 async function* readEvents(response: Response) {
@@ -66,7 +50,17 @@ async function* readEvents(response: Response) {
   }
 }
 
-export function Conversation({ initialAllowance, money }: { initialAllowance: WireAllowance; money: MoneyPrefs }) {
+export function Conversation({
+  initialAllowance,
+  money,
+  language,
+}: {
+  initialAllowance: WireAllowance;
+  money: MoneyPrefs;
+  language: Language;
+}) {
+  const t = ASK_COPY[language];
+  const f = formats(language);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [allowance, setAllowance] = useState(initialAllowance);
@@ -165,9 +159,9 @@ export function Conversation({ initialAllowance, money }: { initialAllowance: Wi
   return (
     <>
       {turns.length === 0 ? (
-        <Intro onPick={(q) => void send(q)} disabled={busy || limit !== null} />
+        <Intro onPick={(q) => void send(q)} disabled={busy || limit !== null} t={t} />
       ) : (
-        <ol aria-label="Conversation">
+        <ol aria-label={t.conversation}>
           {turns.map((turn) => (
             <li
               key={turn.id}
@@ -180,6 +174,7 @@ export function Conversation({ initialAllowance, money }: { initialAllowance: Wi
               <TurnView
                 turn={turn}
                 money={money}
+                language={language}
                 onPrinted={() => update(turn.id, () => ({ fresh: false }))}
                 onRetry={() => void send(turn.question, turn.id)}
                 onWritten={(written) => update(turn.id, () => ({ written }))}
@@ -192,18 +187,18 @@ export function Conversation({ initialAllowance, money }: { initialAllowance: Wi
 
       <form
         onSubmit={submit}
-        aria-label="Ask a question"
+        aria-label={t.askQuestion}
         className="sticky bottom-0 z-10 border-t-2 border-ink bg-label"
       >
         {limit ? (
           <p role="status" className="bg-stock px-5 py-3 text-sm sm:px-8">
-            {LIMIT_COPY[limit](allowance.questionsPerDay)}
+            {t.limit[limit](f.count(allowance.questionsPerDay))}
           </p>
         ) : null}
         <div className="flex">
           <div className="min-w-0 flex-1 px-5 pt-2.5 pb-1.5 focus-within:shadow-[inset_0_0_0_2px_var(--color-ink)] sm:px-8">
             <label htmlFor="question" className="field-name block">
-              Question
+              {t.question}
             </label>
             <textarea
               ref={input}
@@ -215,7 +210,7 @@ export function Conversation({ initialAllowance, money }: { initialAllowance: Wi
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={enterSends}
               disabled={limit !== null}
-              placeholder={turns.length === 0 ? "What's running low at Harbor Packaging Co.?" : "Ask a follow-up"}
+              placeholder={turns.length === 0 ? t.placeholder : t.followUp}
               aria-describedby="question-hint"
               className="field-input max-h-40 resize-none overflow-y-auto field-sizing-content placeholder:text-ink-3 disabled:cursor-not-allowed"
             />
@@ -227,17 +222,17 @@ export function Conversation({ initialAllowance, money }: { initialAllowance: Wi
             aria-busy={busy}
           >
             <span className="inline-block transition-transform duration-150 ease-out group-enabled:group-active:scale-[0.96]">
-              Ask
+              {t.ask}
             </span>
           </button>
         </div>
         <div className="flex min-h-11 items-center justify-between gap-4 border-t border-hairline px-5 text-xs text-ink-3 sm:px-8">
           <p id="question-hint">
-            {left <= 100 ? <>{left} characters left · </> : null}
+            {left <= 100 ? t.charactersLeft(f.count(left)) : null}
             {allowance.questionsLeft === 0
-              ? "No questions left today"
-              : `${allowance.questionsLeft} of ${allowance.questionsPerDay} questions left today`}
-            <span className="max-sm:hidden"> · more at 00:00 UTC</span>
+              ? t.noneLeft
+              : t.left(f.count(allowance.questionsLeft), f.count(allowance.questionsPerDay))}
+            <span className="max-sm:hidden">{t.more}</span>
           </p>
           {turns.length > 0 ? (
             <button
@@ -246,34 +241,28 @@ export function Conversation({ initialAllowance, money }: { initialAllowance: Wi
               disabled={busy}
               className="press-quiet -mr-2 min-h-11 shrink-0 rounded-control px-2 text-sm font-semibold text-ink-2 enabled:hover:bg-liner enabled:hover:text-ink disabled:text-ink-3"
             >
-              Start over
+              {t.startOver}
             </button>
           ) : null}
         </div>
         <p role="status" className="sr-only">
-          {busy ? "Looking it up…" : last?.answer ? "Answered." : ""}
+          {busy ? t.lookingUp : last?.answer ? t.answered : ""}
         </p>
       </form>
     </>
   );
 }
 
-function Intro({ onPick, disabled }: { onPick: (question: string) => void; disabled: boolean }) {
+function Intro({ onPick, disabled, t }: { onPick: (question: string) => void; disabled: boolean; t: AskCopy }) {
   return (
     <div className="pt-6 pb-8">
       <div className="max-w-prose space-y-3 px-5 sm:px-8">
-        <p className="text-lg leading-relaxed">
-          Ask about stock, orders, suppliers and sales in your own words. A language model answers by looking things up
-          in the same records every page shows, and it can propose a purchase order for you to check and write.
-        </p>
-        <p className="text-sm text-ink-2">
-          It only reads: it can&apos;t record stock or place orders. Every answer lists what it looked up. The model is
-          GLM-4.7 Flash, running on Cloudflare Workers AI.
-        </p>
+        <p className="text-lg leading-relaxed">{t.intro}</p>
+        <p className="text-sm text-ink-2">{t.introNote}</p>
       </div>
-      <h2 className="field-name mt-8 px-5 sm:px-8">Try one</h2>
+      <h2 className="field-name mt-8 px-5 sm:px-8">{t.tryOne}</h2>
       <ul className="mt-1.5 border-t border-ink">
-        {STARTERS.map((question) => (
+        {t.starters.map((question) => (
           <li key={question} className="border-b border-hairline">
             <button
               type="button"
@@ -301,6 +290,7 @@ function Intro({ onPick, disabled }: { onPick: (question: string) => void; disab
 function TurnView({
   turn,
   money,
+  language,
   onPrinted,
   onRetry,
   onWritten,
@@ -308,11 +298,13 @@ function TurnView({
 }: {
   turn: Turn;
   money: MoneyPrefs;
+  language: Language;
   onPrinted: () => void;
   onRetry: () => void;
   onWritten: (written: { id: number; number: string }) => void;
   canRetry: boolean;
 }) {
+  const t = ASK_COPY[language];
   const settled = turn.answer !== null || turn.problem !== null;
   // Only what has just arrived prints; the class is dropped once it has.
   const print = turn.fresh ? "print-in" : "";
@@ -320,75 +312,87 @@ function TurnView({
   return (
     <>
       <div className={settled ? "" : print}>
-        <p className="field-name">Question</p>
+        <p className="field-name">{t.question}</p>
         <p className="text-lg font-bold text-pretty">{turn.question}</p>
       </div>
 
       {!settled ? (
         <div className="mt-3">
-          <p className="text-sm text-ink-2">Looking it up…</p>
-          <StepList steps={turn.steps} live />
+          <p className="text-sm text-ink-2">{t.lookingUp}</p>
+          <StepList steps={turn.steps} t={t} live />
         </div>
       ) : turn.answer ? (
         <div className={`mt-3 ${print}`} onAnimationEnd={onPrinted}>
-          <AnswerText text={turn.answer.text} refs={turn.answer.refs} />
+          <AnswerText text={turn.answer.text} refs={turn.answer.refs} language={language} />
           {turn.answer.proposal ? (
-            <ProposalSlip proposal={turn.answer.proposal} money={money} written={turn.written} onWritten={onWritten} />
+            <ProposalSlip
+              proposal={turn.answer.proposal}
+              money={money}
+              language={language}
+              written={turn.written}
+              onWritten={onWritten}
+            />
           ) : null}
-          <Working steps={turn.answer.steps} />
+          <Working steps={turn.answer.steps} t={t} count={formats(language).count} />
         </div>
       ) : (
         <div className={`mt-3 ${print}`} onAnimationEnd={onPrinted}>
-          <ProblemNote problem={turn.problem!} onRetry={onRetry} canRetry={canRetry} />
+          <ProblemNote problem={turn.problem!} onRetry={onRetry} canRetry={canRetry} t={t} />
         </div>
       )}
     </>
   );
 }
 
-function ProblemNote({ problem, onRetry, canRetry }: { problem: Problem; onRetry: () => void; canRetry: boolean }) {
+function ProblemNote({
+  problem,
+  onRetry,
+  canRetry,
+  t,
+}: {
+  problem: Problem;
+  onRetry: () => void;
+  canRetry: boolean;
+  t: AskCopy;
+}) {
   if (problem === "signed-out") {
     return (
       <p className="bg-stock px-3 py-2 text-sm">
-        Your session has ended.{" "}
+        {t.sessionEnded[0]}
         <Link href="/login?next=/ask" className="font-semibold underline underline-offset-4">
-          Sign in again
-        </Link>{" "}
-        to ask.
+          {t.sessionEnded[1]}
+        </Link>
+        {t.sessionEnded[2]}
       </p>
     );
   }
   if (problem === "questions" || problem === "allowance") {
-    return (
-      <p className="text-sm text-ink-2">
-        Not answered: {problem === "questions" ? "no questions left today." : "the day's allowance ran out."}
-      </p>
-    );
+    return <p className="text-sm text-ink-2">{t.notAnswered(problem === "questions")}</p>;
   }
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <p className="text-sm">{PROBLEM_COPY[problem]}</p>
+      <p className="text-sm">{t.problem[problem]}</p>
       <button
         type="button"
         onClick={onRetry}
         disabled={!canRetry}
         className="press-quiet -ml-2 min-h-11 rounded-control px-2 text-sm font-semibold underline decoration-ink-3 underline-offset-4 enabled:hover:decoration-ink disabled:text-ink-3"
       >
-        Ask again
+        {t.askAgain}
       </button>
     </div>
   );
 }
 
 /** What the answer was worked out from: one line per lookup, the tool named as the machine names it. */
-function Working({ steps }: { steps: Step[] }) {
+function Working({ steps, t, count }: { steps: Step[]; t: AskCopy; count: (n: number) => string }) {
   if (steps.length === 0) {
-    return <p className="mt-4 text-sm text-ink-3">Answered without looking anything up.</p>;
+    return <p className="mt-4 text-sm text-ink-3">{t.noLookups}</p>;
   }
   return (
     <details className="group mt-4">
       <summary className="press-quiet -ml-3 flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 rounded-control px-3 text-sm font-semibold text-ink-2 hover:bg-liner hover:text-ink [&::-webkit-details-marker]:hidden">
-        How this was answered: {steps.length} {steps.length === 1 ? "lookup" : "lookups"}
+        {t.howAnswered(steps.length, count(steps.length))}
         <ChevronDown
           aria-hidden
           size={18}
@@ -396,12 +400,12 @@ function Working({ steps }: { steps: Step[] }) {
           className="transition-transform duration-150 ease-out group-open:rotate-180"
         />
       </summary>
-      <StepList steps={steps} />
+      <StepList steps={steps} t={t} />
     </details>
   );
 }
 
-function StepList({ steps, live = false }: { steps: Step[]; live?: boolean }) {
+function StepList({ steps, t, live = false }: { steps: Step[]; t: AskCopy; live?: boolean }) {
   if (steps.length === 0) return null;
   return (
     <ol className="mt-2 max-w-2xl border-t border-hairline">
@@ -413,7 +417,7 @@ function StepList({ steps, live = false }: { steps: Step[]; live?: boolean }) {
           }`}
         >
           <span className="pt-0.5 font-mono text-xs text-ink-3">{step.tool}</span>
-          <span className={step.ok ? "" : "text-ink-2"}>{step.ok ? step.summary : `Not run: ${step.summary}`}</span>
+          <span className={step.ok ? "" : "text-ink-2"}>{step.ok ? step.summary : t.notRun(step.summary)}</span>
         </li>
       ))}
     </ol>

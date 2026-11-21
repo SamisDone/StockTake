@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useActionState } from "react";
 import type { Proposal } from "@/assistant/tools";
 import { NAV_FORWARD } from "@/components/transitions";
-import { formatCount } from "@/lib/format";
+import { formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
 import { type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { type ProposalFormState, draftFromProposal } from "@/server/order-actions";
+import { ASK_COPY } from "./copy";
 
 /**
  * An order the assistant proposed. Nothing exists until the person writes it; the
@@ -18,16 +20,20 @@ import { type ProposalFormState, draftFromProposal } from "@/server/order-action
 export function ProposalSlip({
   proposal,
   money,
+  language,
   written,
   onWritten,
 }: {
   proposal: Proposal;
   money: MoneyPrefs;
+  language: Language;
   written: { id: number; number: string } | null;
   onWritten: (draft: { id: number; number: string }) => void;
 }) {
   const router = useRouter();
-  const m = moneyFormat(money);
+  const m = moneyFormat(money, language);
+  const f = formats(language);
+  const t = ASK_COPY[language].proposal;
   const [state, formAction, pending] = useActionState(async (previous: ProposalFormState, formData: FormData) => {
     const result = await draftFromProposal(previous, formData);
     if (result.saved) {
@@ -39,23 +45,21 @@ export function ProposalSlip({
   const units = proposal.lines.reduce((sum, line) => sum + line.quantity, 0);
 
   return (
-    <section aria-label={`Proposed order to ${proposal.supplierName}`} className="mt-5 border-y border-ink">
+    <section aria-label={t.label(proposal.supplierName)} className="mt-5 border-y border-ink">
       <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-ink pt-2.5 pb-3">
         <div>
-          <p className="field-name">Proposed order</p>
+          <p className="field-name">{t.title}</p>
           <p className="text-lg font-bold">{proposal.supplierName}</p>
         </div>
-        <p className="text-sm text-ink-2">
-          {formatCount(units)} {units === 1 ? "unit" : "units"} at today&apos;s costs
-        </p>
+        <p className="text-sm text-ink-2">{t.units(units, f.count(units))}</p>
       </header>
 
       <table className="w-full border-collapse text-left">
         <thead className="sr-only">
           <tr>
-            <th scope="col">Product</th>
-            <th scope="col">Quantity</th>
-            <th scope="col">Cost</th>
+            <th scope="col">{t.product}</th>
+            <th scope="col">{t.quantity}</th>
+            <th scope="col">{t.cost}</th>
           </tr>
         </thead>
         <tbody>
@@ -64,10 +68,11 @@ export function ProposalSlip({
               <td className="py-2.5 pr-3">
                 <span className="font-semibold">{line.name}</span>
                 <span className="block text-sm text-ink-3">
-                  <span className="font-mono text-xs">{line.sku}</span> · {formatCount(line.onHand)} on hand
+                  <span className="font-mono text-xs">{line.sku}</span>
+                  {t.onHand(f.count(line.onHand))}
                 </span>
               </td>
-              <td className="tabular py-2.5 pr-3 text-right whitespace-nowrap">{formatCount(line.quantity)}</td>
+              <td className="tabular py-2.5 pr-3 text-right whitespace-nowrap">{f.count(line.quantity)}</td>
               <td className="tabular py-2.5 text-right whitespace-nowrap text-ink-2">
                 {m.money(line.quantity * line.unitCostCents)}
               </td>
@@ -75,7 +80,7 @@ export function ProposalSlip({
           ))}
           <tr>
             <th scope="row" className="py-2.5 text-left font-semibold" colSpan={2}>
-              Total
+              {t.total}
             </th>
             <td className="tabular py-2.5 text-right font-bold whitespace-nowrap">{m.money(proposal.totalCents)}</td>
           </tr>
@@ -85,7 +90,7 @@ export function ProposalSlip({
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-ink py-3">
         {written ? (
           <p className="text-sm">
-            Written as{" "}
+            {t.written[0]}
             <Link
               href={`/orders/${written.id}`}
               prefetch={false}
@@ -94,7 +99,7 @@ export function ProposalSlip({
             >
               {written.number}
             </Link>
-            , a draft.
+            {t.written[1]}
           </p>
         ) : (
           <form action={formAction} aria-busy={pending} className="contents">
@@ -111,14 +116,12 @@ export function ProposalSlip({
               className="group h-11 rounded-control bg-ink px-4 text-sm font-semibold text-label transition-colors duration-150 enabled:hover:bg-ink-lift disabled:cursor-progress disabled:bg-ink-2 max-sm:w-full"
             >
               <span className="inline-block transition-transform duration-150 ease-out group-enabled:group-active:scale-[0.96]">
-                Write this draft
+                {t.write}
               </span>
             </button>
-            <p className="max-w-sm text-sm text-ink-2">
-              Nothing is written until you do. The draft opens so you can change it before it&apos;s placed.
-            </p>
+            <p className="max-w-sm text-sm text-ink-2">{t.writeNote}</p>
             <p role="status" className="sr-only">
-              {pending ? `Writing a draft to ${proposal.supplierName}…` : ""}
+              {pending ? t.writing(proposal.supplierName) : ""}
             </p>
           </form>
         )}

@@ -4,11 +4,13 @@ import { ChevronDown, Plus, X } from "lucide-react";
 import { startTransition, useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { Field, fieldProps } from "@/components/field";
 import { useLabelEditor } from "@/components/label-editor";
-import { formatCount } from "@/lib/format";
+import { type Formats, formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
 import { DOLLARS, type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { centsToInput, parseCents, parseUnits } from "@/lib/parse";
 import { type DraftFormState, saveDraft } from "@/server/order-actions";
 import type { DraftLine, DraftValues, ProductChoice, SupplierChoice } from "./draft-values";
+import { ORDERS_COPY, type OrdersCopy } from "./copy";
 
 const initial: DraftFormState = {};
 
@@ -28,6 +30,7 @@ function readLine(line: DraftLine) {
  */
 export function DraftForm({
   money,
+  language,
   order,
   suppliers,
   products,
@@ -37,6 +40,7 @@ export function DraftForm({
 }: {
   /** How this person reads money. Unit costs are typed in dollars either way. */
   money: MoneyPrefs;
+  language: Language;
   /** Set when editing a draft. Without it the form writes a new order. */
   order?: { id: number; number: string };
   /** Who a new order can go to; an existing draft passes only its own supplier. */
@@ -50,7 +54,11 @@ export function DraftForm({
   action: ReactNode;
 }) {
   const editing = order !== undefined;
-  const m = moneyFormat(money);
+  const m = moneyFormat(money, language);
+  const usd = moneyFormat(DOLLARS, language);
+  const f = formats(language);
+  const copy = ORDERS_COPY[language];
+  const t = copy.form;
   const editor = useLabelEditor();
   const [state, dispatch, pending] = useActionState(saveDraft, initial);
 
@@ -79,7 +87,7 @@ export function DraftForm({
   }, [state.fields]);
 
   useEffect(() => {
-    if (state.saved && editing) editor?.close("Saved changes.");
+    if (state.saved && editing) editor?.close(t.saved);
     // Only a new answer means anything here. A new order redirects to its label instead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.saved]);
@@ -117,7 +125,7 @@ export function DraftForm({
     ]);
     setAdded(product.id);
     setPicked("");
-    setSaid(`Added ${product.name}, ${formatCount(product.quantity)} units.`);
+    setSaid(t.added(product.name, f.count(product.quantity)));
     focusNext.current = `quantity-${product.id}`;
   };
 
@@ -125,7 +133,7 @@ export function DraftForm({
     const line = lines[index];
     const neighbour = lines[index + 1] ?? lines[index - 1];
     setLines((current) => current.filter((l) => l.productId !== line.productId));
-    setSaid(`Removed ${line.name}.`);
+    setSaid(t.removed(line.name));
     focusNext.current = neighbour ? `remove-${neighbour.productId}` : "add-product";
   };
 
@@ -134,7 +142,7 @@ export function DraftForm({
     setPicked("");
     if (lines.length > 0) {
       setLines([]);
-      setSaid("Cleared the lines: they were the other supplier's products.");
+      setSaid(t.cleared);
     }
   };
 
@@ -163,31 +171,26 @@ export function DraftForm({
       <header className="flex items-start justify-between gap-4 px-5 pt-6 pb-3 sm:px-8 sm:pt-8">
         <div className="min-w-0">
           <h1 id="order-title" className="text-lg font-bold">
-            {order ? `Edit ${order.number}` : "New order"}
+            {order ? t.editTitle(order.number) : t.newTitle}
           </h1>
           <p className="mt-1 max-w-prose text-sm text-ink-2">
-            {editing
-              ? `Lines to ${supplier?.name ?? "the supplier"}, what they cost, and when it's due. Changes go in the activity log.`
-              : "It starts as a draft. Nothing is sent until an admin places it."}
+            {editing ? t.editHelp(supplier?.name ?? null) : t.newHelp}
           </p>
         </div>
         {action}
       </header>
 
       <fieldset disabled={pending} className="min-w-0">
-        <legend className="sr-only">{editing ? "The draft" : "The new order"}</legend>
+        <legend className="sr-only">{editing ? t.editLegend : t.newLegend}</legend>
 
         {editing ? null : (
           <div className="border-t-2 border-ink">
             <Field
               name="supplierId"
-              label="Supplier"
+              label={t.supplier}
+              language={language}
               error={errors.supplierId}
-              hint={
-                supplier
-                  ? `Delivers in ${formatCount(supplier.leadTimeDays)} days.${lines.length > 0 ? " Choosing another supplier clears the lines." : ""}`
-                  : "An order goes to one supplier, for the products it supplies."
-              }
+              hint={supplier ? t.supplierHint(f.count(supplier.leadTimeDays), lines.length > 0) : t.supplierNone}
             >
               <div className="relative">
                 <select
@@ -197,7 +200,7 @@ export function DraftForm({
                   autoFocus
                   className="field-input cursor-pointer appearance-none pr-8"
                 >
-                  <option value="">Choose a supplier</option>
+                  <option value="">{t.chooseSupplier}</option>
                   {suppliers.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -217,14 +220,12 @@ export function DraftForm({
 
         <section aria-labelledby="draft-lines-title" className="border-t-2 border-ink pt-5">
           <h2 id="draft-lines-title" className="px-5 text-lg font-bold sm:px-8">
-            Lines
+            {t.lines}
           </h2>
 
           {lines.length === 0 ? (
             <p className="mt-2 max-w-prose px-5 pb-4 text-sm text-ink-2 sm:px-8">
-              {supplier
-                ? `Nothing on it yet. Add what ${supplier.name} should send.`
-                : "Choose a supplier, then add what it should send."}
+              {t.nothingYet(supplier?.name ?? null)}
             </p>
           ) : (
             <div className="mt-3">
@@ -232,10 +233,10 @@ export function DraftForm({
                 aria-hidden
                 className="grid grid-cols-[minmax(0,1fr)_7rem_8.5rem_7rem_2.75rem] gap-x-3 border-b border-ink px-5 pb-2 max-md:hidden sm:px-8"
               >
-                <span className="field-name">Product</span>
-                <span className="field-name text-right">Quantity</span>
-                <span className="field-name text-right">Unit cost</span>
-                <span className="field-name text-right">Line total</span>
+                <span className="field-name">{t.columns.product}</span>
+                <span className="field-name text-right">{t.columns.quantity}</span>
+                <span className="field-name text-right">{t.columns.unitCost}</span>
+                <span className="field-name text-right">{t.columns.lineTotal}</span>
                 <span />
               </div>
               <ul>
@@ -247,6 +248,9 @@ export function DraftForm({
                     product={byId.get(line.productId)}
                     errors={errors}
                     m={m}
+                    usd={usd}
+                    f={f}
+                    t={copy}
                     fresh={line.productId === added}
                     onChange={(change) => update(line.productId, change)}
                     onRemove={() => remove(index)}
@@ -259,7 +263,7 @@ export function DraftForm({
           <div className="flex items-end gap-2 border-t border-hairline px-5 pt-3 pb-4 sm:px-8">
             <div className="min-w-0 flex-1">
               <label htmlFor="add-product" className="field-name block">
-                Add a product
+                {t.addProduct}
               </label>
               <div className="relative mt-1">
                 <select
@@ -271,24 +275,24 @@ export function DraftForm({
                 >
                   <option value="">
                     {!supplier
-                      ? "Choose a supplier first"
+                      ? t.supplierFirst
                       : catalog.length === 0
-                        ? `${supplier.name} has nothing else to order`
+                        ? t.nothingElse(supplier.name)
                         : available.length === 0
-                          ? `Everything ${supplier.name} supplies is on it`
-                          : "Choose a product"}
+                          ? t.allOn(supplier.name)
+                          : t.chooseProduct}
                   </option>
                   {low.length > 0 ? (
-                    <optgroup label="Running low">
+                    <optgroup label={t.runningLow}>
                       {low.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} (order {formatCount(p.suggested)})
+                          {t.orderSuggested(p.name, f.count(p.suggested))}
                         </option>
                       ))}
                     </optgroup>
                   ) : null}
                   {rest.length > 0 ? (
-                    <optgroup label={low.length > 0 ? "Everything else" : `From ${supplier?.name}`}>
+                    <optgroup label={low.length > 0 ? t.everythingElse : t.from(supplier?.name ?? "")}>
                       {rest.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name}
@@ -312,7 +316,7 @@ export function DraftForm({
               className="press-quiet flex h-11 shrink-0 items-center gap-1.5 rounded-control px-3.5 font-semibold text-ink enabled:hover:bg-liner disabled:text-ink-3"
             >
               <Plus aria-hidden size={18} strokeWidth={2.25} />
-              Add
+              {t.add}
             </button>
           </div>
 
@@ -320,13 +324,10 @@ export function DraftForm({
               whose figures can't be read yet is left out, and it says so. */}
           <div className="flex items-baseline justify-between gap-4 bg-ink px-5 py-3 text-label sm:px-8">
             <p className="min-w-0 font-semibold">
-              Total
+              {t.total}
               <span className="ml-2 text-sm font-normal">
-                {formatCount(lines.length)} {lines.length === 1 ? "line" : "lines"}, {formatCount(units)}{" "}
-                {units === 1 ? "unit" : "units"}
-                {unread > 0
-                  ? ` · ${unread === 1 ? "1 line isn't" : `${formatCount(unread)} lines aren't`} counted`
-                  : null}
+                {t.totals(lines.length, f.count(lines.length), units, f.count(units))}
+                {unread > 0 ? t.uncounted(unread, f.count(unread)) : null}
               </span>
             </p>
             <p className="print-display tabular shrink-0 text-[1.75rem] sm:text-5xl">{m.money(totalCents)}</p>
@@ -336,13 +337,12 @@ export function DraftForm({
         <div className="grid gap-px border-b-2 border-ink bg-ink sm:grid-cols-2">
           <Field
             name="expectedAt"
-            label="Expected"
+            label={t.expected}
+            language={language}
             optional
             error={errors.expectedAt}
             hint={
-              supplier && leadTime !== undefined
-                ? `The date ${supplier.name} gave. Left empty, it's due ${formatCount(leadTime)} days after it's placed.`
-                : "The date the supplier gave. Left empty, its lead time decides."
+              supplier && leadTime !== undefined ? t.expectedHint(supplier.name, f.count(leadTime)) : t.expectedNone
             }
           >
             <input
@@ -354,7 +354,7 @@ export function DraftForm({
               className="field-input"
             />
           </Field>
-          <Field name="notes" label="Notes" optional error={errors.notes}>
+          <Field name="notes" label={t.notes} language={language} optional error={errors.notes}>
             <textarea
               {...fieldProps("notes", { error: errors.notes })}
               value={notes}
@@ -374,7 +374,7 @@ export function DraftForm({
 
         <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-3 px-5 pt-3 pb-5 sm:px-8">
           <p role="status" className="min-h-5 min-w-0 basis-full text-sm font-medium sm:flex-1 sm:basis-auto">
-            {pending ? (editing ? "Saving…" : "Drafting…") : null}
+            {pending ? (editing ? t.saving : t.drafting) : null}
           </p>
           {editing ? (
             <button
@@ -382,7 +382,7 @@ export function DraftForm({
               onClick={() => editor?.close()}
               className="press-quiet min-h-12 rounded-control px-4 font-semibold text-ink-2 enabled:hover:bg-liner enabled:hover:text-ink max-sm:flex-1"
             >
-              Cancel
+              {t.cancel}
             </button>
           ) : null}
           <button
@@ -390,7 +390,7 @@ export function DraftForm({
             className="group h-12 shrink-0 rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 enabled:hover:bg-ink-lift disabled:cursor-progress disabled:bg-ink-2 max-sm:flex-1"
           >
             <span className="inline-block transition-transform duration-150 ease-out group-enabled:group-active:scale-[0.96]">
-              {editing ? "Save changes" : "Draft order"}
+              {editing ? t.save : t.draft}
             </span>
           </button>
         </div>
@@ -403,8 +403,6 @@ export function DraftForm({
   );
 }
 
-const usd = moneyFormat(DOLLARS);
-
 /**
  * One line, as a row of the label's table. On a phone the product takes its own row
  * and the figures sit below it, each with its name; at the desk they share one row
@@ -416,6 +414,9 @@ function LineRow({
   product,
   errors,
   m,
+  usd,
+  f,
+  t: copy,
   fresh,
   onChange,
   onRemove,
@@ -425,11 +426,16 @@ function LineRow({
   product: ProductChoice | undefined;
   errors: Record<string, string>;
   m: MoneyFormat;
+  /** Dollars in the reader's digits: what the cost fields take. */
+  usd: MoneyFormat;
+  f: Formats;
+  t: OrdersCopy;
   /** Just added: it prints in. */
   fresh: boolean;
   onChange: (change: Partial<DraftLine>) => void;
   onRemove: () => void;
 }) {
+  const t = copy.form;
   const qtyKey = `quantity-${line.productId}`;
   const costKey = `unitCost-${line.productId}`;
   const qtyError = errors[qtyKey];
@@ -444,19 +450,21 @@ function LineRow({
         <p className="font-semibold">{line.name}</p>
         <p className="text-xs text-ink-3">
           <span className="font-mono">{line.sku}</span>
-          {product ? <> · {formatCount(product.onHand)} on hand</> : null}
+          {product ? t.onHand(f.count(product.onHand)) : null}
           <span id={`${costKey}-usual`}>
-            {/* The field takes dollars, so the usual cost is in dollars too, converted after it for taka. */} · usually{" "}
+            {/* The field takes dollars, so the usual cost is in dollars too, converted after it for taka. */}
+            {t.usually}
             {usd.money(line.catalogCents)}
             {m.hint(line.catalogCents) ? ` (${m.hint(line.catalogCents)})` : null}
           </span>
-          {product && product.suggested > 0 ? <> · forecast says {formatCount(product.suggested)}</> : null}
+          {product && product.suggested > 0 ? t.forecast(f.count(product.suggested)) : null}
         </p>
       </div>
 
       <div className="min-w-0">
         <label htmlFor={qtyKey} className="field-name block md:sr-only">
-          Quantity<span className="sr-only"> of {line.name}</span>
+          {t.columns.quantity}
+          <span className="sr-only">{t.quantityOf(line.name)}</span>
         </label>
         <div
           className={`flex h-11 items-center border border-ink px-2.5 focus-within:shadow-[inset_0_0_0_1px_var(--color-ink)] ${qtyError ? "bg-stock" : "bg-label"}`}
@@ -477,7 +485,8 @@ function LineRow({
 
       <div className="min-w-0">
         <label htmlFor={costKey} className="field-name block md:sr-only">
-          Unit cost<span className="sr-only"> of {line.name}</span>
+          {t.columns.unitCost}
+          <span className="sr-only">{t.quantityOf(line.name)}</span>
         </label>
         <div
           className={`flex h-11 items-center gap-1 border border-ink px-2.5 focus-within:shadow-[inset_0_0_0_1px_var(--color-ink)] ${costError ? "bg-stock" : "bg-label"}`}
@@ -501,7 +510,7 @@ function LineRow({
 
       <div className="min-w-0 text-right">
         <p aria-hidden className="field-name md:hidden">
-          Line total
+          {t.columns.lineTotal}
         </p>
         <p className="tabular font-semibold md:pt-2.5">{figures.total === null ? "–" : m.money(figures.total)}</p>
       </div>
@@ -510,7 +519,7 @@ function LineRow({
         type="button"
         id={`remove-${line.productId}`}
         onClick={onRemove}
-        aria-label={`Remove ${line.name}`}
+        aria-label={t.remove(line.name)}
         className="press-quiet flex size-11 items-center justify-center justify-self-end rounded-control text-ink-2 hover:bg-liner hover:text-ink max-md:col-start-3 max-md:row-start-1 max-md:-mt-2 max-md:-mr-3"
       >
         <X aria-hidden size={18} strokeWidth={2.25} />

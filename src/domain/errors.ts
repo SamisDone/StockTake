@@ -1,18 +1,30 @@
 import { z } from "zod";
+import type { Language } from "@/lib/i18n";
+import { type Said, isErrorKey, said, sayIn } from "./error-copy";
 
 export type DomainErrorCode =
   "invalid_input" | "not_found" | "forbidden" | "insufficient_stock" | "invalid_state" | "conflict";
 
-/** An expected failure with a message that can be shown to the person as-is. */
+/**
+ * An expected failure, said so it can be shown to the person in their language. The
+ * English is the error's `message`; `in(language)` prints it for a reader.
+ */
 export class DomainError extends Error {
+  readonly said: Said;
+
   constructor(
     readonly code: DomainErrorCode,
-    message: string,
+    message: Said,
     /** The input field at fault, for showing the message next to it. */
     readonly field?: string,
   ) {
-    super(message);
+    super(sayIn("en", message));
     this.name = "DomainError";
+    this.said = message;
+  }
+
+  in(language: Language) {
+    return sayIn(language, this.said);
   }
 }
 
@@ -21,9 +33,16 @@ export function parseInput<T extends z.ZodType>(schema: T, input: unknown): z.ou
   const result = schema.safeParse(input);
   if (!result.success) {
     const issue = result.error.issues[0];
-    throw new DomainError("invalid_input", issue.message, issue.path.join(".") || undefined);
+    // Schemas name an error key as their message; zod's own defaults get a general one.
+    const message = isErrorKey(issue.message) ? (said(issue.message) as Said) : said("invalidValue");
+    throw new DomainError("invalid_input", message, issue.path.join(".") || undefined);
   }
   return result.data;
+}
+
+/** A zod issue's message (an error key) printed in `language`, for actions that run a schema themselves. */
+export function issueMessage(message: string, language: Language) {
+  return sayIn(language, isErrorKey(message) ? (said(message) as Said) : said("invalidValue"));
 }
 
 /** Collects the messages along an error's `cause` chain (Drizzle wraps driver errors). */

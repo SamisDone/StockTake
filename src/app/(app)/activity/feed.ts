@@ -1,3 +1,6 @@
+import { formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
+
 /**
  * The activity page's shaping: which entries a URL asks for, and how a week of them is
  * laid out (by UTC day, with runs of sales folded). Plain module: no server or client code.
@@ -9,6 +12,7 @@ export type FeedEntry = {
   entityType: string;
   entityId: number;
   summary: string;
+  facts: Record<string, unknown> | null;
   occurredAt: Date;
   userName: string | null;
 };
@@ -21,10 +25,10 @@ export type FeedDay = { day: string; items: FeedItem[] };
 
 /** What the filter can show, and the action prefixes behind each. */
 export const KINDS = {
-  all: { label: "Everything", actions: [] as string[] },
-  stock: { label: "Stock", actions: ["stock."] },
-  orders: { label: "Orders", actions: ["purchase_order."] },
-  catalog: { label: "Catalog", actions: ["product.", "supplier.", "user."] },
+  all: { actions: [] as string[] },
+  stock: { actions: ["stock."] },
+  orders: { actions: ["purchase_order."] },
+  catalog: { actions: ["product.", "supplier.", "user."] },
 } as const;
 export type Kind = keyof typeof KINDS;
 
@@ -82,19 +86,18 @@ export function readFeedParams(params: { kind?: string; person?: string; before?
   return { kind, userId, from: new Date(to.getTime() - PAGE_DAYS * DAY_MS), to };
 }
 
-const weekdayDate = new Intl.DateTimeFormat("en-US", {
-  weekday: "long",
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
+const RELATIVE: Record<Language, [string, string]> = { en: ["Today", "Yesterday"], bn: ["আজ", "গতকাল"] };
 
-/** A day's heading: "Today", "Yesterday", else "Wednesday, Nov 18". */
-export function dayLabel(day: string, now: Date) {
-  const today = dayOf(now);
-  if (day === today) return "Today";
-  if (day === dayOf(new Date(startOfDay(now).getTime() - DAY_MS))) return "Yesterday";
-  return weekdayDate.format(new Date(`${day}T00:00:00Z`));
+/** Whether a day is today or yesterday, which its heading names instead of the date. */
+export function isRecentDay(day: string, now: Date) {
+  return day === dayOf(now) || day === dayOf(new Date(startOfDay(now).getTime() - DAY_MS));
+}
+
+/** A day's heading: "Today", "Yesterday", else "Wednesday, Nov 18" ("বুধবার ১৮ নভেম্বর"). */
+export function dayLabel(day: string, now: Date, language: Language = "en") {
+  if (day === dayOf(now)) return RELATIVE[language][0];
+  if (day === dayOf(new Date(startOfDay(now).getTime() - DAY_MS))) return RELATIVE[language][1];
+  return formats(language).longDay(new Date(`${day}T00:00:00Z`));
 }
 
 /** The day a date input or URL holds, from a moment. */

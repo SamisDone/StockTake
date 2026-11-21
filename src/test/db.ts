@@ -1,3 +1,4 @@
+import { readFileSync, readdirSync } from "node:fs";
 import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
@@ -20,4 +21,13 @@ export async function createTestDb() {
 export async function scalar<T = number>(client: Client, sql: string, args: unknown[] = []) {
   const result = await client.execute({ sql, args: args as never });
   return result.rows[0]?.[0] as T;
+}
+
+/** Every migration's SQL, in order, the way scripts/seed.mts hands it to `resetStatements`. */
+export function migrationsSql() {
+  return readdirSync("drizzle")
+    .filter((name) => name.endsWith(".sql"))
+    .sort()
+    .map((name) => readFileSync(`drizzle/${name}`, "utf8"))
+    .join("\n");
 }

@@ -8,7 +8,8 @@ import { deliveryRecord, getOrder, listOrders } from "@/domain/purchase-orders";
 import { getReorderSuggestions } from "@/domain/reorder";
 import { listMovements } from "@/domain/stock";
 import { getSupplier, listSuppliers } from "@/domain/suppliers";
-import { formatDate } from "@/lib/format";
+import { formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
 import { DOLLARS, type MoneyFormat, moneyFormat } from "@/lib/money";
 
 /**
@@ -24,6 +25,9 @@ import { DOLLARS, type MoneyFormat, moneyFormat } from "@/lib/money";
  */
 
 /** A record an answer can link to. `code` is its SKU or PO number. */
+/** A tool refusing its arguments. Said to the model, in English, so it can correct itself. */
+class ToolRefusal extends Error {}
+
 export type Ref = { kind: "product" | "supplier" | "order"; id: number; label: string; code?: string };
 
 export type ProposalLine = {
@@ -52,7 +56,11 @@ export type ToolOutcome = {
   proposal?: Proposal;
 };
 
-type Context = { db: Database; now: Date; money: MoneyFormat };
+/**
+ * What a tool runs with. `language` is the person's: it only changes the step summaries
+ * they read under an answer. What the model reads stays English, with Latin digits.
+ */
+type Context = { db: Database; now: Date; money: MoneyFormat; language: Language };
 
 type Tool<S extends z.ZodObject> = {
   name: string;
@@ -65,10 +73,14 @@ const tool = <S extends z.ZodObject>(definition: Tool<S>) => definition;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** A UTC day the way every page prints it: "Nov 14", with the year only when it isn't this one. */
-const day = (date: Date | null, now: Date) => (date ? formatDate(date, now) : null);
+const day = (date: Date | null, now: Date) => (date ? formats("en").date(date, now) : null);
 const round = (n: number | null, places = 1) => (n === null ? null : Number(n.toFixed(places)));
 const startOfDay = (date: Date) => Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+/** A count in a Bangla step summary: "১২টি". */
+const bn = (n: number) => `${formats("bn").count(n)}টি`;
+/** A step summary in the person's language. */
+const say = (language: Language, english: string, bangla: string) => (language === "bn" ? bangla : english);
 
 const productRef = (p: { id: number; name: string; sku: string }): Ref => ({
   kind: "product",
@@ -127,7 +139,7 @@ const searchProducts = tool({
       .describe("out: none on hand. reorder: order now. ok: enough stock."),
     limit: z.number().int().min(1).max(25).optional().describe("At most this many, most urgent first. Default 10."),
   }),
-  async run({ db, now, money }, { query, status, limit = 10 }) {
+  async run({ db, now, money, language }, { query, status, limit = 10 }) {
     const words = query?.toLowerCase().split(/\s+/) ?? [];
     const matched = (await getStockForecasts(db, now)).filter((f) => {
       if (status && f.status !== status) return false;
@@ -139,7 +151,11 @@ const searchProducts = tool({
     return {
       data: { matched: matched.length, shown: shown.length, products: shown.map((f) => stockFacts(f, now, money)) },
       refs: shown.map(productRef),
-      summary: `Searched products${filters ? ` for ${filters}` : ""}: ${plural(matched.length, "match", "matches")}`,
+      summary: say(
+        language,
+        `Searched products${filters ? ` for ${filters}` : ""}: ${plural(matched.length, "match", "matches")}`,
+        `পণ্য খোঁজা হলো${query ? ` “${query}”` : ""}: ${bn(matched.length)} মিলেছে`,
+      ),
     };
   },
 });
@@ -150,7 +166,7 @@ const getProductTool = tool({
     "One product's stock picture and its latest stock movements (receipts, sales, counts, returns, write-offs), " +
     "newest first, with the balance after each.",
   input: z.object({ productId: recordId }),
-  async run({ db, now, money }, { productId }) {
+  async run({ db, now, money, language }, { productId }) {
     const f = await getProductForecast(db, productId, now);
     const movements = await listMovements(db, productId, { limit: 12 });
     return {
@@ -168,7 +184,11 @@ const getProductTool = tool({
         })),
       },
       refs: [productRef(f)],
-      summary: `Read ${f.name}: ${plural(f.onHand, "unit")} on hand, ${plural(movements.length, "recent movement")}`,
+      summary: say(
+        language,
+        `Read ${f.name}: ${plural(f.onHand, "unit")} on hand, ${plural(movements.length, "recent movement")}`,
+        `${f.name} দেখা হলো: মজুত ${formats("bn").count(f.onHand)}, সাম্প্রতিক লেনদেন ${bn(movements.length)}`,
+      ),
     };
   },
 });
@@ -179,7 +199,7 @@ const listSuppliersTool = tool({
     "Every active supplier with its lead time, average review rating, product count, how many of its products need " +
     "reordering, units on order, and its delivery record (orders received by their due day).",
   input: z.object({}),
-  async run({ db, now }) {
+  async run({ db, now, language }) {
     const [suppliers, forecasts, orders] = await Promise.all([
       listSuppliers(db),
       getStockForecasts(db, now),
@@ -204,7 +224,7 @@ const listSuppliersTool = tool({
     return {
       data: { suppliers: data },
       refs: suppliers.map(supplierRef),
-      summary: `Listed suppliers: ${suppliers.length}`,
+      summary: say(language, `Listed suppliers: ${suppliers.length}`, `সরবরাহকারীর তালিকা: ${bn(suppliers.length)}`),
     };
   },
 });
@@ -214,7 +234,7 @@ const getSupplierTool = tool({
   description:
     "One supplier: contact details, lead time, rating with the latest reviews, its products' stock, and its open orders.",
   input: z.object({ supplierId: recordId }),
-  async run({ db, now, money }, { supplierId }) {
+  async run({ db, now, money, language }, { supplierId }) {
     const [supplier, forecasts, orders] = await Promise.all([
       getSupplier(db, supplierId),
       getStockForecasts(db, now),
@@ -241,7 +261,11 @@ const getSupplierTool = tool({
         openOrders: open.map((o) => ({ orderId: o.id, number: o.number, status: o.status, due: day(o.dueAt, now) })),
       },
       refs: [supplierRef(supplier), ...products.map(productRef), ...open.map(orderRef)],
-      summary: `Read ${supplier.name}: ${plural(products.length, "product")}, ${plural(open.length, "open order")}`,
+      summary: say(
+        language,
+        `Read ${supplier.name}: ${plural(products.length, "product")}, ${plural(open.length, "open order")}`,
+        `${supplier.name} দেখা হলো: ${bn(products.length)} পণ্য, ${bn(open.length)} খোলা অর্ডার`,
+      ),
     };
   },
 });
@@ -259,7 +283,7 @@ const listOrdersTool = tool({
     supplierId: recordId.optional(),
     limit: z.number().int().min(1).max(25).optional().describe("Default 15."),
   }),
-  async run({ db, now, money }, { status, late, supplierId, limit = 15 }) {
+  async run({ db, now, money, language }, { status, late, supplierId, limit = 15 }) {
     const today = startOfDay(now);
     const isLate = (o: { status: string; dueAt: Date | null }) =>
       o.status === "ordered" && o.dueAt !== null && startOfDay(o.dueAt) < today;
@@ -287,7 +311,11 @@ const listOrdersTool = tool({
         })),
       },
       refs: shown.map(orderRef),
-      summary: `Listed ${late ? "late " : status ? `${status} ` : ""}orders: ${orders.length}`,
+      summary: say(
+        language,
+        `Listed ${late ? "late " : status ? `${status} ` : ""}orders: ${orders.length}`,
+        `${late ? "দেরির " : ""}অর্ডারের তালিকা: ${bn(orders.length)}`,
+      ),
     };
   },
 });
@@ -296,7 +324,7 @@ const getOrderTool = tool({
   name: "get_order",
   description: "One purchase order with its lines: product, quantity, unit cost and line total.",
   input: z.object({ orderId: recordId }),
-  async run({ db, now, money }, { orderId }) {
+  async run({ db, now, money, language }, { orderId }) {
     const o = await getOrder(db, orderId);
     return {
       data: {
@@ -327,7 +355,11 @@ const getOrderTool = tool({
         supplierRef({ id: o.supplierId, name: o.supplierName }),
         ...o.lines.map((l) => productRef({ ...l, id: l.productId })),
       ],
-      summary: `Read ${o.number}: ${o.status}, ${plural(o.lines.length, "line")}`,
+      summary: say(
+        language,
+        `Read ${o.number}: ${o.status}, ${plural(o.lines.length, "line")}`,
+        `${o.number} দেখা হলো: ${bn(o.lines.length)} লাইন`,
+      ),
     };
   },
 });
@@ -343,7 +375,7 @@ const salesSummary = tool({
       .optional()
       .describe("28 or 90. Default 28."),
   }),
-  async run({ db, now, money }, { days = 28 }) {
+  async run({ db, now, money, language }, { days = 28 }) {
     const a = await getAnalytics(db, days, now);
     const figures = (p: (typeof a.best)[number]) => ({
       productId: p.id,
@@ -372,7 +404,11 @@ const salesSummary = tool({
         })),
       },
       refs: [...a.best, ...a.slowest].map(productRef),
-      summary: `Summed sales for the last ${days} days: ${plural(a.sales.units, "unit")}`,
+      summary: say(
+        language,
+        `Summed sales for the last ${days} days: ${plural(a.sales.units, "unit")}`,
+        `গত ${formats("bn").count(days)} দিনের বিক্রি যোগ করা হলো: ${formats("bn").count(a.sales.units)} ইউনিট`,
+      ),
     };
   },
 });
@@ -391,31 +427,29 @@ const draftPurchaseOrder = tool({
       .max(50)
       .optional(),
   }),
-  async run({ db, now, money }, { supplierId, lines }) {
+  async run({ db, now, money, language }, { supplierId, lines }) {
     const [supplier, forecasts] = await Promise.all([getSupplier(db, supplierId), getStockForecasts(db, now)]);
-    if (supplier.archivedAt)
-      throw new DomainError("invalid_state", `${supplier.name} is archived and takes no orders.`);
+    if (supplier.archivedAt) throw new ToolRefusal(`${supplier.name} is archived and takes no orders.`);
 
     let chosen: { forecast: StockForecast; quantity: number }[];
     if (lines) {
       chosen = lines.map(({ productId, quantity }) => {
         const forecast = forecasts.find((f) => f.id === productId);
-        if (!forecast) throw new DomainError("not_found", `Product ${productId} doesn't exist or is archived.`);
+        if (!forecast) throw new ToolRefusal(`Product ${productId} doesn't exist or is archived.`);
         if (forecast.supplierId !== supplierId) {
-          throw new DomainError("invalid_input", `${supplier.name} doesn't supply ${forecast.name}.`);
+          throw new ToolRefusal(`${supplier.name} doesn't supply ${forecast.name}.`);
         }
         return { forecast, quantity };
       });
       if (new Set(lines.map((l) => l.productId)).size !== lines.length) {
-        throw new DomainError("invalid_input", "Each product can appear on an order once.");
+        throw new ToolRefusal("Each product can appear on an order once.");
       }
     } else {
       const { suppliers } = await getReorderSuggestions(db, now, forecasts);
       const group = suppliers.find((s) => s.supplierId === supplierId);
       const open = group?.lines.filter((l) => l.draftId === null) ?? [];
       if (open.length === 0) {
-        throw new DomainError(
-          "invalid_state",
+        throw new ToolRefusal(
           group
             ? `Everything ${supplier.name} should send is on a draft already.`
             : `Nothing from ${supplier.name} needs ordering right now.`,
@@ -452,7 +486,11 @@ const draftPurchaseOrder = tool({
         total: money.money(proposal.totalCents),
       },
       refs: [supplierRef(supplier), ...chosen.map(({ forecast }) => productRef(forecast))],
-      summary: `Proposed an order to ${supplier.name}: ${plural(proposalLines.length, "line")}, ${money.money(proposal.totalCents)}`,
+      summary: say(
+        language,
+        `Proposed an order to ${supplier.name}: ${plural(proposalLines.length, "line")}, ${money.money(proposal.totalCents)}`,
+        `${supplier.name}-এর জন্য অর্ডারের প্রস্তাব: ${bn(proposalLines.length)} লাইন`,
+      ),
       proposal,
     };
   },
@@ -497,11 +535,11 @@ export type ToolRun = { ok: true; outcome: ToolOutcome } | { ok: false; error: s
  * back as an error the model can read and correct, never as an exception.
  */
 export async function runTool(
-  given: Omit<Context, "money"> & { money?: MoneyFormat },
+  given: Omit<Context, "money" | "language"> & { money?: MoneyFormat; language?: Language },
   name: string,
   rawArguments: string,
 ): Promise<ToolRun> {
-  const context: Context = { ...given, money: given.money ?? moneyFormat(DOLLARS) };
+  const context: Context = { ...given, money: given.money ?? moneyFormat(DOLLARS), language: given.language ?? "en" };
   const definition = TOOLS.find((t) => t.name === name);
   if (!definition) return { ok: false, error: `There is no tool called ${name}.` };
 
@@ -522,7 +560,7 @@ export async function runTool(
     const outcome = await (definition.run as Tool<z.ZodObject>["run"])(context, parsed.data);
     return { ok: true, outcome };
   } catch (error) {
-    if (error instanceof DomainError) return { ok: false, error: error.message };
+    if (error instanceof DomainError || error instanceof ToolRefusal) return { ok: false, error: error.message };
     throw error;
   }
 }

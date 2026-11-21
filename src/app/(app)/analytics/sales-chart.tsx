@@ -1,8 +1,10 @@
 "use client";
 
 import { type KeyboardEvent, type PointerEvent, useState } from "react";
-import { formatCount, formatDate, formatDay } from "@/lib/format";
+import { formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
 import { type MoneyPrefs, moneyFormat } from "@/lib/money";
+import { ANALYTICS_COPY } from "./copy";
 
 export type ChartDay = { day: Date; units: number; valueCents: number };
 
@@ -18,16 +20,17 @@ function niceMax(value: number) {
   return step * power;
 }
 
-const units = (n: number) => `${formatCount(n)} ${n === 1 ? "unit" : "units"}`;
-
 /**
  * Net sales a day as columns on one baseline, the last being today so far. The readout
  * above names one day at a time: pointing at the plot (or scrubbing it with a finger)
  * picks the nearest day, and so do the arrow keys once it has focus. With nothing picked
  * it reads the average of the full days. It never animates: it's read many times a visit.
  */
-export function SalesChart({ days, money }: { days: ChartDay[]; money: MoneyPrefs }) {
-  const m = moneyFormat(money);
+export function SalesChart({ days, money, language }: { days: ChartDay[]; money: MoneyPrefs; language: Language }) {
+  const m = moneyFormat(money, language);
+  const f = formats(language);
+  const t = ANALYTICS_COPY[language].chart;
+  const units = (n: number) => t.units(n, f.count(n));
   const [active, setActive] = useState<number | null>(null);
   const last = days.length - 1;
   const full = days.slice(0, last);
@@ -61,9 +64,9 @@ export function SalesChart({ days, money }: { days: ChartDay[]; money: MoneyPref
   };
 
   const day = active === null ? null : days[active];
-  const name = day === null ? "Average full day" : active === last ? "Today so far" : formatDay(day.day);
+  const name = day === null ? t.average : active === last ? t.todaySoFar : f.day(day.day);
   const value = day?.valueCents ?? average.valueCents;
-  const sold = day === null ? `${formatCount(Math.round(average.units))} units` : units(day.units);
+  const sold = units(day === null ? Math.round(average.units) : day.units);
   const middle = Math.floor(last / 2);
 
   return (
@@ -97,7 +100,7 @@ export function SalesChart({ days, money }: { days: ChartDay[]; money: MoneyPref
         <div
           role="slider"
           tabIndex={0}
-          aria-label="Sales by day. Use the arrow keys to read each day."
+          aria-label={t.label}
           aria-valuemin={1}
           aria-valuemax={days.length}
           aria-valuenow={(active ?? last) + 1}
@@ -135,11 +138,11 @@ export function SalesChart({ days, money }: { days: ChartDay[]; money: MoneyPref
 
         <div aria-hidden />
         <div aria-hidden className="relative mt-2 h-4 text-xs text-ink-3">
-          <span className="absolute left-0">{formatDate(days[0].day)}</span>
+          <span className="absolute left-0">{f.date(days[0].day)}</span>
           <span className="absolute -translate-x-1/2" style={{ left: `${((middle + 0.5) / days.length) * 100}%` }}>
-            {formatDate(days[middle].day)}
+            {f.date(days[middle].day)}
           </span>
-          <span className="absolute right-0">Today</span>
+          <span className="absolute right-0">{t.today}</span>
         </div>
       </div>
     </div>

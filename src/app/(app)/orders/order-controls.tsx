@@ -4,6 +4,8 @@ import { Check } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 import type { PurchaseOrderStatus } from "@/db/schema";
 import { type OrderFormState, changeOrder } from "@/server/order-actions";
+import type { Language } from "@/lib/i18n";
+import { ORDERS_COPY } from "./copy";
 
 const initial: OrderFormState = {};
 
@@ -19,14 +21,17 @@ export function OrderControls({
   status,
   isAdmin,
   receipts,
+  language,
 }: {
   orderId: number;
   number: string;
   status: PurchaseOrderStatus;
   isAdmin: boolean;
+  language: Language;
   /** What receiving books, in the ledger's terms: "+30 Widget, +10 Gadget". */
   receipts: string;
 }) {
+  const t = ORDERS_COPY[language];
   const [state, formAction, pending] = useActionState(changeOrder, initial);
   const [confirming, setConfirming] = useState(false);
   const [sent, setSent] = useState<"place" | "cancel" | "receive" | null>(null);
@@ -46,23 +51,20 @@ export function OrderControls({
 
   if (status !== "draft" && status !== "ordered") return null;
   if (status === "draft" && !isAdmin) {
-    return (
-      <p className="border-b-2 border-ink px-5 py-4 text-sm text-ink-2 sm:px-8">
-        An admin places this draft, or cancels it.
-      </p>
-    );
+    return <p className="border-b-2 border-ink px-5 py-4 text-sm text-ink-2 sm:px-8">{t.adminPlaces}</p>;
   }
 
-  const busy = { place: "Placing…", cancel: "Cancelling…", receive: "Receiving…" };
+  const busy = t.busy;
 
   return (
-    <section aria-label="Next step" className="border-b-2 border-ink">
+    <section aria-label={t.nextStep} className="border-b-2 border-ink">
       <form action={formAction} aria-busy={pending}>
         <input type="hidden" name="orderId" value={orderId} />
         {status === "ordered" ? (
           <p className="max-w-prose px-5 pt-4 text-sm text-ink-2 sm:px-8">
-            Receive it once the delivery is checked in. That books one receipt per line:{" "}
-            <span className="text-ink">{receipts}</span>.
+            {t.receiveHelp}
+            <span className="text-ink">{receipts}</span>
+            {language === "bn" ? "।" : "."}
           </p>
         ) : null}
 
@@ -79,17 +81,17 @@ export function OrderControls({
           {confirming ? (
             <>
               <p className="min-w-0 basis-full text-sm font-medium sm:flex-1 sm:basis-auto">
-                Cancel {number}? It can&apos;t be reopened.
+                {t.confirmCancel(number)}
               </p>
               <button
                 type="button"
                 onClick={() => setConfirming(false)}
                 className="press-quiet min-h-12 rounded-control px-4 font-semibold text-ink-2 enabled:hover:bg-liner enabled:hover:text-ink max-sm:flex-1"
               >
-                Keep it
+                {t.keep}
               </button>
               <PrintButton name="cancel" onSend={setSent}>
-                Cancel order
+                {t.cancelOrder}
               </PrintButton>
             </>
           ) : (
@@ -110,16 +112,16 @@ export function OrderControls({
                   onClick={() => setConfirming(true)}
                   className="press-quiet min-h-12 rounded-control px-4 font-semibold text-ink-2 enabled:hover:bg-liner enabled:hover:text-ink max-sm:flex-1"
                 >
-                  Cancel order
+                  {t.cancelOrder}
                 </button>
               ) : null}
               {status === "draft" ? (
                 <PrintButton name="place" onSend={setSent}>
-                  Place order
+                  {t.placeOrder}
                 </PrintButton>
               ) : (
                 <PrintButton name="receive" onSend={setSent}>
-                  Receive delivery
+                  {t.receiveDelivery}
                 </PrintButton>
               )}
             </>

@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 import { getDb } from "@/db/client";
 import { DEFAULT_LEAD_TIME_DAYS } from "@/domain/forecast";
 import { getCurrentUser } from "@/server/dal";
-import { getMoneyPrefs } from "@/server/preferences";
+import { getLanguage, getMoneyPrefs } from "@/server/preferences";
+import type { Language } from "@/lib/i18n";
+import { PRODUCTS_COPY } from "./copy";
 import { ProductForm } from "./product-form";
 import { editingOptions } from "./product-label";
 import { EMPTY_PRODUCT } from "./product-values";
@@ -13,27 +15,31 @@ import { EMPTY_PRODUCT } from "./product-values";
  */
 export async function NewProduct({ heading, action }: { heading: 1 | 2; action: ReactNode }) {
   const user = await getCurrentUser();
+  const language = await getLanguage();
+  const t = PRODUCTS_COPY[language];
   if (user.role !== "admin") {
     const Title = heading === 1 ? "h1" : "h2";
     return (
       <div>
         <header className="flex items-start justify-between gap-4 border-b-2 border-ink px-5 pt-6 pb-4 sm:px-8 sm:pt-8">
           <Title id="product-title" className="print-display text-4xl text-balance sm:text-5xl">
-            New product
+            {t.newTitle}
           </Title>
           {action}
         </header>
-        <p className="max-w-prose px-5 py-5 text-ink-2 sm:px-8">
-          Only an admin can add products. You can count, sell, return and write off stock from any product&apos;s label.
-        </p>
+        <p className="max-w-prose px-5 py-5 text-ink-2 sm:px-8">{t.adminOnly}</p>
       </div>
     );
   }
 
-  const [{ suppliers, categories }, money] = await Promise.all([editingOptions(await getDb()), getMoneyPrefs()]);
+  const [{ suppliers, categories }, money] = await Promise.all([
+    editingOptions(await getDb(), language),
+    getMoneyPrefs(),
+  ]);
   return (
     <ProductForm
       money={money}
+      language={language}
       defaults={EMPTY_PRODUCT}
       suppliers={suppliers}
       categories={categories}
@@ -45,7 +51,8 @@ export async function NewProduct({ heading, action }: { heading: 1 | 2; action: 
 }
 
 /** The blank label, unprinted: its header and the boxed fields hold their space. */
-export function NewProductPlaceholder({ action }: { action?: ReactNode }) {
+export function NewProductPlaceholder({ language, action }: { language: Language; action?: ReactNode }) {
+  const t = PRODUCTS_COPY[language].form;
   return (
     <div aria-hidden>
       <div className="flex items-start justify-between gap-4 px-5 pt-6 pb-3 sm:px-8 sm:pt-8">
@@ -56,7 +63,7 @@ export function NewProductPlaceholder({ action }: { action?: ReactNode }) {
         {action}
       </div>
       <div className="grid grid-cols-2 gap-px border-y-2 border-ink bg-ink">
-        {["Name", "SKU", "Category", "Supplier", "Unit cost", "Unit price", "Reorder point", "Reorder quantity"].map(
+        {[t.name, t.sku, t.category, t.supplier, t.unitCost, t.unitPrice, t.reorderPoint, t.reorderQuantity].map(
           (name, i) => (
             <div
               key={name}

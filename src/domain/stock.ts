@@ -5,6 +5,7 @@ import type { Database } from "@/db/database";
 import { products, purchaseOrderLines, stockMovements, users } from "@/db/schema";
 import type { Actor } from "./actor";
 import { logActivity } from "./activity";
+import { said } from "./error-copy";
 import { DomainError, parseInput, violates } from "./errors";
 
 const productId = z.number().int().positive();
@@ -33,24 +34,18 @@ export const countInput = z.object({
 });
 export type CountInput = z.input<typeof countInput>;
 
-const changeSummary = {
-  sale: (quantity: number, name: string) => `Sold ${quantity} × ${name}`,
-  return: (quantity: number, name: string) => `Took back a return of ${quantity} × ${name}`,
-  write_off: (quantity: number, name: string) => `Wrote off ${quantity} × ${name}`,
-};
-
 async function loadStockedProduct(db: Database, id: number) {
   const [product] = await db
     .select({ id: products.id, name: products.name, onHand: products.onHand, archivedAt: products.archivedAt })
     .from(products)
     .where(eq(products.id, id));
-  if (!product) throw new DomainError("not_found", "That product doesn't exist.");
+  if (!product) throw new DomainError("not_found", said("noProduct"));
   if (product.archivedAt) throw archivedError(product.name);
   return product;
 }
 
 const archivedError = (name: string) =>
-  new DomainError("invalid_state", `${name} is archived, so its stock can't change.`);
+  new DomainError("invalid_state", said("productArchivedStock", { product: name }));
 
 const selectOnHand = (db: Database, id: number) =>
   db.select({ onHand: products.onHand }).from(products).where(eq(products.id, id));
@@ -60,7 +55,6 @@ export async function recordStockChange(db: Database, actor: Actor, raw: StockCh
   const input = parseInput(stockChangeInput, raw);
   const product = await loadStockedProduct(db, input.productId);
   const signed = input.kind === "return" ? input.quantity : -input.quantity;
-  const summary = changeSummary[input.kind](input.quantity, product.name);
 
   try {
     const [, , [after]] = await db.batch([
@@ -79,7 +73,7 @@ export async function recordStockChange(db: Database, actor: Actor, raw: StockCh
           action: `stock.${input.kind}`,
           entityType: "product",
           entityId: product.id,
-          summary: input.note ? `${summary}: ${input.note}` : summary,
+          facts: { name: product.name, quantity: input.quantity, ...(input.note ? { note: input.note } : {}) },
         },
         now,
       ),
@@ -89,7 +83,10 @@ export async function recordStockChange(db: Database, actor: Actor, raw: StockCh
   } catch (error) {
     if (violates(error, "products_on_hand_nonnegative")) {
       const [current] = await selectOnHand(db, product.id);
-      throw new DomainError("insufficient_stock", `Only ${current.onHand} × ${product.name} on hand.`);
+      throw new DomainError(
+        "insufficient_stock",
+        said("notEnoughStock", { product: product.name, onHand: current.onHand }),
+      );
     }
     // Archived between the read and the write; the database refused it.
     if (violates(error, "product is archived")) throw archivedError(product.name);
@@ -105,10 +102,6 @@ export async function recordCount(db: Database, actor: Actor, raw: CountInput, n
   const input = parseInput(countInput, raw);
   const product = await loadStockedProduct(db, input.productId);
   const difference = input.counted - product.onHand;
-  const summary =
-    difference === 0
-      ? `Counted ${input.counted} × ${product.name}, which matches`
-      : `Counted ${input.counted} × ${product.name} (was ${product.onHand})`;
 
   const log = logActivity(
     db,
@@ -117,7 +110,12 @@ export async function recordCount(db: Database, actor: Actor, raw: CountInput, n
       action: "stock.counted",
       entityType: "product",
       entityId: product.id,
-      summary: input.note ? `${summary}: ${input.note}` : summary,
+      facts: {
+        name: product.name,
+        counted: input.counted,
+        was: product.onHand,
+        ...(input.note ? { note: input.note } : {}),
+      },
     },
     now,
   );

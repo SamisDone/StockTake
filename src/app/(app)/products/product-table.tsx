@@ -8,8 +8,10 @@ import type { StockStatus } from "@/domain/forecast";
 import { Choice, Choices } from "@/components/choice";
 import { useArrivalHash, writeHash } from "@/components/hash-state";
 import { CoverBar, MobileName, StatusMark, Tally, Th } from "@/components/stock";
-import { formatCount } from "@/lib/format";
+import { type Formats, formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
 import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
+import { PRODUCTS_COPY, type ProductsCopy } from "./copy";
 
 export type ProductRow = {
   id: number;
@@ -40,12 +42,16 @@ export function ProductTable({
   rows,
   categories,
   money,
+  language,
 }: {
   rows: ProductRow[];
   categories: string[];
   money: MoneyPrefs;
+  language: Language;
 }) {
-  const m = moneyFormat(money);
+  const t = PRODUCTS_COPY[language];
+  const f = formats(language);
+  const m = moneyFormat(money, language);
   const pathname = usePathname();
   const params = useSearchParams();
   const knownCategory = (wanted: string | null) => (wanted && categories.includes(wanted) ? wanted : "");
@@ -102,11 +108,11 @@ export function ProductTable({
   return (
     <>
       <div className="grid border-b-2 border-ink lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)_auto]">
-        <SearchField query={query} onChange={setQuery} />
+        <SearchField query={query} onChange={setQuery} t={t} />
 
-        <Choices legend="Category" className="lg:border-l">
+        <Choices legend={t.category} className="lg:border-l">
           <Choice name="category" checked={category === ""} onSelect={() => choose(() => setCategory(""))}>
-            All
+            {t.all}
           </Choice>
           {categories.map((name) => (
             <Choice
@@ -120,41 +126,42 @@ export function ProductTable({
           ))}
         </Choices>
 
-        <Choices legend="Show" className="lg:border-l">
+        <Choices legend={t.show} className="lg:border-l">
           <Choice name="show" checked={show === "all"} onSelect={() => choose(() => setShow("all"))}>
-            All
+            {t.all}
           </Choice>
           <Choice name="show" checked={show === "attention"} onSelect={() => choose(() => setShow("attention"))}>
-            Needs attention <span className="ml-1.5">{formatCount(attentionCount)}</span>
+            {t.needsAttention} <span className="ml-1.5">{f.count(attentionCount)}</span>
           </Choice>
           <Choice name="show" checked={show === "archived"} onSelect={() => choose(() => setShow("archived"))}>
-            Archived <span className="ml-1.5">{formatCount(archived.length)}</span>
+            {t.archived} <span className="ml-1.5">{f.count(archived.length)}</span>
           </Choice>
         </Choices>
       </div>
 
       <div key={`${category}|${show}`} className={switches > 0 ? "swap-in" : undefined}>
         <dl className="grid grid-cols-3 border-b-2 border-ink">
-          <Tally name="Products" value={shown.length}>
+          <Tally name={t.tallies[0]} value={shown.length} language={language}>
             {/* Always printed, hidden when nothing is filtered, so filtering never
                   changes the zone's height. */}
             <p
               aria-hidden={shown.length === shelf.length || undefined}
               className={`mt-1 text-sm text-ink-2 ${shown.length === shelf.length ? "invisible" : ""}`}
             >
-              of {formatCount(shelf.length)}
+              {t.of(f.count(shelf.length))}
             </p>
           </Tally>
-          <Tally name="Units on hand" value={units} />
-          <Tally name="Value at cost" value={m.whole(value)} />
+          <Tally name={t.tallies[1]} value={units} language={language} />
+          <Tally name={t.tallies[2]} value={m.whole(value)} language={language} />
         </dl>
 
-        <section aria-label="Products" className="pt-2 pb-8">
+        <section aria-label={t.title} className="pt-2 pb-8">
           {shown.length === 0 ? (
             <Empty
               query={query.trim()}
               category={category}
               show={show}
+              t={t}
               onClear={() => {
                 setQuery("");
                 document.getElementById("product-search")?.focus();
@@ -162,21 +169,19 @@ export function ProductTable({
             />
           ) : (
             <table className="w-full border-collapse text-left max-md:block">
-              <caption className="sr-only">
-                {formatCount(shown.length)} products, by name. Select a product to see its ledger and record stock.
-              </caption>
+              <caption className="sr-only">{t.caption(f.count(shown.length))}</caption>
               <thead className="max-md:hidden">
                 <tr className="border-b border-ink">
-                  <Th>Product</Th>
-                  <Th align="right">On hand</Th>
-                  <Th align="right">Reorder at</Th>
-                  <Th className="w-[28%]">Cover</Th>
-                  <Th align="right">Value at cost</Th>
+                  <Th>{t.product}</Th>
+                  <Th align="right">{t.onHand}</Th>
+                  <Th align="right">{t.reorderAt}</Th>
+                  <Th className="w-[28%]">{t.cover}</Th>
+                  <Th align="right">{t.valueAtCost}</Th>
                 </tr>
               </thead>
               <tbody className="max-md:block">
                 {shown.map((row) => (
-                  <Row key={row.id} row={row} m={m} selected={pathname === `/products/${row.id}`} />
+                  <Row key={row.id} row={row} m={m} f={f} t={t} selected={pathname === `/products/${row.id}`} />
                 ))}
               </tbody>
             </table>
@@ -188,7 +193,19 @@ export function ProductTable({
 }
 
 /** One product: the name opens its label over the list, and the whole row is the hit area. */
-function Row({ row, selected, m }: { row: ProductRow; selected: boolean; m: MoneyFormat }) {
+function Row({
+  row,
+  selected,
+  m,
+  f,
+  t,
+}: {
+  row: ProductRow;
+  selected: boolean;
+  m: MoneyFormat;
+  f: Formats;
+  t: ProductsCopy;
+}) {
   return (
     <tr
       className={`relative border-b border-hairline align-top transition-colors duration-150 last:border-b-0 max-md:grid max-md:grid-cols-[4.5rem_minmax(0,1fr)_6.5rem] max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8 ${
@@ -197,7 +214,7 @@ function Row({ row, selected, m }: { row: ProductRow; selected: boolean; m: Mone
     >
       <td className="py-3 pr-4 max-md:col-span-3 max-md:p-0 md:pl-8">
         <div className="flex items-baseline gap-2">
-          {row.archivedOn ? null : <StatusMark status={row.status} />}
+          {row.archivedOn ? null : <StatusMark status={row.status} language={f.language} />}
           <Link
             href={`/products/${row.id}`}
             prefetch={false}
@@ -213,23 +230,23 @@ function Row({ row, selected, m }: { row: ProductRow; selected: boolean; m: Mone
         </p>
       </td>
       <td className="tabular py-3 pr-4 text-right text-lg font-semibold max-md:p-0 max-md:text-left">
-        <MobileName>On hand</MobileName>
-        {formatCount(row.onHand)}
+        <MobileName>{t.onHand}</MobileName>
+        {f.count(row.onHand)}
       </td>
-      <td className="tabular py-3 pr-4 text-right text-ink-2 max-md:hidden">{formatCount(row.reorderPoint)}</td>
+      <td className="tabular py-3 pr-4 text-right text-ink-2 max-md:hidden">{f.count(row.reorderPoint)}</td>
       <td className="py-3 pr-6 max-md:p-0">
-        <MobileName>Cover</MobileName>
+        <MobileName>{t.cover}</MobileName>
         {row.archivedOn ? (
           // Frozen stock has no cover to measure.
           <p className="text-sm">
-            <span className="font-semibold">Archived</span> <span className="text-ink-3">{row.archivedOn}</span>
+            <span className="font-semibold">{t.archived}</span> <span className="text-ink-3">{row.archivedOn}</span>
           </p>
         ) : (
-          <CoverBar daysOfCover={row.daysOfCover} leadTimeDays={row.leadTimeDays} />
+          <CoverBar daysOfCover={row.daysOfCover} leadTimeDays={row.leadTimeDays} language={f.language} />
         )}
       </td>
       <td className="tabular py-3 text-right max-md:p-0 max-md:text-left md:pr-8">
-        <MobileName>Value</MobileName>
+        <MobileName>{t.value}</MobileName>
         {m.money(row.valueCents)}
       </td>
     </tr>
@@ -237,7 +254,7 @@ function Row({ row, selected, m }: { row: ProductRow; selected: boolean; m: Mone
 }
 
 /** The search field, boxed like every field on a label. "/" jumps to it from anywhere on the page. */
-function SearchField({ query, onChange }: { query: string; onChange: (query: string) => void }) {
+function SearchField({ query, onChange, t }: { query: string; onChange: (query: string) => void; t: ProductsCopy }) {
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -257,7 +274,7 @@ function SearchField({ query, onChange }: { query: string; onChange: (query: str
   return (
     <div className="border-b border-ink px-5 pt-2.5 pb-1.5 focus-within:shadow-[inset_0_0_0_2px_var(--color-ink)] sm:px-8 lg:border-b-0">
       <label htmlFor="product-search" className="field-name block">
-        Search
+        {t.search}
       </label>
       <div className="flex items-center gap-2">
         <Search aria-hidden size={18} strokeWidth={2} className="shrink-0 text-ink-3" />
@@ -273,7 +290,7 @@ function SearchField({ query, onChange }: { query: string; onChange: (query: str
               onChange("");
             }
           }}
-          placeholder="Name or SKU"
+          placeholder={t.searchPlaceholder}
           aria-keyshortcuts="/"
           autoComplete="off"
           spellCheck={false}
@@ -287,7 +304,7 @@ function SearchField({ query, onChange }: { query: string; onChange: (query: str
               onChange("");
               input.current?.focus();
             }}
-            aria-label="Clear search"
+            aria-label={t.clearSearch}
             className="-mr-2.5 flex size-11 shrink-0 items-center justify-center rounded-control text-ink-2 press-quiet hover:bg-liner hover:text-ink"
           >
             <X aria-hidden size={18} strokeWidth={2} />
@@ -304,33 +321,35 @@ function Empty({
   query,
   category,
   show,
+  t,
   onClear,
 }: {
   query: string;
   category: string;
   show: Show;
+  t: ProductsCopy;
   onClear: () => void;
 }) {
-  const where = category ? ` in ${category}` : "";
+  const where = category || null;
   return (
     <div className="px-5 pt-4 sm:px-8">
       <p className="font-semibold">
         {query
-          ? `No products${where} match “${query}”.`
+          ? t.empty.query(where, query)
           : show === "attention"
-            ? `Nothing${where} needs attention.`
+            ? t.empty.attention(where)
             : show === "archived"
-              ? `Nothing${where} is archived.`
-              : `No products${where}.`}
+              ? t.empty.archived(where)
+              : t.empty.none(where)}
       </p>
       <p className="mt-1 max-w-prose text-sm text-ink-2">
         {query
-          ? "Search looks at product names and SKUs."
+          ? t.empty.queryHelp
           : show === "attention"
-            ? "Every product here has enough stock, counting what's on order, to outlast its supplier's lead time."
+            ? t.empty.attentionHelp
             : show === "archived"
-              ? "An admin archives a product from its label. It keeps its ledger and can be restored."
-              : "Products are added by an admin."}
+              ? t.empty.archivedHelp
+              : t.empty.noneHelp}
       </p>
       {query ? (
         <button
@@ -338,7 +357,7 @@ function Empty({
           onClick={onClear}
           className="-mx-1 mt-2 min-h-11 px-1 text-sm font-semibold underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
         >
-          Clear search
+          {t.clearSearch}
         </button>
       ) : null}
     </div>

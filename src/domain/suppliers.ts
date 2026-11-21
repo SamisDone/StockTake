@@ -4,20 +4,21 @@ import type { Database } from "@/db/database";
 import { products, purchaseOrders, supplierReviews, suppliers, users } from "@/db/schema";
 import { logActivity } from "./activity";
 import { type Actor, requireAdmin } from "./actor";
+import { said } from "./error-copy";
 import { DomainError, parseInput } from "./errors";
 import { optionalText, outer } from "./input";
 import { poNumber } from "./purchase-orders";
 
 export const supplierInput = z.object({
-  name: z.string().trim().min(1, "Enter a name.").max(120),
-  email: optionalText(254).pipe(z.email("Enter a valid email address.").optional()),
+  name: z.string().trim().min(1, "enterName").max(120),
+  email: optionalText(254).pipe(z.email("enterEmail").optional()),
   phone: optionalText(40),
-  leadTimeDays: z.number().int().min(0, "Can't be negative.").max(365, "Use 365 days or fewer."),
+  leadTimeDays: z.number().int().min(0, "notNegative").max(365, "leadTimeTooLong"),
 });
 export type SupplierInput = z.input<typeof supplierInput>;
 
 export const reviewInput = z.object({
-  rating: z.number().int().min(1, "Choose 1 to 5 stars.").max(5, "Choose 1 to 5 stars."),
+  rating: z.number().int().min(1, "starsRange").max(5, "starsRange"),
   comment: optionalText(1000),
 });
 export type ReviewInput = z.input<typeof reviewInput>;
@@ -27,7 +28,7 @@ async function loadSupplier(db: Database, supplierId: number) {
     .select({ id: suppliers.id, name: suppliers.name, archivedAt: suppliers.archivedAt })
     .from(suppliers)
     .where(eq(suppliers.id, supplierId));
-  if (!supplier) throw new DomainError("not_found", "That supplier doesn't exist.");
+  if (!supplier) throw new DomainError("not_found", said("noSupplier"));
   return supplier;
 }
 
@@ -40,7 +41,7 @@ const toRow = (input: z.output<typeof supplierInput>) => ({
 
 /** Adds a supplier. Admin-only. */
 export async function createSupplier(db: Database, actor: Actor, raw: SupplierInput, now = new Date()) {
-  requireAdmin(actor, "add suppliers");
+  requireAdmin(actor, "addSuppliers");
   const input = parseInput(supplierInput, raw);
   const [[supplier]] = await db.batch([
     db
@@ -55,7 +56,7 @@ export async function createSupplier(db: Database, actor: Actor, raw: SupplierIn
         entityType: "supplier",
         // Inside the atomic batch, the new supplier is max(id); see createDraft.
         entityId: sql<number>`(SELECT max(${suppliers.id}) FROM ${suppliers})`,
-        summary: `Added supplier ${input.name}`,
+        facts: { name: input.name },
       },
       now,
     ),
@@ -71,18 +72,18 @@ export async function updateSupplier(
   raw: SupplierInput,
   now = new Date(),
 ) {
-  requireAdmin(actor, "edit suppliers");
+  requireAdmin(actor, "editSuppliers");
   const input = parseInput(supplierInput, raw);
   const supplier = await loadSupplier(db, supplierId);
   if (supplier.archivedAt) {
-    throw new DomainError("invalid_state", `${supplier.name} is archived. Restore it to edit it.`);
+    throw new DomainError("invalid_state", said("supplierArchivedEdit", { supplier: supplier.name }));
   }
   await db.batch([
     db.update(suppliers).set(toRow(input)).where(eq(suppliers.id, supplierId)),
     logActivity(
       db,
       actor,
-      { action: "supplier.updated", entityType: "supplier", entityId: supplierId, summary: `Updated ${input.name}` },
+      { action: "supplier.updated", entityType: "supplier", entityId: supplierId, facts: { name: input.name } },
       now,
     ),
   ]);
@@ -96,16 +97,14 @@ async function assertNoOpenOrders(db: Database, supplier: { id: number; name: st
     .where(and(eq(purchaseOrders.supplierId, supplier.id), inArray(purchaseOrders.status, ["draft", "ordered"])))
     .orderBy(asc(purchaseOrders.id));
   if (open.length === 0) return;
-  const numbers = open.map((order) => poNumber(order.id));
-  const list = numbers.length === 1 ? numbers[0] : `${numbers.slice(0, -1).join(", ")} and ${numbers.at(-1)}`;
   throw new DomainError(
     "invalid_state",
-    `${supplier.name} has ${list} open. Receive or cancel ${numbers.length === 1 ? "it" : "them"} first.`,
+    said("supplierHasOpenOrders", { supplier: supplier.name, orders: open.map((order) => poNumber(order.id)) }),
   );
 }
 
 async function setArchived(db: Database, actor: Actor, supplierId: number, archived: boolean, now: Date) {
-  requireAdmin(actor, archived ? "archive suppliers" : "restore suppliers");
+  requireAdmin(actor, archived ? "archiveSuppliers" : "restoreSuppliers");
   const supplier = await loadSupplier(db, supplierId);
   if (archived) await assertNoOpenOrders(db, supplier);
   await db.batch([
@@ -120,7 +119,7 @@ async function setArchived(db: Database, actor: Actor, supplierId: number, archi
         action: archived ? "supplier.archived" : "supplier.restored",
         entityType: "supplier",
         entityId: supplierId,
-        summary: `${archived ? "Archived" : "Restored"} ${supplier.name}`,
+        facts: { name: supplier.name },
       },
       now,
     ),
@@ -162,7 +161,7 @@ export async function reviewSupplier(
         action: "supplier.reviewed",
         entityType: "supplier",
         entityId: supplierId,
-        summary: `Rated ${supplier.name} ${input.rating}/5`,
+        facts: { name: supplier.name, rating: input.rating },
       },
       now,
     ),
@@ -210,7 +209,7 @@ export async function listSuppliers(db: Database, { includeArchived = false } = 
 /** One supplier with its reviews, newest first. */
 export async function getSupplier(db: Database, supplierId: number) {
   const [supplier] = await db.select(summaryColumns).from(suppliers).where(eq(suppliers.id, supplierId));
-  if (!supplier) throw new DomainError("not_found", "That supplier doesn't exist.");
+  if (!supplier) throw new DomainError("not_found", said("noSupplier"));
 
   const reviews = await db
     .select({

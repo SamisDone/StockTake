@@ -4,6 +4,7 @@ import type { Database } from "@/db/database";
 import { roles, sessions, users } from "@/db/schema";
 import { type Actor, requireAdmin } from "./actor";
 import { logActivity } from "./activity";
+import { said } from "./error-copy";
 import { DomainError, parseInput, violates } from "./errors";
 import { SESSION_TTL_MS } from "./session-policy";
 
@@ -101,16 +102,16 @@ export async function authenticate(db: Database, email: string, password: string
 }
 
 export const newUserInput = z.object({
-  email: z.string().trim().toLowerCase().pipe(z.email("Enter a valid email address.")),
-  name: z.string().trim().min(1, "Enter a name.").max(100),
-  password: z.string().min(12, "Use at least 12 characters.").max(200),
+  email: z.string().trim().toLowerCase().pipe(z.email("enterEmail")),
+  name: z.string().trim().min(1, "enterName").max(100),
+  password: z.string().min(12, "passwordLength").max(200),
   role: z.enum(roles),
 });
 export type NewUserInput = z.input<typeof newUserInput>;
 
 /** Adds a person. Admin-only. */
 export async function createUser(db: Database, actor: Actor, raw: NewUserInput, now = new Date()) {
-  requireAdmin(actor, "add people");
+  requireAdmin(actor, "addPeople");
   const input = parseInput(newUserInput, raw);
   const passwordHash = await hashPassword(input.password);
 
@@ -128,7 +129,7 @@ export async function createUser(db: Database, actor: Actor, raw: NewUserInput, 
           entityType: "user",
           // Same reasoning as createDraft: inside the atomic batch, the new user is max(id).
           entityId: sql<number>`(SELECT max(${users.id}) FROM ${users})`,
-          summary: `Added ${input.name} as ${input.role}`,
+          facts: { name: input.name, role: input.role },
         },
         now,
       ),
@@ -136,7 +137,7 @@ export async function createUser(db: Database, actor: Actor, raw: NewUserInput, 
     return user;
   } catch (error) {
     if (violates(error, "UNIQUE constraint failed: users.email")) {
-      throw new DomainError("conflict", "Someone already uses that email.", "email");
+      throw new DomainError("conflict", said("emailTaken"), "email");
     }
     throw error;
   }

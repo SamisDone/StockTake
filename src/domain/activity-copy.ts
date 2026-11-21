@@ -1,0 +1,123 @@
+import { formats } from "@/lib/format";
+import type { Copy, Language } from "@/lib/i18n";
+import { DOLLARS, moneyFormat } from "@/lib/money";
+
+/**
+ * What each kind of activity entry says, written from the entry's facts. The English
+ * sentence is stored as the entry's summary, the record as it was written; the facts are
+ * stored beside it, so the feed can print the entry in the reader's language. Amounts
+ * stay in the dollars they were recorded in.
+ */
+export type ActivityEvent =
+  | { action: "user.created"; facts: { name: string; role: "admin" | "staff" } }
+  | { action: "product.created"; facts: { name: string; sku: string } }
+  | { action: "product.updated" | "product.archived" | "product.restored"; facts: { name: string } }
+  | {
+      action: "supplier.created" | "supplier.updated" | "supplier.archived" | "supplier.restored";
+      facts: { name: string };
+    }
+  | { action: "supplier.reviewed"; facts: { name: string; rating: number } }
+  | {
+      action: "stock.sale" | "stock.return" | "stock.write_off";
+      facts: { name: string; quantity: number; note?: string };
+    }
+  | { action: "stock.counted"; facts: { name: string; counted: number; was: number; note?: string } }
+  | { action: "purchase_order.drafted"; facts: { supplier: string; lines: number; totalCents: number } }
+  | { action: "purchase_order.edited"; facts: { order: string; lines: number; totalCents: number } }
+  | { action: "purchase_order.placed"; facts: { order: string; supplier: string; totalCents: number } }
+  | { action: "purchase_order.cancelled"; facts: { order: string } }
+  | { action: "purchase_order.received"; facts: { order: string; supplier: string; units: number } };
+
+type Action = ActivityEvent["action"];
+type FactsOf<A extends Action> = Extract<ActivityEvent, { action: A }>["facts"];
+type Sentences = { [A in Action]: (facts: FactsOf<A>) => string };
+
+const withNote = (text: string, note?: string) => (note ? `${text}: ${note}` : text);
+
+const enDollars = moneyFormat(DOLLARS).money;
+const en: Sentences = {
+  "user.created": ({ name, role }) => `Added ${name} as ${role}`,
+  "product.created": ({ name, sku }) => `Added ${name} (${sku})`,
+  "product.updated": ({ name }) => `Updated ${name}`,
+  "product.archived": ({ name }) => `Archived ${name}`,
+  "product.restored": ({ name }) => `Restored ${name}`,
+  "supplier.created": ({ name }) => `Added supplier ${name}`,
+  "supplier.updated": ({ name }) => `Updated ${name}`,
+  "supplier.archived": ({ name }) => `Archived ${name}`,
+  "supplier.restored": ({ name }) => `Restored ${name}`,
+  "supplier.reviewed": ({ name, rating }) => `Rated ${name} ${rating}/5`,
+  "stock.sale": ({ name, quantity, note }) => withNote(`Sold ${quantity} × ${name}`, note),
+  "stock.return": ({ name, quantity, note }) => withNote(`Took back a return of ${quantity} × ${name}`, note),
+  "stock.write_off": ({ name, quantity, note }) => withNote(`Wrote off ${quantity} × ${name}`, note),
+  "stock.counted": ({ name, counted, was, note }) =>
+    withNote(
+      counted === was ? `Counted ${counted} × ${name}, which matches` : `Counted ${counted} × ${name} (was ${was})`,
+      note,
+    ),
+  "purchase_order.drafted": ({ supplier, lines, totalCents }) =>
+    `Drafted an order with ${supplier}: ${lines} ${lines === 1 ? "line" : "lines"}, ${enDollars(totalCents)}`,
+  "purchase_order.edited": ({ order, lines, totalCents }) =>
+    `Edited ${order}: ${lines} ${lines === 1 ? "line" : "lines"}, ${enDollars(totalCents)}`,
+  "purchase_order.placed": ({ order, supplier, totalCents }) =>
+    `Placed ${order} with ${supplier} for ${enDollars(totalCents)}`,
+  "purchase_order.cancelled": ({ order }) => `Cancelled ${order}`,
+  "purchase_order.received": ({ order, supplier, units }) => `Received ${order} from ${supplier}: ${units} units`,
+};
+
+const n = formats("bn").count;
+const bnDollars = moneyFormat(DOLLARS, "bn").money;
+const bn: Sentences = {
+  "user.created": ({ name, role }) => `${name}-কে ${role === "admin" ? "অ্যাডমিন" : "কর্মী"} হিসেবে যোগ করা হলো`,
+  "product.created": ({ name, sku }) => `${name} (${sku}) যোগ করা হলো`,
+  "product.updated": ({ name }) => `${name} হালনাগাদ করা হলো`,
+  "product.archived": ({ name }) => `${name} আর্কাইভ করা হলো`,
+  "product.restored": ({ name }) => `${name} ফিরিয়ে আনা হলো`,
+  "supplier.created": ({ name }) => `সরবরাহকারী ${name} যোগ করা হলো`,
+  "supplier.updated": ({ name }) => `${name} হালনাগাদ করা হলো`,
+  "supplier.archived": ({ name }) => `${name} আর্কাইভ করা হলো`,
+  "supplier.restored": ({ name }) => `${name} ফিরিয়ে আনা হলো`,
+  "supplier.reviewed": ({ name, rating }) => `${name}-কে ৫-এ ${n(rating)} রেটিং দেওয়া হলো`,
+  "stock.sale": ({ name, quantity, note }) => withNote(`${n(quantity)} × ${name} বিক্রি`, note),
+  "stock.return": ({ name, quantity, note }) => withNote(`${n(quantity)} × ${name} ফেরত নেওয়া হলো`, note),
+  "stock.write_off": ({ name, quantity, note }) => withNote(`${n(quantity)} × ${name} বাতিল করা হলো`, note),
+  "stock.counted": ({ name, counted, was, note }) =>
+    withNote(
+      counted === was
+        ? `${name} গোনা হলো ${n(counted)}টি, হিসাবের সাথে মিলেছে`
+        : `${name} গোনা হলো ${n(counted)}টি (আগে ছিল ${n(was)})`,
+      note,
+    ),
+  "purchase_order.drafted": ({ supplier, lines, totalCents }) =>
+    `${supplier}-এর জন্য অর্ডারের খসড়া: ${n(lines)} লাইন, ${bnDollars(totalCents)}`,
+  "purchase_order.edited": ({ order, lines, totalCents }) =>
+    `${order} সম্পাদনা: ${n(lines)} লাইন, ${bnDollars(totalCents)}`,
+  "purchase_order.placed": ({ order, supplier, totalCents }) =>
+    `${supplier}-কে ${bnDollars(totalCents)}-এর ${order} দেওয়া হলো`,
+  "purchase_order.cancelled": ({ order }) => `${order} বাতিল হলো`,
+  "purchase_order.received": ({ order, supplier, units }) =>
+    `${supplier}-এর কাছ থেকে ${order} বুঝে নেওয়া হলো: ${n(units)} ইউনিট`,
+};
+
+const SENTENCES: Copy<Sentences> = { en, bn };
+
+/** The entry in words: `language`'s sentence for its facts. */
+export function describeActivity(language: Language, event: ActivityEvent): string {
+  return (SENTENCES[language][event.action] as (facts: ActivityEvent["facts"]) => string)(event.facts);
+}
+
+/**
+ * A stored entry in the reader's language: its facts' sentence, or the summary it was
+ * recorded with when it has no facts (written before they were kept) or a kind this
+ * code doesn't know.
+ */
+export function activityText(
+  language: Language,
+  entry: { action: string; summary: string; facts: Record<string, unknown> | null },
+): string {
+  if (!entry.facts || !Object.hasOwn(SENTENCES.en, entry.action)) return entry.summary;
+  try {
+    return describeActivity(language, { action: entry.action, facts: entry.facts } as ActivityEvent);
+  } catch {
+    return entry.summary;
+  }
+}

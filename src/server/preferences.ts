@@ -5,22 +5,9 @@ import { connection } from "next/server";
 import { cache } from "react";
 import { getDb } from "@/db/client";
 import { getRate, isStale, readCurrency, refreshRate } from "@/domain/exchange";
+import { type Language, readLanguage } from "@/lib/i18n";
 import type { MoneyPrefs } from "@/lib/money";
-
-export const CURRENCY_COOKIE = "currency";
-
-/** A preference cookie: a year long, readable by the server only, sent on same-site navigation. */
-export function preferenceCookie(name: string, value: string) {
-  return {
-    name,
-    value,
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax" as const,
-    path: "/",
-    maxAge: 365 * 24 * 60 * 60,
-  };
-}
+import { CURRENCY_COOKIE, LANGUAGE_COOKIE } from "./preference-cookie";
 
 /**
  * How this person reads money: their currency and today's taka rate. Read once per
@@ -40,3 +27,11 @@ export const getMoneyPrefs = cache(async (): Promise<MoneyPrefs> => {
   }
   return { currency, bdtPerUsd: rate.perUsd, rateAsOf: rate.asOf };
 });
+
+/**
+ * The language this person reads Stocktake in. Only a cookie, so it costs nothing to read
+ * and the shell can print its labels without waiting on the database.
+ */
+export const getLanguage = cache(async (): Promise<Language> =>
+  readLanguage((await cookies()).get(LANGUAGE_COOKIE)?.value),
+);

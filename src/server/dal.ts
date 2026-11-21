@@ -6,6 +6,8 @@ import { cache } from "react";
 import { getDb } from "@/db/client";
 import type { Database } from "@/db/database";
 import { type SessionUser, validateSession } from "@/domain/auth";
+import type { Language } from "@/lib/i18n";
+import { getLanguage } from "./preferences";
 import { LOGIN_PATH, SESSION_COOKIE, looksLikeSessionToken } from "./session-cookie";
 
 /**
@@ -33,10 +35,11 @@ export async function getCurrentUser(): Promise<SessionUser> {
 }
 
 /**
- * For Server Actions and Route Handlers: the database and the verified person to act as.
- * Treat every action as a public endpoint and call this first.
+ * For Server Actions and Route Handlers: the database, the verified person to act as,
+ * and the language to answer them in. Treat every action as a public endpoint and call
+ * this first.
  */
-export async function authorize(): Promise<{ db: Database; user: SessionUser }> {
+export async function authorize(): Promise<{ db: Database; user: SessionUser; language: Language }> {
   const user = await getCurrentUser();
-  return { db: await getDb(), user };
+  return { db: await getDb(), user, language: await getLanguage() };
 }

@@ -4,7 +4,9 @@ import { getDb } from "@/db/client";
 import { getOrderableProducts } from "@/domain/reorder";
 import { listSuppliers } from "@/domain/suppliers";
 import { getCurrentUser } from "@/server/dal";
-import { getMoneyPrefs } from "@/server/preferences";
+import { getLanguage, getMoneyPrefs } from "@/server/preferences";
+import type { Language } from "@/lib/i18n";
+import { ORDERS_COPY } from "./copy";
 import { DraftForm } from "./draft-form";
 import { type SupplierChoice, dayInput } from "./draft-values";
 
@@ -37,6 +39,7 @@ export async function NewOrder({
   return (
     <DraftForm
       money={await getMoneyPrefs()}
+      language={await getLanguage()}
       suppliers={suppliers}
       products={products}
       defaults={{ supplierId: chosen ? String(chosen.id) : "", lines: [], expectedAt: "", notes: "" }}
@@ -47,22 +50,23 @@ export async function NewOrder({
 }
 
 /** The blank order, unprinted: its header, the supplier box and the lines hold their space. */
-export function NewOrderPlaceholder({ action }: { action?: ReactNode }) {
+export function NewOrderPlaceholder({ language, action }: { language: Language; action?: ReactNode }) {
+  const t = ORDERS_COPY[language].form;
   return (
     <div aria-hidden>
       <div className="flex items-start justify-between gap-4 px-5 pt-6 pb-3 sm:px-8 sm:pt-8">
         <div className="min-w-0 flex-1">
-          <p className="text-lg font-bold">New order</p>
+          <p className="text-lg font-bold">{t.newTitle}</p>
           <div className="mt-2 h-4 w-3/5 bg-liner/70" />
         </div>
         {action}
       </div>
       <div className="border-t-2 border-ink bg-label px-5 pt-2.5 pb-3 sm:px-8">
-        <p className="field-name">Supplier</p>
+        <p className="field-name">{t.supplier}</p>
         <div className="mt-1.5 h-6 w-48 bg-liner/70" />
       </div>
       <div className="border-t-2 border-ink px-5 pt-5 pb-4 sm:px-8">
-        <p className="text-lg font-bold">Lines</p>
+        <p className="text-lg font-bold">{t.lines}</p>
         <div className="mt-3 h-11 bg-liner/70" />
       </div>
       <div className="h-[4.25rem] bg-ink sm:h-[4.5rem]" />

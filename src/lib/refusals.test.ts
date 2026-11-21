@@ -25,7 +25,7 @@ beforeAll(async () => {
 });
 
 describe("the refusals on the landing page", () => {
-  it.each(REFUSALS)("$attempt → $refusal", async ({ sql, refusal }) => {
+  it.each(REFUSALS)("$attempt.en → $refusal", async ({ sql, refusal }) => {
     const error = await client.execute(sql).then(
       () => null,
       (e: unknown) => e,

@@ -1,10 +1,9 @@
-import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/db/database";
 import { getStockForecasts } from "@/domain/forecast";
 import { getReorderSuggestions } from "@/domain/reorder";
 import { demoPasswordHash, demoStatements, resetStatements } from "@/seed/demo";
-import { createTestDb } from "@/test/db";
+import { createTestDb, migrationsSql } from "@/test/db";
 import { moneyFormat } from "@/lib/money";
 import { TOOL_DEFINITIONS, type ToolOutcome, runTool } from "./tools";
 
@@ -14,7 +13,7 @@ let db: Database;
 beforeAll(async () => {
   const test = await createTestDb();
   db = test.db;
-  const rules = readFileSync("drizzle/0001_ledger_rules.sql", "utf8");
+  const rules = migrationsSql();
   const statements = demoStatements({
     anchor: new Date(Date.UTC(2026, 10, 20)),
     passwordHash: await demoPasswordHash(),

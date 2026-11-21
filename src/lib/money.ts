@@ -5,6 +5,8 @@
  * from the person's preference and a client component gets the same preference as a prop.
  */
 
+import type { Language } from "./i18n";
+
 export const CURRENCIES = ["USD", "BDT"] as const;
 export type Currency = (typeof CURRENCIES)[number];
 
@@ -29,37 +31,62 @@ function numberFormat(locale: string, options: Intl.NumberFormatOptions) {
 
 export type MoneyFormat = ReturnType<typeof moneyFormat>;
 
-export function moneyFormat(prefs: MoneyPrefs, language: "en" | "bn" = "en") {
+const SIGNS: Record<Currency, string> = { USD: "$", BDT: "৳" };
+
+/**
+ * `language` sets the digits: Bangla prints Bangla digits, grouped in lakhs whatever the
+ * currency, with the sign in front ("৳১২,৩৪,৫৬৭"), the way prices are written in Bangladesh.
+ */
+export function moneyFormat(prefs: MoneyPrefs, language: Language = "en") {
   const taka = prefs.currency === "BDT";
-  const locale = language === "bn" ? "bn-BD" : taka ? "en-IN" : "en-US";
-  const base: Intl.NumberFormatOptions = {
-    style: "currency",
-    currency: prefs.currency,
-    currencyDisplay: "narrowSymbol",
-  };
-  const exact = numberFormat(locale, base);
-  const whole = numberFormat(locale, { ...base, maximumFractionDigits: 0 });
-  const compact = numberFormat(locale, { ...base, notation: "compact", maximumFractionDigits: 1 });
   /** US cents → the person's currency, in whole units (dollars or taka). */
   const amount = (cents: number) => (cents / 100) * (taka ? prefs.bdtPerUsd : 1);
-  const wholeOf = (cents: number) => whole.format(Math.round(amount(cents)));
+
+  let exactOf: (units: number) => string;
+  let wholeOf: (units: number) => string;
+  let compactOf: (units: number) => string;
+  if (language === "bn") {
+    const sign = SIGNS[prefs.currency];
+    const exact = numberFormat("bn-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const whole = numberFormat("bn-BD", { maximumFractionDigits: 0 });
+    const compact = numberFormat("bn-BD", { notation: "compact", maximumFractionDigits: 1 });
+    const signed = (format: Intl.NumberFormat) => (units: number) =>
+      units < 0 ? `−${sign}${format.format(-units)}` : `${sign}${format.format(units)}`;
+    exactOf = signed(exact);
+    wholeOf = signed(whole);
+    compactOf = signed(compact);
+  } else {
+    const locale = taka ? "en-IN" : "en-US";
+    const base: Intl.NumberFormatOptions = {
+      style: "currency",
+      currency: prefs.currency,
+      currencyDisplay: "narrowSymbol",
+    };
+    const exact = numberFormat(locale, base);
+    const whole = numberFormat(locale, { ...base, maximumFractionDigits: 0 });
+    const compact = numberFormat(locale, { ...base, notation: "compact", maximumFractionDigits: 1 });
+    exactOf = (units) => exact.format(units);
+    wholeOf = (units) => whole.format(units);
+    compactOf = (units) => compact.format(units);
+  }
+  const wholeCents = (cents: number) => wholeOf(Math.round(amount(cents)));
 
   return {
     currency: prefs.currency,
     /** How many of the person's units (dollars or taka) one US dollar is. */
     perDollar: taka ? prefs.bdtPerUsd : 1,
     /** Exact, with cents or poisha: 11300 → "$113.00" or "৳14,086.16". */
-    money: (cents: number) => exact.format(amount(cents)),
+    money: (cents: number) => exactOf(amount(cents)),
     /** Whole units, for totals printed large: "$1,827", "৳2,27,712". */
-    whole: wholeOf,
+    whole: wholeCents,
     /** An axis label: whole under 10,000 units, compact above ("$12K", "৳1.2Cr"). */
-    axis: (cents: number) => (Math.abs(amount(cents)) < 10_000 ? wholeOf(cents) : compact.format(amount(cents))),
+    axis: (cents: number) => (Math.abs(amount(cents)) < 10_000 ? wholeCents(cents) : compactOf(amount(cents))),
     /** Whole units with a sign and a real minus: "+$1,250", "−৳80", "$0". */
     change: (cents: number) => {
       const units = Math.round(amount(cents));
-      return units > 0 ? `+${wholeOf(cents)}` : units < 0 ? `−${wholeOf(-cents)}` : wholeOf(0);
+      return units > 0 ? `+${wholeCents(cents)}` : units < 0 ? `−${wholeCents(-cents)}` : wholeCents(0);
     },
     /** Converts a typed dollar amount for a hint beside a dollar field: "≈ ৳305.40". Null in dollars. */
-    hint: (cents: number) => (taka ? `≈ ${exact.format(amount(cents))}` : null),
+    hint: (cents: number) => (taka ? `≈ ${exactOf(amount(cents))}` : null),
   };
 }

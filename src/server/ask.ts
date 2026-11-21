@@ -5,6 +5,7 @@ import type { SessionUser } from "@/domain/auth";
 import { AssistantError, type RunModel, ask } from "@/assistant/ask";
 import { type AskEvent, type askRequest, toWire } from "@/assistant/protocol";
 import { claimQuestion, getAllowance, recordNeurons, releaseQuestion } from "@/assistant/usage";
+import type { Language } from "@/lib/i18n";
 import type { MoneyFormat } from "@/lib/money";
 
 /**
@@ -19,6 +20,7 @@ export function answerStream({
   run,
   now,
   money,
+  language,
 }: {
   db: Database;
   user: SessionUser;
@@ -27,6 +29,8 @@ export function answerStream({
   now: Date;
   /** How the person reads money. Dollars when left out. */
   money?: MoneyFormat;
+  /** The person's language. English when left out. */
+  language?: Language;
 }) {
   const encoder = new TextEncoder();
   return new ReadableStream<Uint8Array>({
@@ -49,6 +53,7 @@ export function answerStream({
           question: input.question,
           history: input.history,
           money,
+          language,
           onStep: (step) => send({ type: "step", step }),
         });
         await recordNeurons(db, user.id, claim.day, neurons);

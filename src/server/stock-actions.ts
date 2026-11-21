@@ -3,10 +3,10 @@
 import { refresh } from "next/cache";
 import { DomainError } from "@/domain/errors";
 import { recordCount, recordStockChange } from "@/domain/stock";
-import { formatChange, formatCount } from "@/lib/format";
 import { parseUnits } from "@/lib/parse";
 import { type FormState, field, formError } from "./form-state";
 import { authorize } from "./dal";
+import { ACTION_COPY } from "./action-copy";
 
 export type StockKind = "count" | "sale" | "return" | "write_off";
 const KINDS: StockKind[] = ["count", "sale", "return", "write_off"];
@@ -30,7 +30,8 @@ function units(text: string) {
  * person can record stock; the ledger rules in the database have the last word.
  */
 export async function recordStock(_previous: StockFormState, formData: FormData): Promise<StockFormState> {
-  const { db, user } = await authorize();
+  const { db, user, language } = await authorize();
+  const t = ACTION_COPY[language];
 
   const kind = field(formData, "kind") as StockKind;
   const quantityText = field(formData, "quantity");
@@ -38,17 +39,14 @@ export async function recordStock(_previous: StockFormState, formData: FormData)
   const values = { kind, quantity: quantityText, note };
   const productId = Number(field(formData, "productId"));
 
-  if (!KINDS.includes(kind)) return { error: { message: "Choose what you're recording." }, values };
+  if (!KINDS.includes(kind)) return { error: { message: t.chooseKind }, values };
   if (!Number.isInteger(productId) || productId <= 0) {
-    return { error: { message: "That product doesn't exist." }, values };
+    return { error: { message: t.noProduct }, values };
   }
 
   const quantity = units(quantityText);
   if (quantity === null || (kind !== "count" && quantity === 0)) {
-    const message =
-      kind === "count"
-        ? "Enter the number you counted on the shelf, as a whole number."
-        : `Enter how many units, as a whole number from 1 to ${formatCount(MAX_UNITS)}.`;
+    const message = kind === "count" ? t.enterCount : t.enterUnits(MAX_UNITS);
     return { error: { message, field: "quantity" }, values };
   }
 
@@ -56,21 +54,17 @@ export async function recordStock(_previous: StockFormState, formData: FormData)
   try {
     if (kind === "count") {
       const { difference } = await recordCount(db, user, { productId, counted: quantity, note });
-      message =
-        difference === 0
-          ? `Counted ${formatCount(quantity)}, which matches.`
-          : `Counted ${formatCount(quantity)}, so the ledger was adjusted by ${formatChange(difference)}.`;
+      message = difference === 0 ? t.countMatches(quantity) : t.countAdjusted(quantity, difference);
     } else {
       const { onHand } = await recordStockChange(db, user, { productId, kind, quantity, note });
-      const what = { sale: "a sale", return: "a return", write_off: "a write-off" }[kind];
-      message = `Recorded ${what} of ${formatCount(quantity)}. ${formatCount(onHand)} on hand.`;
+      message = t.recorded(kind, quantity, onHand);
     }
   } catch (error) {
     // Too few on hand is about the number typed, so it belongs next to that field.
     if (error instanceof DomainError && error.code === "insufficient_stock") {
-      return { error: { message: error.message, field: "quantity" }, values };
+      return { error: { message: error.in(language), field: "quantity" }, values };
     }
-    return formError(error, values);
+    return formError(error, language, values);
   }
 
   refresh();

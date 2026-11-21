@@ -1,14 +1,15 @@
-import { readFileSync } from "node:fs";
 import type { Client } from "@libsql/client";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/db/database";
 import { authenticate } from "@/domain/auth";
+import { listActivity } from "@/domain/activity";
+import { activityText } from "@/domain/activity-copy";
 import { getStockForecasts } from "@/domain/forecast";
 import { DEMO_PASSWORD, DEMO_USERS, demoPasswordHash, demoStatements, resetStatements } from "@/seed/demo";
-import { createTestDb, scalar } from "@/test/db";
+import { createTestDb, migrationsSql, scalar } from "@/test/db";
 
 const anchor = new Date(Date.UTC(2026, 10, 20));
-const rules = readFileSync("drizzle/0001_ledger_rules.sql", "utf8");
+const rules = migrationsSql();
 
 let client: Client;
 let db: Database;
@@ -66,6 +67,15 @@ describe("demo seed", () => {
   it("signs in both demo people with the published password", async () => {
     for (const user of DEMO_USERS) {
       expect(await authenticate(db, user.email, DEMO_PASSWORD)).toMatchObject({ id: user.id, role: user.role });
+    }
+  });
+
+  it("writes every activity entry's facts, which say what its summary says", async () => {
+    const entries = await listActivity(db, { limit: 100_000 });
+    expect(entries.length).toBeGreaterThan(100);
+    for (const entry of entries) {
+      expect(entry.facts, entry.summary).not.toBeNull();
+      expect(activityText("en", entry)).toBe(entry.summary);
     }
   });
 

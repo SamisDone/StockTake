@@ -4,6 +4,9 @@ import { activityLog } from "@/db/schema";
 import { createTestDb } from "@/test/db";
 import { seedBasics } from "@/test/fixtures";
 import { hasActivityBefore, listActivity, listPeople } from "./activity";
+import { activityText } from "./activity-copy";
+import { recordCount, recordStockChange } from "./stock";
+import { admin, staff } from "@/test/fixtures";
 
 const at = (day: number, hour = 9) => new Date(Date.UTC(2026, 10, day, hour));
 let db: Database;
@@ -105,5 +108,29 @@ describe("listPeople", () => {
       { id: 1, name: "Ada Lovelace" },
       { id: 2, name: "Sam Okafor" },
     ]);
+  });
+});
+
+describe("activity in either language", () => {
+  it("keeps an entry's facts beside its English summary, and prints them in Bangla", async () => {
+    await recordCount(db, admin, { productId: 1, counted: 12, note: "Cycle count" }, at(20));
+    await recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 3 }, at(21));
+    const [sale, count] = await listActivity(db, { actions: ["stock."], from: at(20, 0) });
+
+    expect(sale.summary).toBe("Sold 3 × Widget");
+    expect(sale.facts).toEqual({ name: "Widget", quantity: 3 });
+    expect(activityText("en", sale)).toBe("Sold 3 × Widget");
+    expect(activityText("bn", sale)).toBe("৩ × Widget বিক্রি");
+    expect(activityText("bn", count)).toBe("Widget গোনা হলো ১২টি (আগে ছিল ০): Cycle count");
+  });
+
+  it("falls back to the recorded summary for entries written before facts were kept", async () => {
+    const [entry] = await listActivity(db, { actions: ["stock.sale"] });
+    expect(entry.facts).toBeNull();
+    expect(activityText("bn", entry)).toBe("Sold 1 × Widget");
+  });
+
+  it("refuses to change an entry's facts, like the rest of the entry", async () => {
+    await expect(db.update(activityLog).set({ facts: { name: "Changed" } })).rejects.toThrow();
   });
 });

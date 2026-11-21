@@ -1,7 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { DomainError } from "@/domain/errors";
+import { DomainError, issueMessage } from "@/domain/errors";
 import {
   type ProductInput,
   archiveProduct,
@@ -13,6 +13,7 @@ import {
 import { parseCents, parseUnits } from "@/lib/parse";
 import { authorize } from "./dal";
 import { type FormState, field, formError } from "./form-state";
+import { ACTION_COPY } from "./action-copy";
 
 /** What the product form gets back: what's wrong with it, or the product it saved. */
 export type ProductFormState = {
@@ -47,7 +48,8 @@ const formField = (domainField: string) => FORM_FIELD[domainField] ?? domainFiel
  * to its field.
  */
 export async function saveProduct(_previous: ProductFormState, formData: FormData): Promise<ProductFormState> {
-  const { db, user } = await authorize();
+  const { db, user, language } = await authorize();
+  const t = ACTION_COPY[language];
 
   const values = Object.fromEntries(FIELDS.map((name) => [name, field(formData, name)])) as Record<
     (typeof FIELDS)[number],
@@ -56,21 +58,21 @@ export async function saveProduct(_previous: ProductFormState, formData: FormDat
   const idText = field(formData, "productId");
   const productId = idText ? Number(idText) : null;
   if (productId !== null && !(Number.isInteger(productId) && productId > 0)) {
-    return { error: { message: "That product doesn't exist." }, values };
+    return { error: { message: t.noProduct }, values };
   }
 
   const fields: Record<string, string> = {};
-  const money = (name: "unitCost" | "unitPrice", what: string) => {
+  const money = (name: "unitCost" | "unitPrice", what: "cost" | "price") => {
     const cents = parseCents(values[name]);
-    if (cents === null) fields[name] = `Enter the ${what} in dollars and cents, like 4.50.`;
+    if (cents === null) fields[name] = t.enterMoney(what);
     return cents ?? 0;
   };
   const units = (name: "reorderPoint" | "reorderQuantity") => {
     const n = parseUnits(values[name]);
-    if (n === null) fields[name] = "Enter a whole number of units, 0 or more.";
+    if (n === null) fields[name] = t.enterUnitsZero;
     return n ?? 0;
   };
-  if (!values.sku.trim()) fields.sku = "Enter a SKU.";
+  if (!values.sku.trim()) fields.sku = t.enterSku;
   const supplierId = values.supplierId ? Number(values.supplierId) : null;
 
   const input: ProductInput = {
@@ -86,7 +88,8 @@ export async function saveProduct(_previous: ProductFormState, formData: FormDat
   };
   const parsed = productInput.safeParse(input);
   if (!parsed.success) {
-    for (const issue of parsed.error.issues) fields[formField(String(issue.path[0]))] ??= issue.message;
+    for (const issue of parsed.error.issues)
+      fields[formField(String(issue.path[0]))] ??= issueMessage(issue.message, language);
   }
   if (Object.keys(fields).length > 0) return { fields, values };
 
@@ -101,8 +104,8 @@ export async function saveProduct(_previous: ProductFormState, formData: FormDat
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
     return error.field
-      ? { fields: { [formField(error.field)]: error.message }, values }
-      : { error: { message: error.message }, values };
+      ? { fields: { [formField(error.field)]: error.in(language) }, values }
+      : { error: { message: error.in(language) }, values };
   }
 
   refresh();
@@ -117,15 +120,17 @@ export type ArchiveFormState = FormState & {
 
 /** Archives a product (`intent=archive`) or restores it (`intent=restore`). Admin-only. */
 export async function setProductArchived(_previous: ArchiveFormState, formData: FormData): Promise<ArchiveFormState> {
-  const { db, user } = await authorize();
+  const { db, user, language } = await authorize();
   const productId = Number(field(formData, "productId"));
   const archive = field(formData, "intent") === "archive";
-  if (!Number.isInteger(productId) || productId <= 0) return { error: { message: "That product doesn't exist." } };
+  if (!Number.isInteger(productId) || productId <= 0) {
+    return { error: { message: ACTION_COPY[language].noProduct } };
+  }
 
   try {
     await (archive ? archiveProduct : restoreProduct)(db, user, productId);
   } catch (error) {
-    return formError(error);
+    return formError(error, language);
   }
 
   refresh();

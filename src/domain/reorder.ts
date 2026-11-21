@@ -2,6 +2,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/database";
 import { purchaseOrderLines, purchaseOrders } from "@/db/schema";
 import type { Actor } from "./actor";
+import { said } from "./error-copy";
 import { DomainError } from "./errors";
 import { type StockForecast, type StockStatus, getStockForecasts } from "./forecast";
 import { createDraft } from "./purchase-orders";
@@ -156,9 +157,9 @@ export async function draftSuggestedOrder(db: Database, actor: Actor, supplierId
   const { suppliers } = await getReorderSuggestions(db, now);
   const group = suppliers.find((s) => s.supplierId === supplierId);
   const lines = group?.lines.filter((line) => line.draftId === null) ?? [];
-  if (!group) throw new DomainError("invalid_state", "Nothing from that supplier needs ordering right now.");
+  if (!group) throw new DomainError("invalid_state", said("nothingToOrder"));
   if (lines.length === 0) {
-    throw new DomainError("invalid_state", `Everything ${group.supplierName} should send is on a draft already.`);
+    throw new DomainError("invalid_state", said("allDrafted", { supplier: group.supplierName }));
   }
   return createDraft(
     db,

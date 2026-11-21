@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import type { Language } from "@/lib/i18n";
+import { COMPONENT_COPY } from "./copy";
 
 /**
  * A boxed field on a label: its name small in the top-left, the value below, and a
@@ -9,6 +11,7 @@ import type { ReactNode } from "react";
 export function Field({
   name,
   label,
+  language,
   error,
   hint,
   optional = false,
@@ -18,6 +21,7 @@ export function Field({
 }: {
   name: string;
   label: string;
+  language: Language;
   error?: string;
   hint?: ReactNode;
   optional?: boolean;
@@ -34,7 +38,7 @@ export function Field({
     >
       <label htmlFor={name} className={`field-name block ${error ? "text-ink" : ""}`}>
         {label}
-        {optional ? <span className="font-normal"> (optional)</span> : null}
+        {optional ? <span className="font-normal"> {COMPONENT_COPY[language].optional}</span> : null}
       </label>
       {children}
       {error ? (

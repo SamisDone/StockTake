@@ -1,3 +1,4 @@
+import { type Language, banglaDigits } from "./i18n";
 import type { Ref } from "@/assistant/tools";
 
 /**
@@ -113,4 +114,17 @@ export function parseAnswer(text: string, refs: Ref[] = []): Block[] {
   }
   flush();
   return blocks;
+}
+
+/**
+ * An answer's prose in the reader's digits. In Bangla every figure takes Bangla digits,
+ * except identifiers, which stay as the records print them: PO numbers and SKUs (a run
+ * of capitals and digits joined by dashes, dots or underscores, with a letter in it).
+ */
+export function localProse(text: string, language: Language) {
+  if (language !== "bn") return text;
+  return text
+    .split(/(\bPO-\d+\b|\b(?=[A-Z0-9._-]*[A-Z])[A-Z0-9]+(?:[-_.][A-Z0-9]+)+\b)/)
+    .map((part, i) => (i % 2 === 1 ? part : banglaDigits(part)))
+    .join("");
 }

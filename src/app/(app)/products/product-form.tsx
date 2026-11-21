@@ -4,7 +4,8 @@ import { Archive, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { Field, fieldProps } from "@/components/field";
-import { formatCount, formatMargin } from "@/lib/format";
+import { type Formats, formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
 import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { parseCents } from "@/lib/parse";
 import {
@@ -15,6 +16,7 @@ import {
 } from "@/server/product-actions";
 import { useLabelEditor } from "@/components/label-editor";
 import type { ArchiveFacts, ProductValues, SupplierOption } from "./product-values";
+import { PRODUCTS_COPY, type ProductsCopy } from "./copy";
 
 const initial: ProductFormState = {};
 
@@ -26,6 +28,7 @@ const initial: ProductFormState = {};
 export function ProductForm({
   productId,
   money,
+  language,
   defaults,
   suppliers,
   categories,
@@ -38,6 +41,7 @@ export function ProductForm({
   productId?: number;
   /** How this person reads money; amounts are typed in dollars either way. */
   money: MoneyPrefs;
+  language: Language;
   defaults: ProductValues;
   suppliers: SupplierOption[];
   categories: string[];
@@ -48,7 +52,10 @@ export function ProductForm({
   archive?: ArchiveFacts;
 }) {
   const editing = productId !== undefined;
-  const m = moneyFormat(money);
+  const m = moneyFormat(money, language);
+  const f = formats(language);
+  const copy = PRODUCTS_COPY[language];
+  const t = copy.form;
   const editor = useLabelEditor();
   const router = useRouter();
   const [state, formAction, pending] = useActionState(saveProduct, initial);
@@ -75,7 +82,7 @@ export function ProductForm({
 
   useEffect(() => {
     if (!state.saved) return;
-    if (editing) editor?.close("Saved changes.");
+    if (editing) editor?.close(t.saved);
     // The new product's own label takes the form's place, at its own URL; Back goes
     // to where the form was opened from.
     else router.replace(`/products/${state.saved.id}`, { scroll: false });
@@ -109,23 +116,19 @@ export function ProductForm({
         <header className="flex items-start justify-between gap-4 px-5 pt-6 pb-3 sm:px-8 sm:pt-8">
           <div className="min-w-0">
             <Heading id="product-title" className="text-lg font-bold">
-              {editing ? "Edit details" : "New product"}
+              {editing ? t.editTitle : t.newTitle}
             </Heading>
-            <p className="mt-1 max-w-prose text-sm text-ink-2">
-              {editing
-                ? "Changes go in the activity log. On hand isn't here: it only changes through the ledger."
-                : "It starts with no stock. Once it's added, count what's on the shelf to open its ledger."}
-            </p>
+            <p className="mt-1 max-w-prose text-sm text-ink-2">{editing ? t.editHelp : t.newHelp}</p>
           </div>
           {action}
         </header>
 
         <fieldset disabled={pending} className="min-w-0">
-          <legend className="sr-only">{editing ? "Product details" : "The new product"}</legend>
+          <legend className="sr-only">{editing ? t.editLegend : t.newLegend}</legend>
           {/* Two columns at every width: short pairs (cost and price, the reorder pair) sit side
               by side even on a phone; everything else spans. */}
           <div className="grid grid-cols-2 gap-px border-y-2 border-ink bg-ink">
-            <Field name="name" label="Name" error={errors.name} className="col-span-2">
+            <Field name="name" label={t.name} error={errors.name} className="col-span-2" language={language}>
               <input
                 {...fieldProps("name", { error: errors.name })}
                 defaultValue={values.name}
@@ -139,10 +142,11 @@ export function ProductForm({
 
             <Field
               name="sku"
-              label="SKU"
+              label={t.sku}
+              language={language}
               error={errors.sku}
               className="max-sm:col-span-2"
-              hint="Letters, numbers, dots, dashes or underscores. Printed in capitals."
+              hint={t.skuHint}
             >
               <input
                 {...fieldProps("sku", { error: errors.sku, hint: true })}
@@ -156,10 +160,11 @@ export function ProductForm({
             </Field>
             <Field
               name="category"
-              label="Category"
+              label={t.category}
+              language={language}
               optional
               error={errors.category}
-              hint="Pick one in use, or name a new one."
+              hint={t.categoryHint}
               className="max-sm:col-span-2"
             >
               <input
@@ -179,13 +184,14 @@ export function ProductForm({
 
             <Field
               name="supplierId"
-              label="Supplier"
+              label={t.supplier}
+              language={language}
               error={errors.supplierId}
               className="col-span-2"
               hint={
                 supplier
-                  ? `Delivers in ${formatCount(supplier.leadTimeDays)} days, which is the lead time cover is measured against.`
-                  : `With no supplier, cover is measured against a ${defaultLeadTimeDays}-day lead time.`
+                  ? t.supplierHint(f.count(supplier.leadTimeDays))
+                  : t.noSupplierHint(f.count(defaultLeadTimeDays))
               }
             >
               <div className="relative">
@@ -195,7 +201,7 @@ export function ProductForm({
                   onChange={(event) => setSupplierId(event.target.value)}
                   className="field-input cursor-pointer appearance-none pr-8"
                 >
-                  <option value="">No supplier</option>
+                  <option value="">{t.noSupplier}</option>
                   {suppliers.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -213,45 +219,56 @@ export function ProductForm({
 
             <MoneyField
               name="unitCost"
-              label="Unit cost"
+              label={t.unitCost}
+              language={language}
               error={errors.unitCost}
               defaultValue={values.unitCost}
               onChange={setCost}
               converted={costCents === null ? null : m.hint(costCents)}
-              hint="What one unit costs from the supplier."
+              hint={t.unitCostHint}
             />
             <MoneyField
               name="unitPrice"
-              label="Unit price"
+              label={t.unitPrice}
+              language={language}
               error={errors.unitPrice}
               defaultValue={values.unitPrice}
               onChange={setPrice}
               converted={priceCents === null ? null : m.hint(priceCents)}
               hint={
                 priceCents === null || costCents === null
-                  ? "What one unit sells for."
+                  ? t.unitPriceHint
                   : priceCents === 0
-                    ? "No price, so no margin."
-                    : `${formatMargin(costCents, priceCents)} margin at ${m.money(costCents)} cost.`
+                    ? t.noPrice
+                    : t.marginHint(f.margin(costCents, priceCents), m.money(costCents))
               }
             />
 
             <UnitsField
               name="reorderPoint"
-              label="Reorder point"
+              label={t.reorderPoint}
+              language={language}
               error={errors.reorderPoint}
               defaultValue={values.reorderPoint}
-              hint="Units. Flagged for reorder when on hand and on order fall to this."
+              hint={t.reorderPointHint}
             />
             <UnitsField
               name="reorderQuantity"
-              label="Reorder quantity"
+              label={t.reorderQuantity}
+              language={language}
               error={errors.reorderQuantity}
               defaultValue={values.reorderQuantity}
-              hint="Units. The smallest order to suggest."
+              hint={t.reorderQuantityHint}
             />
 
-            <Field name="description" label="Description" optional error={errors.description} className="col-span-2">
+            <Field
+              name="description"
+              label={t.description}
+              language={language}
+              optional
+              error={errors.description}
+              className="col-span-2"
+            >
               <textarea
                 {...fieldProps("description", { error: errors.description })}
                 defaultValue={values.description}
@@ -270,7 +287,7 @@ export function ProductForm({
 
           <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-3 px-5 pt-3 pb-5 sm:px-8">
             <p role="status" className="min-h-5 min-w-0 basis-full text-sm font-medium sm:basis-auto sm:flex-1">
-              {pending ? (editing ? "Saving…" : "Adding…") : null}
+              {pending ? (editing ? t.saving : t.adding) : null}
             </p>
             {editing ? (
               <button
@@ -278,7 +295,7 @@ export function ProductForm({
                 onClick={() => editor?.close()}
                 className="min-h-12 rounded-control px-4 press-quiet font-semibold text-ink-2 enabled:hover:bg-liner enabled:hover:text-ink max-sm:flex-1"
               >
-                Cancel
+                {t.cancel}
               </button>
             ) : null}
             <button
@@ -286,14 +303,14 @@ export function ProductForm({
               className="group h-12 shrink-0 rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 enabled:hover:bg-ink-lift disabled:cursor-progress disabled:bg-ink-2 max-sm:flex-1"
             >
               <span className="inline-block transition-transform duration-150 ease-out group-enabled:group-active:scale-[0.96]">
-                {editing ? "Save changes" : "Add product"}
+                {editing ? t.save : t.add}
               </span>
             </button>
           </div>
         </fieldset>
       </form>
 
-      {archive ? <ArchiveZone facts={archive} m={m} headingLevel={headingLevel === 1 ? 2 : 3} /> : null}
+      {archive ? <ArchiveZone facts={archive} m={m} f={f} t={copy} headingLevel={headingLevel === 1 ? 2 : 3} /> : null}
     </>
   );
 }
@@ -306,6 +323,7 @@ export function ProductForm({
 function MoneyField({
   name,
   label,
+  language,
   error,
   hint,
   converted,
@@ -314,6 +332,7 @@ function MoneyField({
 }: {
   name: string;
   label: string;
+  language: Language;
   error?: string;
   hint: string;
   converted: string | null;
@@ -321,7 +340,7 @@ function MoneyField({
   onChange: (text: string) => void;
 }) {
   return (
-    <Field name={name} label={label} error={error} hint={converted ? `${hint} ${converted}` : hint}>
+    <Field name={name} label={label} language={language} error={error} hint={converted ? `${hint} ${converted}` : hint}>
       <div className="flex items-baseline gap-1">
         <span aria-hidden className={`text-lg font-medium ${error ? "text-ink" : "text-ink-3"}`}>
           $
@@ -342,18 +361,20 @@ function MoneyField({
 function UnitsField({
   name,
   label,
+  language,
   error,
   hint,
   defaultValue,
 }: {
   name: string;
   label: string;
+  language: Language;
   error?: string;
   hint: string;
   defaultValue: string;
 }) {
   return (
-    <Field name={name} label={label} error={error} hint={hint}>
+    <Field name={name} label={label} language={language} error={error} hint={hint}>
       <input
         {...fieldProps(name, { error, hint: true })}
         defaultValue={defaultValue}
@@ -373,7 +394,20 @@ const archiveInitial: ArchiveFormState = {};
  * Once archived, the refreshed label has no form, so the editor prints the label
  * again, archived and with Restore, so it's undone in one press.
  */
-function ArchiveZone({ facts, m, headingLevel }: { facts: ArchiveFacts; m: MoneyFormat; headingLevel: 2 | 3 }) {
+function ArchiveZone({
+  facts,
+  m,
+  f,
+  t,
+  headingLevel,
+}: {
+  facts: ArchiveFacts;
+  m: MoneyFormat;
+  f: Formats;
+  t: ProductsCopy;
+  headingLevel: 2 | 3;
+}) {
+  const a = t.archive;
   const editor = useLabelEditor();
   const [state, formAction, pending] = useActionState(setProductArchived, archiveInitial);
   const Heading = headingLevel === 2 ? "h2" : "h3";
@@ -386,17 +420,15 @@ function ArchiveZone({ facts, m, headingLevel }: { facts: ArchiveFacts; m: Money
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 px-5 pt-5 pb-5 sm:px-8">
           <div className="min-w-0 flex-1 basis-80">
             <Heading id="archive-title" className="text-lg font-bold">
-              Archive
+              {a.title}
             </Heading>
             <p className="mt-1 max-w-prose text-sm text-ink-2">
-              Takes {facts.name} off the list and freezes its stock. The ledger stays, and an admin can restore it.
-              {facts.onHand > 0
-                ? ` Its ${formatCount(facts.onHand)} units on hand, ${m.money(facts.valueCents)} at cost, leave the totals while it's archived.`
-                : null}
+              {a.text(facts.name)}
+              {facts.onHand > 0 ? a.stock(f.count(facts.onHand), m.money(facts.valueCents)) : null}
             </p>
             {/* Holds its line while empty, so nothing moves when it speaks. */}
             <p role="status" className="mt-1 min-h-5 text-sm font-medium">
-              {pending ? "Archiving…" : null}
+              {pending ? a.archiving : null}
             </p>
           </div>
           <button
@@ -406,7 +438,7 @@ function ArchiveZone({ facts, m, headingLevel }: { facts: ArchiveFacts; m: Money
           >
             <span className="flex items-center gap-2 transition-transform duration-150 ease-out group-enabled:group-active:scale-[0.96]">
               <Archive aria-hidden size={18} strokeWidth={2.25} />
-              Archive product
+              {a.button}
             </span>
           </button>
         </div>

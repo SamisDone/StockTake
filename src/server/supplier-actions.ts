@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
-import { DomainError } from "@/domain/errors";
+import { DomainError, issueMessage } from "@/domain/errors";
 import {
   type SupplierInput,
   archiveSupplier,
@@ -16,6 +16,7 @@ import {
 import { parseUnits } from "@/lib/parse";
 import { authorize } from "./dal";
 import { type FormState, field, formError } from "./form-state";
+import { ACTION_COPY } from "./action-copy";
 
 /** What a form with boxed fields gets back: a message per field at fault, what was typed, or what it saved. */
 export type FieldFormState = {
@@ -39,18 +40,19 @@ const SUPPLIER_FIELDS = ["name", "email", "phone", "leadTimeDays"] as const;
  * opens on its own label.
  */
 export async function saveSupplier(_previous: FieldFormState, formData: FormData): Promise<FieldFormState> {
-  const { db, user } = await authorize();
+  const { db, user, language } = await authorize();
+  const t = ACTION_COPY[language];
   const values = Object.fromEntries(SUPPLIER_FIELDS.map((name) => [name, field(formData, name)])) as Record<
     (typeof SUPPLIER_FIELDS)[number],
     string
   >;
   const idText = field(formData, "supplierId");
   const supplierId = idText ? positiveId(idText) : null;
-  if (idText && supplierId === null) return { error: { message: "That supplier doesn't exist." }, values };
+  if (idText && supplierId === null) return { error: { message: t.noSupplier }, values };
 
   const fields: Record<string, string> = {};
   const leadTimeDays = parseUnits(values.leadTimeDays);
-  if (leadTimeDays === null) fields.leadTimeDays = "Enter a whole number of days, 0 or more.";
+  if (leadTimeDays === null) fields.leadTimeDays = t.enterDays;
 
   const input: SupplierInput = {
     name: values.name,
@@ -60,7 +62,7 @@ export async function saveSupplier(_previous: FieldFormState, formData: FormData
   };
   const parsed = supplierInput.safeParse(input);
   if (!parsed.success) {
-    for (const issue of parsed.error.issues) fields[String(issue.path[0])] ??= issue.message;
+    for (const issue of parsed.error.issues) fields[String(issue.path[0])] ??= issueMessage(issue.message, language);
   }
   if (Object.keys(fields).length > 0) return { fields, values };
 
@@ -75,8 +77,8 @@ export async function saveSupplier(_previous: FieldFormState, formData: FormData
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
     return error.field
-      ? { fields: { [error.field]: error.message }, values }
-      : { error: { message: error.message }, values };
+      ? { fields: { [error.field]: error.in(language) }, values }
+      : { error: { message: error.in(language) }, values };
   }
 
   if (supplierId === null) redirect(`/suppliers/${id}`);
@@ -92,15 +94,15 @@ export type ArchiveFormState = FormState & {
 
 /** Archives a supplier (`intent=archive`) or restores it (`intent=restore`). Admin-only. */
 export async function setSupplierArchived(_previous: ArchiveFormState, formData: FormData): Promise<ArchiveFormState> {
-  const { db, user } = await authorize();
+  const { db, user, language } = await authorize();
   const supplierId = positiveId(field(formData, "supplierId"));
   const archive = field(formData, "intent") === "archive";
-  if (supplierId === null) return { error: { message: "That supplier doesn't exist." } };
+  if (supplierId === null) return { error: { message: ACTION_COPY[language].noSupplier } };
 
   try {
     await (archive ? archiveSupplier : restoreSupplier)(db, user, supplierId);
   } catch (error) {
-    return formError(error);
+    return formError(error, language);
   }
 
   refresh();
@@ -115,33 +117,35 @@ export type ReviewFormState = FieldFormState & {
 
 /** Rates a supplier as the signed-in person, replacing their earlier review. Anyone can. */
 export async function saveReview(_previous: ReviewFormState, formData: FormData): Promise<ReviewFormState> {
-  const { db, user } = await authorize();
+  const { db, user, language } = await authorize();
+  const t = ACTION_COPY[language];
   const supplierId = positiveId(field(formData, "supplierId"));
   const values = { rating: field(formData, "rating"), comment: field(formData, "comment") };
-  if (supplierId === null) return { error: { message: "That supplier doesn't exist." }, values };
+  if (supplierId === null) return { error: { message: t.noSupplier }, values };
 
   const rating = Number(values.rating);
-  if (!/^[1-5]$/.test(values.rating)) return { fields: { rating: "Choose 1 to 5 stars." }, values };
+  if (!/^[1-5]$/.test(values.rating)) return { fields: { rating: t.chooseStars }, values };
 
   try {
     await reviewSupplier(db, user, supplierId, { rating, comment: values.comment });
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
     return error.field
-      ? { fields: { [error.field]: error.message }, values }
-      : { error: { message: error.message }, values };
+      ? { fields: { [error.field]: error.in(language) }, values }
+      : { error: { message: error.in(language) }, values };
   }
 
   refresh();
-  return { done: { message: "Saved your review.", at: Date.now() } };
+  return { done: { message: t.reviewSaved, at: Date.now() } };
 }
 
 /** Removes the signed-in person's own review. */
 export async function removeReview(_previous: ReviewFormState, formData: FormData): Promise<ReviewFormState> {
-  const { db, user } = await authorize();
+  const { db, user, language } = await authorize();
+  const t = ACTION_COPY[language];
   const supplierId = positiveId(field(formData, "supplierId"));
-  if (supplierId === null) return { error: { message: "That supplier doesn't exist." } };
+  if (supplierId === null) return { error: { message: t.noSupplier } };
   await deleteReview(db, user, supplierId);
   refresh();
-  return { done: { message: "Removed your review.", at: Date.now() } };
+  return { done: { message: t.reviewRemoved, at: Date.now() } };
 }

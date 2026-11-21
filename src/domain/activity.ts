@@ -2,18 +2,28 @@ import { and, asc, desc, eq, gte, lt, or, type SQL, sql } from "drizzle-orm";
 import type { Database } from "@/db/database";
 import { activityLog, users } from "@/db/schema";
 import type { Actor } from "./actor";
+import { type ActivityEvent, describeActivity } from "./activity-copy";
 
-export type ActivityEntry = {
-  action: string;
+export type ActivityEntry = ActivityEvent & {
   entityType: "product" | "supplier" | "purchase_order" | "user";
   /** A number, or SQL that resolves to the new row's ID inside a batch. */
   entityId: number | SQL<number>;
-  summary: string;
 };
 
-/** The insert for one activity entry, to go in the same batch as the change it describes. */
+/**
+ * The insert for one activity entry, to go in the same batch as the change it describes.
+ * Its summary is the English sentence; its facts let the feed print it in any language.
+ */
 export function logActivity(db: Database, actor: Actor, entry: ActivityEntry, now: Date) {
-  return db.insert(activityLog).values({ ...entry, userId: actor.id, occurredAt: now });
+  return db.insert(activityLog).values({
+    action: entry.action,
+    entityType: entry.entityType,
+    entityId: entry.entityId,
+    summary: describeActivity("en", entry),
+    facts: entry.facts,
+    userId: actor.id,
+    occurredAt: now,
+  });
 }
 
 /** Which entries a feed shows: action prefixes ("stock."), one person, and a window [from, to). */
@@ -51,6 +61,7 @@ export async function listActivity(db: Database, { limit = 50, ...filter }: Acti
       entityType: activityLog.entityType,
       entityId: activityLog.entityId,
       summary: activityLog.summary,
+      facts: activityLog.facts,
       occurredAt: activityLog.occurredAt,
       userId: activityLog.userId,
       userName: users.name,

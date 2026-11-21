@@ -10,13 +10,10 @@ import {
   suppliers,
   users,
 } from "@/db/schema";
-import { DOLLARS, moneyFormat } from "@/lib/money";
 import { type Actor, requireAdmin } from "./actor";
 import { logActivity } from "./activity";
+import { said } from "./error-copy";
 import { DomainError, parseInput, violates } from "./errors";
-
-/** The activity log records amounts as they were written: in dollars, the currency stock is kept in. */
-const dollars = moneyFormat(DOLLARS);
 
 export const poNumber = (id: number) => `PO-${String(id).padStart(4, "0")}`;
 
@@ -55,10 +52,10 @@ export const draftInput = z.object({
   expectedAt: z.date().optional(),
   lines: z
     .array(lineInput)
-    .min(1, "Add at least one line.")
+    .min(1, "addLine")
     .max(200)
     .refine((lines) => new Set(lines.map((l) => l.productId)).size === lines.length, {
-      message: "Each product can appear on an order once.",
+      message: "productOnce",
     }),
 });
 export type DraftInput = z.input<typeof draftInput>;
@@ -67,27 +64,7 @@ type Operation = "edit" | "place" | "cancel" | "receive";
 
 /** Why an order in `status` can't undergo `operation`, phrased for the person. */
 function stateError(id: number, status: PurchaseOrderStatus, operation: Operation) {
-  const n = poNumber(id);
-  const messages: Record<PurchaseOrderStatus, Partial<Record<Operation, string>>> = {
-    draft: { receive: `${n} hasn't been placed yet.` },
-    ordered: {
-      edit: `${n} has been placed, so it can't be edited.`,
-      place: `${n} has been placed already.`,
-    },
-    received: {
-      edit: `${n} has been received, so it can't be edited.`,
-      place: `${n} has been received already.`,
-      cancel: `${n} has been received, so it can't be cancelled.`,
-      receive: `${n} has been received already.`,
-    },
-    cancelled: {
-      edit: `${n} was cancelled, so it can't be edited.`,
-      place: `${n} was cancelled, so it can't be placed.`,
-      cancel: `${n} was cancelled already.`,
-      receive: `${n} was cancelled, so it can't be received.`,
-    },
-  };
-  return new DomainError("invalid_state", messages[status][operation] ?? `${n} can't be changed right now.`);
+  return new DomainError("invalid_state", said("orderState", { order: poNumber(id), status, operation }));
 }
 
 const allowed: Record<Operation, PurchaseOrderStatus[]> = {
@@ -103,7 +80,7 @@ async function loadOrder(db: Database, id: number) {
     .from(purchaseOrders)
     .innerJoin(suppliers, eq(suppliers.id, purchaseOrders.supplierId))
     .where(eq(purchaseOrders.id, id));
-  if (!order) throw new DomainError("not_found", "That purchase order doesn't exist.");
+  if (!order) throw new DomainError("not_found", said("noOrder"));
   return order;
 }
 
@@ -142,15 +119,15 @@ const startOfDay = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.ge
  */
 async function resolveDraft(db: Database, input: z.output<typeof draftInput>, now: Date) {
   if (input.expectedAt && input.expectedAt < startOfDay(now)) {
-    throw new DomainError("invalid_input", "The expected date can't be before today.", "expectedAt");
+    throw new DomainError("invalid_input", said("expectedBeforeToday"), "expectedAt");
   }
   const [supplier] = await db
     .select({ id: suppliers.id, name: suppliers.name, archivedAt: suppliers.archivedAt })
     .from(suppliers)
     .where(eq(suppliers.id, input.supplierId));
-  if (!supplier) throw new DomainError("not_found", "That supplier doesn't exist.");
+  if (!supplier) throw new DomainError("not_found", said("noSupplier"));
   if (supplier.archivedAt) {
-    throw new DomainError("invalid_state", `${supplier.name} is archived, so it can't take new orders.`);
+    throw new DomainError("invalid_state", said("supplierArchivedOrders", { supplier: supplier.name }));
   }
 
   const ids = input.lines.map((line) => line.productId);
@@ -168,10 +145,10 @@ async function resolveDraft(db: Database, input: z.output<typeof draftInput>, no
 
   const lines = input.lines.map((line) => {
     const product = byId.get(line.productId);
-    if (!product) throw new DomainError("not_found", "One of those products doesn't exist.");
-    if (product.archivedAt) throw new DomainError("invalid_state", `${product.name} is archived.`);
+    if (!product) throw new DomainError("not_found", said("noProducts"));
+    if (product.archivedAt) throw new DomainError("invalid_state", said("productArchived", { product: product.name }));
     if (product.supplierId !== supplier.id) {
-      throw new DomainError("invalid_state", `${supplier.name} doesn't supply ${product.name}.`);
+      throw new DomainError("invalid_state", said("notSupplied", { supplier: supplier.name, product: product.name }));
     }
     return {
       productId: line.productId,
@@ -181,14 +158,13 @@ async function resolveDraft(db: Database, input: z.output<typeof draftInput>, no
   });
 
   const totalCents = lines.reduce((total, line) => total + line.quantity * line.unitCostCents, 0);
-  const summary = `${lines.length} ${lines.length === 1 ? "line" : "lines"}, ${dollars.money(totalCents)}`;
-  return { supplier, lines, summary };
+  return { supplier, lines, totalCents };
 }
 
 /** Creates a draft order with its lines and activity entry in one atomic batch. */
 export async function createDraft(db: Database, actor: Actor, raw: DraftInput, now = new Date()) {
   const input = parseInput(draftInput, raw);
-  const { supplier, lines, summary } = await resolveDraft(db, input, now);
+  const { supplier, lines, totalCents } = await resolveDraft(db, input, now);
 
   // A batch can't pass the new order's ID between statements, so the lines and the log
   // entry look it up as max(id). The batch runs atomically, so no other insert can land
@@ -213,7 +189,7 @@ export async function createDraft(db: Database, actor: Actor, raw: DraftInput, n
         action: "purchase_order.drafted",
         entityType: "purchase_order",
         entityId: newId,
-        summary: `Drafted an order with ${supplier.name}: ${summary}`,
+        facts: { supplier: supplier.name, lines: lines.length, totalCents },
       },
       now,
     ),
@@ -225,7 +201,7 @@ export async function createDraft(db: Database, actor: Actor, raw: DraftInput, n
 export async function updateDraft(db: Database, actor: Actor, id: number, raw: DraftInput, now = new Date()) {
   const input = parseInput(draftInput, raw);
   await loadOrderFor(db, id, "edit");
-  const { supplier, lines, summary } = await resolveDraft(db, input, now);
+  const { supplier, lines, totalCents } = await resolveDraft(db, input, now);
 
   await guarded(db, id, "edit", () =>
     db.batch([
@@ -242,7 +218,7 @@ export async function updateDraft(db: Database, actor: Actor, id: number, raw: D
           action: "purchase_order.edited",
           entityType: "purchase_order",
           entityId: id,
-          summary: `Edited ${poNumber(id)}: ${summary}`,
+          facts: { order: poNumber(id), lines: lines.length, totalCents },
         },
         now,
       ),
@@ -262,7 +238,7 @@ async function orderTotal(db: Database, id: number) {
 
 /** Sends a draft to the supplier. Admin-only, because it commits spending. */
 export async function placeOrder(db: Database, actor: Actor, id: number, now = new Date()) {
-  requireAdmin(actor, "place purchase orders");
+  requireAdmin(actor, "placeOrders");
   const order = await loadOrderFor(db, id, "place");
   const total = await orderTotal(db, id);
 
@@ -276,7 +252,7 @@ export async function placeOrder(db: Database, actor: Actor, id: number, now = n
           action: "purchase_order.placed",
           entityType: "purchase_order",
           entityId: id,
-          summary: `Placed ${poNumber(id)} with ${order.supplierName} for ${dollars.money(total)}`,
+          facts: { order: poNumber(id), supplier: order.supplierName, totalCents: total },
         },
         now,
       ),
@@ -286,7 +262,7 @@ export async function placeOrder(db: Database, actor: Actor, id: number, now = n
 
 /** Cancels a draft or a placed order. Admin-only. */
 export async function cancelOrder(db: Database, actor: Actor, id: number, now = new Date()) {
-  requireAdmin(actor, "cancel purchase orders");
+  requireAdmin(actor, "cancelOrders");
   await loadOrderFor(db, id, "cancel");
 
   await guarded(db, id, "cancel", () =>
@@ -299,7 +275,7 @@ export async function cancelOrder(db: Database, actor: Actor, id: number, now = 
           action: "purchase_order.cancelled",
           entityType: "purchase_order",
           entityId: id,
-          summary: `Cancelled ${poNumber(id)}`,
+          facts: { order: poNumber(id) },
         },
         now,
       ),
@@ -344,7 +320,7 @@ export async function receiveOrder(db: Database, actor: Actor, id: number, now =
           action: "purchase_order.received",
           entityType: "purchase_order",
           entityId: id,
-          summary: `Received ${poNumber(id)} from ${order.supplierName}: ${units} units`,
+          facts: { order: poNumber(id), supplier: order.supplierName, units },
         },
         now,
       ),
@@ -373,7 +349,7 @@ export async function getOrder(db: Database, id: number) {
     .innerJoin(suppliers, eq(suppliers.id, purchaseOrders.supplierId))
     .innerJoin(users, eq(users.id, purchaseOrders.createdBy))
     .where(eq(purchaseOrders.id, id));
-  if (!order) throw new DomainError("not_found", "That purchase order doesn't exist.");
+  if (!order) throw new DomainError("not_found", said("noOrder"));
 
   const lines = await db
     .select({

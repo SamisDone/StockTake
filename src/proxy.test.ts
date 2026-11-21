@@ -6,9 +6,16 @@ import { SESSION_COOKIE } from "./server/session-cookie";
 
 const TOKEN = "t".repeat(43);
 
-function request(path: string, { cookie, method = "GET" }: { cookie?: string; method?: string } = {}) {
+function request(
+  path: string,
+  { cookie, language, method = "GET" }: { cookie?: string; language?: string; method?: string } = {},
+) {
   const headers = new Headers();
-  if (cookie !== undefined) headers.set("cookie", `${SESSION_COOKIE}=${cookie}`);
+  const cookies = [
+    cookie !== undefined ? `${SESSION_COOKIE}=${cookie}` : null,
+    language !== undefined ? `language=${language}` : null,
+  ].filter(Boolean);
+  if (cookies.length > 0) headers.set("cookie", cookies.join("; "));
   return new NextRequest(new URL(path, "https://stocktake.test"), { method, headers });
 }
 
@@ -69,5 +76,31 @@ describe("proxy", () => {
     const response = proxy(request("/dashboard", { cookie: TOKEN, method: "POST" }));
     expect(response.headers.get("location")).toBeNull();
     expect(response.headers.get("set-cookie")).toBeNull();
+  });
+});
+
+describe("proxy languages", () => {
+  const rewrittenTo = (response: Response) => {
+    const target = response.headers.get("x-middleware-rewrite");
+    return target ? new URL(target).pathname + new URL(target).search : null;
+  };
+
+  it("serves a Bangla reader the prerendered Bangla twin of the signed-out pages", () => {
+    expect(rewrittenTo(proxy(request("/", { language: "bn" })))).toBe("/bn");
+    expect(rewrittenTo(proxy(request("/login?next=/orders", { language: "bn" })))).toBe("/bn/login?next=/orders");
+  });
+
+  it("leaves English readers, and the app's own pages, as they are", () => {
+    expect(rewrittenTo(proxy(request("/")))).toBeNull();
+    expect(rewrittenTo(proxy(request("/", { language: "en" })))).toBeNull();
+    expect(rewrittenTo(proxy(request("/dashboard", { cookie: TOKEN, language: "bn" })))).toBeNull();
+  });
+
+  it("makes Bangla the reader's language when a /bn page is opened directly", () => {
+    for (const path of ["/bn", "/bn/login"]) {
+      const response = proxy(request(path));
+      expect(response.headers.get("location"), path).toBeNull();
+      expect(response.headers.get("set-cookie"), path).toMatch(/language=bn/);
+    }
   });
 });

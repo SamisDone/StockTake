@@ -8,9 +8,10 @@ import { Choice, Choices } from "@/components/choice";
 import { useArrivalHash, writeHash } from "@/components/hash-state";
 import { MobileName, Th } from "@/components/stock";
 import { NAV_FORWARD } from "@/components/transitions";
-import { formatCount } from "@/lib/format";
+import { type Formats, formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
 import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
-import { STATUS_WORD } from "./status";
+import { ORDERS_COPY, type OrdersCopy } from "./copy";
 
 export type OrderRow = {
   id: number;
@@ -26,14 +27,7 @@ export type OrderRow = {
 };
 
 type Show = "open" | PurchaseOrderStatus | "all";
-const SHOWS: { show: Show; label: string }[] = [
-  { show: "open", label: "Open" },
-  { show: "draft", label: "Drafts" },
-  { show: "ordered", label: "Placed" },
-  { show: "received", label: "Received" },
-  { show: "cancelled", label: "Cancelled" },
-  { show: "all", label: "All" },
-];
+const SHOWS: Show[] = ["open", "draft", "ordered", "received", "cancelled", "all"];
 
 const matches = (show: Show, row: OrderRow) =>
   show === "all" || (show === "open" ? row.status === "draft" || row.status === "ordered" : row.status === show);
@@ -43,8 +37,10 @@ const matches = (show: Show, row: OrderRow) =>
  * orders). Open, drafts and placed orders, is where work is, so it's the default. The
  * filter lives in the URL's hash, like the products list's.
  */
-export function OrderTable({ rows, money }: { rows: OrderRow[]; money: MoneyPrefs }) {
-  const m = moneyFormat(money);
+export function OrderTable({ rows, money, language }: { rows: OrderRow[]; money: MoneyPrefs; language: Language }) {
+  const t = ORDERS_COPY[language];
+  const f = formats(language);
+  const m = moneyFormat(money, language);
   const pathname = usePathname();
   const [show, setShow] = useState<Show>("open");
   const [switches, setSwitches] = useState(0);
@@ -53,8 +49,8 @@ export function OrderTable({ rows, money }: { rows: OrderRow[]; money: MoneyPref
   const [arrived, setArrived] = useState(false);
   if (!arrived && hash !== null) {
     setArrived(true);
-    const wanted = SHOWS.find((s) => s.show === hash.get("show"));
-    if (wanted) setShow(wanted.show);
+    const wanted = SHOWS.find((s) => s === hash.get("show"));
+    if (wanted) setShow(wanted);
   }
 
   useEffect(() => {
@@ -67,11 +63,11 @@ export function OrderTable({ rows, money }: { rows: OrderRow[]; money: MoneyPref
   return (
     <section aria-labelledby="orders-title" className="pb-8">
       <h2 id="orders-title" className="sr-only">
-        Orders
+        {t.orders}
       </h2>
       <div className="border-b-2 border-ink">
-        <Choices legend="Show">
-          {SHOWS.map(({ show: option, label }) => (
+        <Choices legend={t.show}>
+          {SHOWS.map((option) => (
             <Choice
               key={option}
               name="show"
@@ -81,7 +77,8 @@ export function OrderTable({ rows, money }: { rows: OrderRow[]; money: MoneyPref
                 setSwitches((n) => n + 1);
               }}
             >
-              {label} <span className="ml-1.5">{formatCount(rows.filter((row) => matches(option, row)).length)}</span>
+              {t.shows[option]}{" "}
+              <span className="ml-1.5">{f.count(rows.filter((row) => matches(option, row)).length)}</span>
             </Choice>
           ))}
         </Choices>
@@ -90,24 +87,22 @@ export function OrderTable({ rows, money }: { rows: OrderRow[]; money: MoneyPref
       {/* Same place, different content: the new rows fade in, never on first render. */}
       <div key={show} className={`pt-2 ${switches > 0 ? "swap-in" : ""}`}>
         {shown.length === 0 ? (
-          <p className="px-5 pt-4 font-semibold sm:px-8">{EMPTY[show]}</p>
+          <p className="px-5 pt-4 font-semibold sm:px-8">{t.empty[show]}</p>
         ) : (
           <table className="w-full border-collapse text-left max-md:block">
-            <caption className="sr-only">
-              {formatCount(shown.length)} orders, newest first. Select one to see its lines and history.
-            </caption>
+            <caption className="sr-only">{t.caption(f.count(shown.length))}</caption>
             <thead className="max-md:hidden">
               <tr className="border-b border-ink">
-                <Th>Order</Th>
-                <Th>Status</Th>
-                <Th align="right">Lines</Th>
-                <Th align="right">Total</Th>
-                <Th>Date</Th>
+                <Th>{t.columns.order}</Th>
+                <Th>{t.columns.status}</Th>
+                <Th align="right">{t.columns.lines}</Th>
+                <Th align="right">{t.columns.total}</Th>
+                <Th>{t.columns.date}</Th>
               </tr>
             </thead>
             <tbody className="max-md:block">
               {shown.map((row) => (
-                <Row key={row.id} row={row} m={m} />
+                <Row key={row.id} row={row} m={m} f={f} t={t} />
               ))}
             </tbody>
           </table>
@@ -117,23 +112,14 @@ export function OrderTable({ rows, money }: { rows: OrderRow[]; money: MoneyPref
   );
 }
 
-const EMPTY: Record<Show, string> = {
-  open: "No open orders. Draft one from the suggestions above.",
-  draft: "No drafts.",
-  ordered: "Nothing is on order.",
-  received: "Nothing has been received yet.",
-  cancelled: "No cancelled orders.",
-  all: "No orders yet.",
-};
-
 /** One order: the supplier's name opens it, and the whole row is the hit area. */
-function Row({ row, m }: { row: OrderRow; m: MoneyFormat }) {
+function Row({ row, m, f, t }: { row: OrderRow; m: MoneyFormat; f: Formats; t: OrdersCopy }) {
   return (
     <tr className="relative border-b border-hairline align-top transition-colors duration-150 last:border-b-0 hover:bg-liner/60 max-md:grid max-md:grid-cols-3 max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8">
       <td className="py-3 pr-4 max-md:col-span-3 max-md:p-0 md:pl-8">
         <div className="flex items-baseline gap-2">
           {row.late ? (
-            <span className="shrink-0 rounded-mark bg-stock px-1.5 py-px text-xs font-bold">Late</span>
+            <span className="shrink-0 rounded-mark bg-stock px-1.5 py-px text-xs font-bold">{t.late}</span>
           ) : null}
           <Link
             href={`/orders/${row.id}`}
@@ -147,16 +133,16 @@ function Row({ row, m }: { row: OrderRow; m: MoneyFormat }) {
         <p className="mt-0.5 font-mono text-xs text-ink-3">{row.number}</p>
       </td>
       <td className="py-3 pr-4 max-md:p-0">
-        <MobileName>Status</MobileName>
-        {STATUS_WORD[row.status]}
+        <MobileName>{t.columns.status}</MobileName>
+        {t.status[row.status]}
       </td>
-      <td className="tabular py-3 pr-4 text-right max-md:hidden">{formatCount(row.lineCount)}</td>
+      <td className="tabular py-3 pr-4 text-right max-md:hidden">{f.count(row.lineCount)}</td>
       <td className="tabular py-3 pr-4 text-right font-semibold max-md:p-0 max-md:text-left">
-        <MobileName>Total</MobileName>
+        <MobileName>{t.columns.total}</MobileName>
         {m.money(row.totalCents)}
       </td>
       <td className="py-3 whitespace-nowrap text-ink-2 max-md:p-0 md:pr-8">
-        <MobileName>Date</MobileName>
+        <MobileName>{t.columns.date}</MobileName>
         {row.when}
       </td>
     </tr>

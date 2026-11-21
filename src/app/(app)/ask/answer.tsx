@@ -2,13 +2,15 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Ref } from "@/assistant/tools";
 import { NAV_FORWARD } from "@/components/transitions";
-import { type Inline, parseAnswer, refHref } from "@/lib/answer-text";
+import { type Inline, localProse, parseAnswer, refHref } from "@/lib/answer-text";
+import type { Language } from "@/lib/i18n";
 
 /**
- * An answer, printed as prose. Records it names link to their own pages; SKUs and PO
- * numbers keep the machine voice.
+ * An answer, printed as prose in the reader's digits. Records it names link to their own
+ * pages; SKUs and PO numbers keep the machine voice.
  */
-export function AnswerText({ text, refs }: { text: string; refs: Ref[] }) {
+export function AnswerText({ text, refs, language }: { text: string; refs: Ref[]; language: Language }) {
+  const inlines = (content: Inline[]) => printed(content, language);
   return (
     <div className="max-w-prose space-y-3 leading-relaxed">
       {parseAnswer(text, refs).map((block, i) =>
@@ -32,10 +34,10 @@ export function AnswerText({ text, refs }: { text: string; refs: Ref[] }) {
   );
 }
 
-function inlines(content: Inline[]): ReactNode[] {
+function printed(content: Inline[], language: Language): ReactNode[] {
   return content.map((part, i) => {
-    if (part.type === "text") return part.text;
-    if (part.type === "bold") return <strong key={i}>{inlines(part.children)}</strong>;
+    if (part.type === "text") return localProse(part.text, language);
+    if (part.type === "bold") return <strong key={i}>{printed(part.children, language)}</strong>;
     const machine = part.ref.code !== undefined && part.text.toLowerCase() === part.ref.code.toLowerCase();
     return (
       <Link
@@ -47,7 +49,7 @@ function inlines(content: Inline[]): ReactNode[] {
           machine ? "font-mono text-[0.875em] font-normal" : ""
         }`}
       >
-        {part.text}
+        {machine ? part.text : localProse(part.text, language)}
       </Link>
     );
   });

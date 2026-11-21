@@ -8,21 +8,27 @@ import { type SupplierSuggestion, type SuggestedLine, getReorderSuggestions } fr
 import { PageHeader } from "@/components/page-header";
 import { MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
-import { formatCount } from "@/lib/format";
+import { type Formats, formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
 import { type MoneyFormat, moneyFormat } from "@/lib/money";
 import { getCurrentUser } from "@/server/dal";
-import { getMoneyPrefs } from "@/server/preferences";
+import { getLanguage, getMoneyPrefs } from "@/server/preferences";
+import { ORDERS_COPY, type OrdersCopy } from "./copy";
 import { DraftButton } from "./draft-button";
 import { type OrderRow, OrderTable } from "./order-table";
 import { orderWhen } from "./status";
 
-export const metadata: Metadata = { title: "Purchase orders" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: ORDERS_COPY[await getLanguage()].title };
+}
 
-export default function OrdersPage() {
+export default async function OrdersPage() {
+  const language = await getLanguage();
+  const t = ORDERS_COPY[language];
   return (
     <PageTransition>
       <PageHeader
-        title="Purchase orders"
+        title={t.title}
         actions={
           // Anyone can draft an order, so this needs no session and prints with the page.
           <Link
@@ -33,32 +39,34 @@ export default function OrdersPage() {
           >
             <span className="flex items-center gap-2 transition-transform duration-150 ease-out group-active:scale-[0.96]">
               <Plus aria-hidden size={18} strokeWidth={2.5} />
-              New order
+              {t.newOrder}
             </span>
           </Link>
         }
       />
-      <Reveal fallback={<OrdersPlaceholder />}>
-        <Orders />
+      <Reveal fallback={<OrdersPlaceholder t={t} />}>
+        <Orders language={language} />
       </Reveal>
     </PageTransition>
   );
 }
 
-async function Orders() {
+async function Orders({ language }: { language: Language }) {
+  const t = ORDERS_COPY[language];
+  const f = formats(language);
   await getCurrentUser();
   // Lateness and suggestions are relative to now, so they belong to the request.
   await connection();
   const db = await getDb();
   const now = new Date();
   const money = await getMoneyPrefs();
-  const m = moneyFormat(money);
+  const m = moneyFormat(money, language);
   const [orders, suggestions] = await Promise.all([listOrders(db), getReorderSuggestions(db, now)]);
 
   // Only what the table prints crosses to the browser.
   const rows: OrderRow[] = orders.map((o) => {
     const late = o.dueAt !== null && o.dueAt < now;
-    const when = orderWhen(o, now);
+    const when = orderWhen(o, now, language);
     return {
       id: o.id,
       number: o.number,
@@ -75,12 +83,16 @@ async function Orders() {
   return (
     <>
       <dl className="grid grid-cols-3 border-b-2 border-ink">
-        <Tally name="Drafts" value={orders.filter((o) => o.status === "draft").length} />
-        <Tally name="On order" value={m.whole(placed.reduce((sum, o) => sum + o.totalCents, 0))} />
-        <Tally name="Late" value={rows.filter((r) => r.late).length} />
+        <Tally name={t.tallies[0]} value={orders.filter((o) => o.status === "draft").length} language={language} />
+        <Tally
+          name={t.tallies[1]}
+          value={m.whole(placed.reduce((sum, o) => sum + o.totalCents, 0))}
+          language={language}
+        />
+        <Tally name={t.tallies[2]} value={rows.filter((r) => r.late).length} language={language} />
       </dl>
-      <Suggestions suppliers={suggestions.suppliers} unsupplied={suggestions.unsupplied} m={m} />
-      <OrderTable rows={rows} money={money} />
+      <Suggestions suppliers={suggestions.suppliers} unsupplied={suggestions.unsupplied} m={m} f={f} t={t} />
+      <OrderTable rows={rows} money={money} language={language} />
     </>
   );
 }
@@ -93,40 +105,41 @@ function Suggestions({
   suppliers,
   unsupplied,
   m,
+  f,
+  t,
 }: {
   suppliers: SupplierSuggestion[];
   unsupplied: SuggestedLine[];
   m: MoneyFormat;
+  f: Formats;
+  t: OrdersCopy;
 }) {
   return (
     <section aria-labelledby="suggested-title" className="border-b-2 border-ink pt-6 pb-6">
       <div className="px-5 sm:px-8">
         <h2 id="suggested-title" className="text-lg font-bold">
-          Suggested orders
+          {t.suggested}
         </h2>
-        <p className="mt-1 max-w-prose text-sm text-ink-2">
-          From the forecast: what each supplier should send so stock, counting what&apos;s already on order, lasts their
-          lead time and 30 days more. A draft can still be changed; nothing is sent until an admin places it.
-        </p>
+        <p className="mt-1 max-w-prose text-sm text-ink-2">{t.suggestedHelp}</p>
       </div>
 
       {suppliers.length === 0 ? (
-        <p className="mt-4 px-5 font-semibold sm:px-8">Nothing to reorder.</p>
+        <p className="mt-4 px-5 font-semibold sm:px-8">{t.nothingToReorder}</p>
       ) : (
         <table className="mt-4 w-full border-collapse text-left max-md:block">
           <thead className="max-md:hidden">
             <tr className="border-b border-ink">
-              <Th>Supplier</Th>
-              <Th className="w-full">Products</Th>
-              <Th align="right">Cost</Th>
+              <Th>{t.supplier}</Th>
+              <Th className="w-full">{t.products}</Th>
+              <Th align="right">{t.cost}</Th>
               <Th>
-                <span className="sr-only">Action</span>
+                <span className="sr-only">{t.action}</span>
               </Th>
             </tr>
           </thead>
           <tbody className="max-md:block">
             {suppliers.map((s) => (
-              <SuggestionRow key={s.supplierId} suggestion={s} m={m} />
+              <SuggestionRow key={s.supplierId} suggestion={s} m={m} f={f} t={t} />
             ))}
           </tbody>
         </table>
@@ -134,7 +147,7 @@ function Suggestions({
 
       {unsupplied.length > 0 ? (
         <p className="mt-4 max-w-prose px-5 text-sm text-ink-2 sm:px-8">
-          Also running low, with no supplier to order from:{" "}
+          {t.unsupplied[0]}
           {unsupplied.map((line, i) => (
             <span key={line.productId}>
               {i > 0 ? ", " : null}
@@ -147,34 +160,44 @@ function Suggestions({
               </Link>
             </span>
           ))}
-          . An admin gives each one a supplier on its label.
+          {t.unsupplied[1]}
         </p>
       ) : null}
     </section>
   );
 }
 
-function SuggestionRow({ suggestion: s, m }: { suggestion: SupplierSuggestion; m: MoneyFormat }) {
+function SuggestionRow({
+  suggestion: s,
+  m,
+  f,
+  t,
+}: {
+  suggestion: SupplierSuggestion;
+  m: MoneyFormat;
+  f: Formats;
+  t: OrdersCopy;
+}) {
   const drafts = [...new Set(s.lines.flatMap((line) => (line.draftId === null ? [] : [line.draftId])))];
   return (
     <tr className="border-b border-hairline align-top last:border-b-0 max-md:grid max-md:grid-cols-2 max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8">
       <td className="py-3 pr-4 whitespace-nowrap max-md:col-span-2 max-md:p-0 md:pl-8">
         <p className="font-semibold">{s.supplierName}</p>
-        <p className="text-sm text-ink-3">{s.leadTimeDays}‑day lead time</p>
+        <p className="text-sm text-ink-3">{t.leadTime(f.count(s.leadTimeDays))}</p>
       </td>
       <td className="py-3 pr-4 max-md:col-span-2 max-md:p-0">
-        <MobileName>Products</MobileName>
+        <MobileName>{t.products}</MobileName>
         <ul className="text-sm">
           {s.lines.map((line) => (
             <li key={line.productId} className={line.draftId === null ? "" : "text-ink-3"}>
-              {line.name} × {formatCount(line.quantity)}
-              {line.draftId !== null ? <> · on {poNumber(line.draftId)}</> : null}
+              {line.name} × {f.count(line.quantity)}
+              {line.draftId !== null ? t.onDraft(poNumber(line.draftId)) : null}
             </li>
           ))}
         </ul>
       </td>
       <td className="tabular py-3 pr-4 text-right whitespace-nowrap max-md:p-0 max-md:text-left">
-        <MobileName>Cost</MobileName>
+        <MobileName>{t.cost}</MobileName>
         {s.toDraft > 0 ? (
           <span className="font-semibold">{m.money(s.totalCents)}</span>
         ) : (
@@ -183,10 +206,10 @@ function SuggestionRow({ suggestion: s, m }: { suggestion: SupplierSuggestion; m
       </td>
       <td className="py-2 whitespace-nowrap max-md:p-0 md:pr-8">
         {s.toDraft > 0 ? (
-          <DraftButton supplierId={s.supplierId} supplierName={s.supplierName} />
+          <DraftButton supplierId={s.supplierId} supplierName={s.supplierName} language={f.language} />
         ) : (
           <span className="text-sm text-ink-2">
-            On{" "}
+            {t.on}{" "}
             {drafts.map((id, i) => (
               <span key={id}>
                 {i > 0 ? ", " : null}
@@ -208,12 +231,12 @@ function SuggestionRow({ suggestion: s, m }: { suggestion: SupplierSuggestion; m
 }
 
 /** The same label, unprinted: tallies, the suggestions and the rows hold their space. */
-function OrdersPlaceholder() {
+function OrdersPlaceholder({ t }: { t: OrdersCopy }) {
   return (
     <div aria-hidden>
-      <TallyPlaceholder names={["Drafts", "On order", "Late"]} />
+      <TallyPlaceholder names={t.tallies} />
       <div className="border-b-2 border-ink px-5 pt-6 pb-6 sm:px-8">
-        <p className="text-lg font-bold">Suggested orders</p>
+        <p className="text-lg font-bold">{t.suggested}</p>
         <div className="mt-2 h-4 w-4/5 bg-liner/70" />
         <div className="mt-6 space-y-4">
           {Array.from({ length: 3 }, (_, i) => (

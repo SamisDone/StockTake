@@ -5,6 +5,8 @@ import { useActionState, useState } from "react";
 import { signIn } from "@/server/auth-actions";
 import { DEMO_ROLES } from "@/lib/demo-roles";
 import { initialFormState } from "@/server/form-state";
+import type { Language } from "@/lib/i18n";
+import { COMPONENT_COPY } from "./copy";
 
 /**
  * One tear-off stub: submits its form as that demo account. Used inside the login label
@@ -16,12 +18,14 @@ export function DemoStub({
   duty,
   busy,
   onPress,
+  language,
   divided = false,
 }: {
   role: string;
   label: string;
   duty: string;
   busy: boolean;
+  language: Language;
   onPress: () => void;
   divided?: boolean;
 }) {
@@ -54,7 +58,7 @@ export function DemoStub({
           aria-hidden={!busy}
           className={`col-start-1 row-start-1 font-semibold text-ink ${busy ? "" : "invisible"}`}
         >
-          Signing in…
+          {COMPONENT_COPY[language].signingIn}
         </span>
       </span>
     </button>
@@ -62,16 +66,16 @@ export function DemoStub({
 }
 
 /** The two demo accounts as a small label of their own: one click opens the app. */
-export function DemoDoors({ name = "Open the live demo" }: { name?: string }) {
+export function DemoDoors({ language, name }: { language: Language; name?: string }) {
   const [state, formAction, pending] = useActionState(signIn, initialFormState);
   const [via, setVia] = useState<string | null>(null);
 
   return (
     <form action={formAction} className="sheet overflow-hidden" aria-busy={pending}>
       <fieldset disabled={pending}>
-        <legend className="field-name px-6 pt-3">{name}</legend>
+        <legend className="field-name px-6 pt-3">{name ?? COMPONENT_COPY[language].openDemo}</legend>
         <div className="grid grid-cols-2">
-          {DEMO_ROLES.map(({ role, label, duty }, index) => (
+          {DEMO_ROLES[language].map(({ role, label, duty }, index) => (
             <DemoStub
               key={role}
               role={role}
@@ -79,6 +83,7 @@ export function DemoDoors({ name = "Open the live demo" }: { name?: string }) {
               duty={duty}
               busy={pending && via === role}
               onPress={() => setVia(role)}
+              language={language}
               divided={index > 0}
             />
           ))}

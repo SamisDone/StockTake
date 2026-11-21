@@ -8,15 +8,16 @@ import { getOrder } from "@/domain/purchase-orders";
 import { getOrderableProducts } from "@/domain/reorder";
 import { EditButton, LabelEditor } from "@/components/label-editor";
 import { Tally, TallyPlaceholder } from "@/components/stock";
-import { formatCount, formatDate, formatDays } from "@/lib/format";
+import { type Formats, formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
 import { moneyFormat } from "@/lib/money";
 import { centsToInput } from "@/lib/parse";
 import { getCurrentUser } from "@/server/dal";
-import { getMoneyPrefs } from "@/server/preferences";
+import { getLanguage, getMoneyPrefs } from "@/server/preferences";
 import { DraftForm } from "./draft-form";
 import { dayInput } from "./draft-values";
 import { OrderControls } from "./order-controls";
-import { STATUS_WORD } from "./status";
+import { ORDERS_COPY, type OrdersCopy } from "./copy";
 
 /** An order ID from the URL, or a 404 for anything that isn't one. */
 export function orderId(raw: string) {
@@ -36,7 +37,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  */
 export async function OrderLabel({ id, action }: { id: number; action: ReactNode }) {
   const user = await getCurrentUser();
-  const m = moneyFormat(await getMoneyPrefs());
+  const language = await getLanguage();
+  const t = ORDERS_COPY[language];
+  const f = formats(language);
+  const m = moneyFormat(await getMoneyPrefs(), language);
   await connection();
   const db = await getDb();
   const now = new Date();
@@ -60,45 +64,46 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
             {order.supplierName}
           </h1>
           <p className="mt-2 text-sm text-ink-2">
-            <span className="font-mono text-xs">{order.number}</span> · {STATUS_WORD[order.status]}
+            <span className="font-mono text-xs">{order.number}</span> · {t.status[order.status]}
           </p>
         </div>
         <div className="flex shrink-0 items-start gap-1">
-          {draft ? <EditButton /> : null}
+          {draft ? <EditButton language={language} /> : null}
           {action}
         </div>
       </header>
 
       <dl className="grid grid-cols-3 border-b-2 border-ink">
-        <Tally name="Lines" value={order.lines.length} />
-        <Tally name="Units" value={units} />
-        <Tally name="Total" value={m.money(order.totalCents)} />
+        <Tally name={t.labelTallies[0]} value={order.lines.length} language={language} />
+        <Tally name={t.labelTallies[1]} value={units} language={language} />
+        <Tally name={t.labelTallies[2]} value={m.money(order.totalCents)} language={language} />
       </dl>
 
-      <Status order={order} late={late} now={now} />
+      <Status order={order} late={late} now={now} f={f} t={t} />
 
       <OrderControls
         orderId={order.id}
         number={order.number}
         status={order.status}
         isAdmin={user.role === "admin"}
-        receipts={order.lines.map((line) => `+${formatCount(line.quantity)} ${line.name}`).join(", ")}
+        language={language}
+        receipts={order.lines.map((line) => `+${f.count(line.quantity)} ${line.name}`).join(", ")}
       />
 
       <section aria-labelledby="lines-title" className="pt-5">
         <h2 id="lines-title" className="px-5 text-lg font-bold sm:px-8">
-          Lines
+          {t.linesTitle}
         </h2>
         <table className="mt-3 w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-ink">
-              <LineTh className="w-full pl-5 sm:pl-8">Product</LineTh>
-              <LineTh align="right">Quantity</LineTh>
+              <LineTh className="w-full pl-5 sm:pl-8">{t.lineColumns.product}</LineTh>
+              <LineTh align="right">{t.lineColumns.quantity}</LineTh>
               <LineTh align="right" className="max-sm:hidden">
-                Unit cost
+                {t.lineColumns.unitCost}
               </LineTh>
               <LineTh align="right" className="pr-5 sm:pr-8">
-                Line total
+                {t.lineColumns.lineTotal}
               </LineTh>
             </tr>
           </thead>
@@ -115,7 +120,7 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
                   </Link>
                   <p className="font-mono text-xs text-ink-3">{line.sku}</p>
                 </td>
-                <td className="tabular py-2.5 pr-4 text-right">{formatCount(line.quantity)}</td>
+                <td className="tabular py-2.5 pr-4 text-right">{f.count(line.quantity)}</td>
                 <td className="tabular py-2.5 pr-4 text-right text-ink-2 max-sm:hidden">
                   {m.money(line.unitCostCents)}
                 </td>
@@ -126,39 +131,38 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
         </table>
         {/* The total, reverse-printed: the figure the order commits to. */}
         <div className="mt-3 flex items-baseline justify-between gap-4 bg-ink px-5 py-3 text-label sm:px-8">
-          <p className="font-semibold">Total</p>
+          <p className="font-semibold">{t.total}</p>
           <p className="print-display text-[1.75rem] sm:text-5xl">{m.money(order.totalCents)}</p>
         </div>
       </section>
 
       <section aria-labelledby="history-title" className="pt-5 pb-8">
         <h2 id="history-title" className="px-5 text-lg font-bold sm:px-8">
-          History
+          {t.history}
         </h2>
         <ol className="mt-2 px-5 text-sm sm:px-8">
-          <HistoryLine date={order.createdAt} now={now}>
-            Drafted by {order.createdByName}
+          <HistoryLine date={order.createdAt} now={now} f={f}>
+            {t.draftedBy(order.createdByName)}
           </HistoryLine>
           {order.orderedAt ? (
-            <HistoryLine date={order.orderedAt} now={now}>
-              Placed with {order.supplierName}
+            <HistoryLine date={order.orderedAt} now={now} f={f}>
+              {t.placedWith(order.supplierName)}
             </HistoryLine>
           ) : null}
           {order.receivedAt ? (
-            <HistoryLine date={order.receivedAt} now={now}>
-              Received: {formatCount(order.lines.length)} {order.lines.length === 1 ? "receipt" : "receipts"} booked
-              into stock
+            <HistoryLine date={order.receivedAt} now={now} f={f}>
+              {t.receivedLine(order.lines.length, f.count(order.lines.length))}
             </HistoryLine>
           ) : null}
           {order.cancelledAt ? (
-            <HistoryLine date={order.cancelledAt} now={now}>
-              Cancelled
+            <HistoryLine date={order.cancelledAt} now={now} f={f}>
+              {t.cancelledLine}
             </HistoryLine>
           ) : null}
         </ol>
         {order.notes ? (
           <div className="mt-3 px-5 sm:px-8">
-            <p className="field-name">Notes</p>
+            <p className="field-name">{t.notes}</p>
             <p className="mt-0.5 max-w-prose text-sm">{order.notes}</p>
           </div>
         ) : null}
@@ -168,23 +172,31 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
 
   if (!draft) return label;
   return (
-    <LabelEditor
-      gone="It's no longer a draft, so its lines can't be changed."
-      form={<DraftEditor order={order} now={now} action={action} />}
-    >
+    <LabelEditor gone={t.gone} form={<DraftEditor order={order} now={now} action={action} language={language} />}>
       {label}
     </LabelEditor>
   );
 }
 
 /** A draft's lines, notes and expected date, opened up for writing; its supplier stays. */
-async function DraftEditor({ order, now, action }: { order: Order; now: Date; action: ReactNode }) {
+async function DraftEditor({
+  order,
+  now,
+  action,
+  language,
+}: {
+  order: Order;
+  now: Date;
+  action: ReactNode;
+  language: Language;
+}) {
   const db = await getDb();
   const products = (await getOrderableProducts(db, now)).filter((p) => p.supplierId === order.supplierId);
   const catalog = new Map(products.map((p) => [p.id, p.unitCostCents]));
   return (
     <DraftForm
       money={await getMoneyPrefs()}
+      language={language}
       order={{ id: order.id, number: order.number }}
       suppliers={[{ id: order.supplierId, name: order.supplierName, leadTimeDays: order.leadTimeDays }]}
       products={products}
@@ -211,32 +223,24 @@ async function DraftEditor({ order, now, action }: { order: Order; now: Date; ac
  * Why the order is where it is, in one sentence. Late is the one state that needs
  * attention, so it's printed on yellow stock. Announced when an action changes it.
  */
-function Status({ order, late, now }: { order: Order; late: boolean; now: Date }) {
-  let lead: string;
-  let text: string;
+function Status({ order, late, now, f, t }: { order: Order; late: boolean; now: Date; f: Formats; t: OrdersCopy }) {
+  const s = t.statusText;
+  let said: { lead: string; text: string };
   if (order.status === "draft") {
-    lead = "Draft.";
-    text = `Nothing has been sent. Placing it sends it to ${order.supplierName}, and its units count as on order from then.${
-      order.expectedAt ? ` It's expected ${formatDate(order.expectedAt, now)}, the date they gave.` : ""
-    }`;
+    said = s.draft(order.supplierName, order.expectedAt ? f.date(order.expectedAt, now) : null);
   } else if (order.status === "ordered") {
-    const due = order.dueAt ? formatDate(order.dueAt, now) : null;
-    const basis = order.expectedAt ? "the date they gave" : `a ${order.leadTimeDays}‑day lead time`;
+    const due = order.dueAt ? f.date(order.dueAt, now) : "–";
+    const basis = order.expectedAt ? s.gaveDate : s.leadBasis(f.count(order.leadTimeDays));
     if (late && order.dueAt) {
-      lead = "Late.";
       const overdue = Math.max(1, Math.floor((now.getTime() - order.dueAt.getTime()) / DAY_MS));
-      text = `It was due ${due}, ${formatDays(overdue)} ago (${basis}). Receive it when it arrives, or cancel it.`;
+      said = s.late(due, f.days(overdue), basis);
     } else {
-      lead = "On its way.";
-      text = `Due ${due ?? "–"}, from ${basis}. Receiving it books every line into stock.`;
+      said = s.onItsWay(due, basis);
     }
-  } else if (order.status === "received") {
-    lead = "Received.";
-    text = "Each line was booked into stock as a receipt, and shows in its product's ledger.";
   } else {
-    lead = "Cancelled.";
-    text = "Nothing was received, and it can't be reopened.";
+    said = order.status === "received" ? s.received : s.cancelled;
   }
+  const { lead, text } = said;
 
   return (
     <div
@@ -252,10 +256,10 @@ function Status({ order, late, now }: { order: Order; late: boolean; now: Date }
   );
 }
 
-function HistoryLine({ date, now, children }: { date: Date; now: Date; children: ReactNode }) {
+function HistoryLine({ date, now, f, children }: { date: Date; now: Date; f: Formats; children: ReactNode }) {
   return (
     <li className="flex gap-4 border-b border-hairline py-2 last:border-b-0">
-      <span className="w-16 shrink-0 text-ink-2">{formatDate(date, now)}</span>
+      <span className="w-16 shrink-0 text-ink-2 lang-bn:w-24">{f.date(date, now)}</span>
       <span>{children}</span>
     </li>
   );
@@ -281,7 +285,7 @@ function LineTh({
 }
 
 /** The same label, unprinted, in the shape of what will print. */
-export function OrderLabelPlaceholder({ action }: { action?: ReactNode }) {
+export function OrderLabelPlaceholder({ language, action }: { language: Language; action?: ReactNode }) {
   return (
     <div aria-hidden>
       <div className="flex items-start justify-between gap-4 border-b-2 border-ink px-5 pt-6 pb-4 sm:px-8 sm:pt-8">
@@ -291,7 +295,7 @@ export function OrderLabelPlaceholder({ action }: { action?: ReactNode }) {
         </div>
         {action}
       </div>
-      <TallyPlaceholder names={["Lines", "Units", "Total"]} />
+      <TallyPlaceholder names={ORDERS_COPY[language].labelTallies} />
       <div className="border-b-2 border-ink px-5 py-3 sm:px-8">
         <div className="h-5 w-4/5 bg-liner/70" />
       </div>

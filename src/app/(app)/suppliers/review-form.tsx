@@ -4,8 +4,8 @@ import { Check, Star } from "lucide-react";
 import { useActionState, useState } from "react";
 import { Field, fieldProps } from "@/components/field";
 import { type ReviewFormState, removeReview, saveReview } from "@/server/supplier-actions";
-
-const WORDS = ["Poor", "Fair", "Good", "Very good", "Excellent"];
+import { type Language, localDigits } from "@/lib/i18n";
+import { SUPPLIERS_COPY } from "./copy";
 const initial: ReviewFormState = {};
 
 /**
@@ -16,12 +16,16 @@ const initial: ReviewFormState = {};
 export function ReviewForm({
   supplierId,
   supplierName,
+  language,
   mine,
 }: {
   supplierId: number;
   supplierName: string;
+  language: Language;
   mine: { rating: number; comment: string } | null;
 }) {
+  const t = SUPPLIERS_COPY[language].review;
+  const WORDS = t.words;
   const [saved, save, saving] = useActionState(saveReview, initial);
   const [removed, remove, removing] = useActionState(removeReview, initial);
   const pending = saving || removing;
@@ -51,11 +55,11 @@ export function ReviewForm({
     <form action={save} aria-busy={pending} className="mt-4">
       <input type="hidden" name="supplierId" value={supplierId} />
       <fieldset disabled={pending} className="min-w-0">
-        <legend className="sr-only">Your review of {supplierName}</legend>
+        <legend className="sr-only">{t.legend(supplierName)}</legend>
 
         <div className={`border-t border-ink px-5 pt-2.5 pb-2 sm:px-8 ${ratingError ? "bg-stock" : ""}`}>
           <fieldset aria-describedby={ratingError ? "rating-error" : undefined}>
-            <legend className={`field-name ${ratingError ? "text-ink" : ""}`}>Your rating</legend>
+            <legend className={`field-name ${ratingError ? "text-ink" : ""}`}>{t.yourRating}</legend>
             <div className="-ml-2.5 flex items-center" onPointerLeave={() => setHovered(null)}>
               {[1, 2, 3, 4, 5].map((n) => (
                 <label
@@ -69,7 +73,7 @@ export function ReviewForm({
                     value={n}
                     checked={rating === n}
                     onChange={() => setRating(n)}
-                    aria-label={`${n} ${n === 1 ? "star" : "stars"}, ${WORDS[n - 1].toLowerCase()}`}
+                    aria-label={t.star(n, localDigits(String(n), language), WORDS[n - 1])}
                     className="sr-only"
                   />
                   <Star
@@ -81,7 +85,7 @@ export function ReviewForm({
                 </label>
               ))}
               <span aria-hidden className="ml-2 min-w-20 text-sm font-semibold">
-                {shown > 0 ? WORDS[shown - 1] : ratingError ? "" : "Not rated"}
+                {shown > 0 ? WORDS[shown - 1] : ratingError ? "" : t.notRated}
               </span>
             </div>
             {ratingError ? (
@@ -93,14 +97,14 @@ export function ReviewForm({
         </div>
 
         <div className="border-y border-ink">
-          <Field name="comment" label="Comment" optional error={saved.fields?.comment}>
+          <Field name="comment" label={t.comment} language={language} optional error={saved.fields?.comment}>
             <textarea
               {...fieldProps("comment", { error: saved.fields?.comment })}
               defaultValue={saved.values?.comment ?? mine?.comment ?? ""}
               key={`${mine?.comment ?? ""}|${removed.done?.at ?? ""}`}
               maxLength={1000}
               rows={2}
-              placeholder={`How ${supplierName} has been to order from`}
+              placeholder={t.placeholder(supplierName)}
               className="field-input resize-y text-base font-normal placeholder:text-ink-3"
             />
           </Field>
@@ -115,9 +119,9 @@ export function ReviewForm({
         <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-3 px-5 pt-3 pb-5 sm:px-8">
           <p role="status" className="min-h-5 min-w-0 basis-full text-sm font-medium sm:flex-1 sm:basis-auto">
             {saving ? (
-              "Saving…"
+              t.saving
             ) : removing ? (
-              "Removing…"
+              t.removing
             ) : done ? (
               <span key={done.at} className="print-in flex items-start gap-1.5">
                 <Check aria-hidden size={16} strokeWidth={2.5} className="mt-0.5 shrink-0" />
@@ -132,7 +136,7 @@ export function ReviewForm({
               formNoValidate
               className="press-quiet min-h-12 rounded-control px-4 font-semibold text-ink-2 enabled:hover:bg-liner enabled:hover:text-ink max-sm:flex-1"
             >
-              Remove my review
+              {t.remove}
             </button>
           ) : null}
           <button
@@ -140,7 +144,7 @@ export function ReviewForm({
             className="group h-12 shrink-0 rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 enabled:hover:bg-ink-lift disabled:cursor-progress disabled:bg-ink-2 max-sm:flex-1"
           >
             <span className="inline-block transition-transform duration-150 ease-out group-enabled:group-active:scale-[0.96]">
-              {mine ? "Update review" : "Save review"}
+              {mine ? t.update : t.save}
             </span>
           </button>
         </div>

@@ -4,6 +4,7 @@ import type { Database } from "@/db/database";
 import { products, purchaseOrderLines, purchaseOrders, suppliers } from "@/db/schema";
 import { logActivity } from "./activity";
 import { type Actor, requireAdmin } from "./actor";
+import { said } from "./error-copy";
 import { DomainError, parseInput, violates } from "./errors";
 import { cents, containsPattern, id, optionalText, wholeUnits } from "./input";
 import { poNumber } from "./purchase-orders";
@@ -13,8 +14,8 @@ export const productInput = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .regex(/^[A-Z0-9][A-Z0-9._-]{0,31}$/, "Use up to 32 letters, numbers, dots, dashes or underscores."),
-  name: z.string().trim().min(1, "Enter a name.").max(120),
+    .regex(/^[A-Z0-9][A-Z0-9._-]{0,31}$/, "skuFormat"),
+  name: z.string().trim().min(1, "enterName").max(120),
   description: optionalText(2000),
   category: optionalText(60),
   supplierId: id.nullable().optional(),
@@ -28,12 +29,12 @@ export type ProductInput = z.input<typeof productInput>;
 async function assertSupplierExists(db: Database, supplierId: number | null | undefined) {
   if (supplierId == null) return;
   const [supplier] = await db.select({ id: suppliers.id }).from(suppliers).where(eq(suppliers.id, supplierId));
-  if (!supplier) throw new DomainError("not_found", "That supplier doesn't exist.", "supplierId");
+  if (!supplier) throw new DomainError("not_found", said("noSupplier"), "supplierId");
 }
 
 function skuConflict(error: unknown): never {
   if (violates(error, "UNIQUE constraint failed: products.sku")) {
-    throw new DomainError("conflict", "Another product already uses that SKU.", "sku");
+    throw new DomainError("conflict", said("skuTaken"), "sku");
   }
   throw error;
 }
@@ -54,7 +55,7 @@ function toRow(input: z.output<typeof productInput>) {
 
 /** Adds a product with no stock; opening stock is recorded as a count. Admin-only. */
 export async function createProduct(db: Database, actor: Actor, raw: ProductInput, now = new Date()) {
-  requireAdmin(actor, "add products");
+  requireAdmin(actor, "addProducts");
   const input = parseInput(productInput, raw);
   await assertSupplierExists(db, input.supplierId);
 
@@ -72,7 +73,7 @@ export async function createProduct(db: Database, actor: Actor, raw: ProductInpu
           entityType: "product",
           // Inside the atomic batch, the new product is max(id); see createDraft.
           entityId: sql<number>`(SELECT max(${products.id}) FROM ${products})`,
-          summary: `Added ${input.name} (${input.sku})`,
+          facts: { name: input.name, sku: input.sku },
         },
         now,
       ),
@@ -88,7 +89,7 @@ async function loadProduct(db: Database, productId: number) {
     .select({ id: products.id, name: products.name })
     .from(products)
     .where(eq(products.id, productId));
-  if (!product) throw new DomainError("not_found", "That product doesn't exist.");
+  if (!product) throw new DomainError("not_found", said("noProduct"));
   return product;
 }
 
@@ -100,7 +101,7 @@ export async function updateProduct(
   raw: ProductInput,
   now = new Date(),
 ) {
-  requireAdmin(actor, "edit products");
+  requireAdmin(actor, "editProducts");
   const input = parseInput(productInput, raw);
   await loadProduct(db, productId);
   await assertSupplierExists(db, input.supplierId);
@@ -111,7 +112,7 @@ export async function updateProduct(
       logActivity(
         db,
         actor,
-        { action: "product.updated", entityType: "product", entityId: productId, summary: `Updated ${input.name}` },
+        { action: "product.updated", entityType: "product", entityId: productId, facts: { name: input.name } },
         now,
       ),
     ]);
@@ -129,17 +130,14 @@ async function assertNoOpenOrders(db: Database, product: { id: number; name: str
     .where(and(eq(purchaseOrderLines.productId, product.id), inArray(purchaseOrders.status, ["draft", "ordered"])))
     .orderBy(asc(purchaseOrders.id));
   if (open.length === 0) return;
-  const numbers = open.map((order) => poNumber(order.id));
-  const list = numbers.length === 1 ? numbers[0] : `${numbers.slice(0, -1).join(", ")} and ${numbers.at(-1)}`;
-  const [verb, pronoun] = numbers.length === 1 ? ["is", "it"] : ["are", "them"];
   throw new DomainError(
     "invalid_state",
-    `${product.name} is on ${list}, which ${verb} still open. Receive or cancel ${pronoun} first.`,
+    said("productOnOpenOrders", { product: product.name, orders: open.map((order) => poNumber(order.id)) }),
   );
 }
 
 async function setArchived(db: Database, actor: Actor, productId: number, archived: boolean, now: Date) {
-  requireAdmin(actor, archived ? "archive products" : "restore products");
+  requireAdmin(actor, archived ? "archiveProducts" : "restoreProducts");
   const product = await loadProduct(db, productId);
   if (archived) await assertNoOpenOrders(db, product);
   try {
@@ -155,7 +153,7 @@ async function setArchived(db: Database, actor: Actor, productId: number, archiv
           action: archived ? "product.archived" : "product.restored",
           entityType: "product",
           entityId: productId,
-          summary: `${archived ? "Archived" : "Restored"} ${product.name}`,
+          facts: { name: product.name },
         },
         now,
       ),
@@ -225,7 +223,7 @@ export async function getProduct(db: Database, productId: number) {
     .from(products)
     .leftJoin(suppliers, eq(suppliers.id, products.supplierId))
     .where(eq(products.id, productId));
-  if (!product) throw new DomainError("not_found", "That product doesn't exist.");
+  if (!product) throw new DomainError("not_found", said("noProduct"));
   return product;
 }
 

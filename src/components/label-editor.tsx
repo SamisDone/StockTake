@@ -2,6 +2,8 @@
 
 import { Pencil } from "lucide-react";
 import { createContext, use, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import type { Language } from "@/lib/i18n";
+import { COMPONENT_COPY } from "./copy";
 
 type Editor = {
   /** Swap the printed label for the form. */
@@ -102,7 +104,7 @@ export function LabelEditor({
 }
 
 /** Opens the label's form. Sits in the header, beside the way out. */
-export function EditButton() {
+export function EditButton({ language }: { language: Language }) {
   const editor = useLabelEditor();
   if (!editor) return null;
   return (
@@ -113,7 +115,7 @@ export function EditButton() {
       className="press-quiet -mt-3 flex min-h-11 shrink-0 items-center gap-1.5 rounded-control px-3 text-sm font-semibold text-ink-2 hover:bg-liner hover:text-ink"
     >
       <Pencil aria-hidden size={18} strokeWidth={2.25} />
-      Edit
+      {COMPONENT_COPY[language].edit}
     </button>
   );
 }

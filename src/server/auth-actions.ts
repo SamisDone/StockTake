@@ -8,10 +8,12 @@ import { authenticate, createSession, findUserByEmail, invalidateSession } from 
 import { DEMO_USERS } from "@/seed/accounts";
 import { type FormState, field } from "./form-state";
 import { LOGIN_PATH, SESSION_COOKIE, looksLikeSessionToken, safeNextPath, sessionCookie } from "./session-cookie";
+import { ACTION_COPY } from "./action-copy";
+import { getLanguage } from "./preferences";
 
 const credentials = z.object({
-  email: z.string().trim().min(1, "Enter your email address.").max(320),
-  password: z.string().min(1, "Enter your password.").max(200),
+  email: z.string().trim().min(1, "enterEmail").max(320),
+  password: z.string().min(1, "enterPassword").max(200),
 });
 
 /**
@@ -22,12 +24,13 @@ const credentials = z.object({
  * PBKDF2 hash, most of the free plan's CPU budget for the request.
  */
 export async function signIn(_previous: FormState, formData: FormData): Promise<FormState> {
+  const t = ACTION_COPY[await getLanguage()];
   const demo = DEMO_USERS.find((user) => user.role === field(formData, "demo"));
   if (demo) {
     const user = await findUserByEmail(await getDb(), demo.email);
     if (!user) {
       return {
-        error: { message: "The demo account isn't set up on this database. Run the demo seed first." },
+        error: { message: t.noDemo },
         values: { email: "" },
       };
     }
@@ -39,16 +42,15 @@ export async function signIn(_previous: FormState, formData: FormData): Promise<
   const parsed = credentials.safeParse({ email, password: field(formData, "password") });
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    return { error: { message: issue.message, field: String(issue.path[0]) }, values };
+    const message = issue.message === "enterPassword" ? t.enterPassword : t.enterEmail;
+    return { error: { message, field: String(issue.path[0]) }, values };
   }
 
   const user = await authenticate(await getDb(), parsed.data.email, parsed.data.password);
   // One message for both cases, so the form doesn't reveal which emails have accounts.
   if (!user) {
     return {
-      error: {
-        message: "That email and password don't match an account. Check the password, or use a demo account above.",
-      },
+      error: { message: t.wrongPassword },
       values,
     };
   }

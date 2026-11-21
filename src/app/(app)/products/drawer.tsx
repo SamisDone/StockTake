@@ -13,7 +13,7 @@ import { useLayoutEffect, useRef, type ReactNode } from "react";
  * as it opens (`@starting-style`) and pushed back before the route changes, so an open
  * or close can be interrupted midway and the list beneath never moves.
  */
-export function Drawer({ children }: { children: ReactNode }) {
+export function Drawer({ closeLabel, children }: { closeLabel: string; children: ReactNode }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -73,7 +73,7 @@ export function Drawer({ children }: { children: ReactNode }) {
           className="absolute top-3 right-2 z-10 flex min-h-11 items-center gap-1.5 rounded-control bg-label px-3 text-sm font-semibold text-ink-2 press-quiet hover:bg-liner hover:text-ink sm:top-5 sm:right-5"
         >
           <X aria-hidden size={18} strokeWidth={2.25} />
-          Close
+          {closeLabel}
         </button>
         <div className="h-full overflow-y-auto overscroll-contain">{children}</div>
       </div>

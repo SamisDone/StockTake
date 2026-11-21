@@ -29,7 +29,13 @@ export function looksLikeSessionToken(value: string | undefined): value is strin
   return value !== undefined && TOKEN_SHAPE.test(value);
 }
 
-const PUBLIC_PATHS = new Set<string>(["/", "/login"]);
+const PUBLIC_PATHS = new Set<string>(["/", "/login", "/bn", "/bn/login"]);
+
+/**
+ * The signed-out pages are prerendered in each language: the English one at its plain
+ * path, the Bangla one under /bn. A Bangla reader asking for the plain path gets the twin.
+ */
+export const BANGLA_TWINS: Record<string, string> = { "/": "/bn", "/login": "/bn/login" };
 
 /** Pages a signed-out visitor may see. Everything else is the app and needs a session. */
 export function isPublicPath(pathname: string) {

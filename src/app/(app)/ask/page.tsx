@@ -6,28 +6,33 @@ import { getDb } from "@/db/client";
 import { PageHeader } from "@/components/page-header";
 import { PageTransition, Reveal } from "@/components/transitions";
 import { getCurrentUser } from "@/server/dal";
-import { getMoneyPrefs } from "@/server/preferences";
+import { getLanguage, getMoneyPrefs } from "@/server/preferences";
+import type { Language } from "@/lib/i18n";
+import { ASK_COPY } from "./copy";
 import { Conversation } from "./conversation";
 
-export const metadata: Metadata = { title: "Ask" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: ASK_COPY[await getLanguage()].title };
+}
 
-export default function AskPage() {
+export default async function AskPage() {
+  const language = await getLanguage();
   return (
     <PageTransition>
-      <PageHeader title="Ask" />
+      <PageHeader title={ASK_COPY[language].title} />
       <Reveal fallback={<AskPlaceholder />}>
-        <AskLoaded />
+        <AskLoaded language={language} />
       </Reveal>
     </PageTransition>
   );
 }
 
 /** The conversation starts with what the person can still ask today. */
-async function AskLoaded() {
+async function AskLoaded({ language }: { language: Language }) {
   const user = await getCurrentUser();
   await connection();
   const [allowance, money] = await Promise.all([getAllowance(await getDb(), user.id, new Date()), getMoneyPrefs()]);
-  return <Conversation initialAllowance={toWire(allowance)} money={money} />;
+  return <Conversation initialAllowance={toWire(allowance)} money={money} language={language} />;
 }
 
 /** The intro and the question field, unprinted, holding their space while the session is read. */

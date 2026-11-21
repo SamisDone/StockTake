@@ -40,4 +40,11 @@ describe("explainStock", () => {
       "None on hand, and 40 on order not yet received.",
     );
   });
+
+  it("explains in Bangla, with Bangla digits", () => {
+    expect(explainStock(base, "bn")).toBe(
+      "মজুত ১২০, দিনে ৩টি বিক্রিতে চলবে ৪০ দিন, যা ১৪ দিনের সরবরাহ সময় পেরিয়ে যায়।",
+    );
+    expect(explainStock({ ...base, status: "out", onHand: 0 }, "bn")).toBe("মজুত নেই, অর্ডারেও নেই।");
+  });
 });

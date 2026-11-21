@@ -3,22 +3,26 @@ import { connection } from "next/server";
 import { getDb } from "@/db/client";
 import Link from "next/link";
 import { type StockForecast, getStockForecasts } from "@/domain/forecast";
-import { formatCount } from "@/lib/format";
+import { type Formats, formats } from "@/lib/format";
+import type { Copy, Language } from "@/lib/i18n";
 import { type MoneyFormat, moneyFormat } from "@/lib/money";
 import { PageHeader } from "@/components/page-header";
 import { CoverBar, MobileName, StatusMark, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
 import { getCurrentUser } from "@/server/dal";
-import { getMoneyPrefs } from "@/server/preferences";
+import { getLanguage, getMoneyPrefs } from "@/server/preferences";
 
-export const metadata: Metadata = { title: "Dashboard" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: COPY[await getLanguage()].title };
+}
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const language = await getLanguage();
   return (
     <PageTransition>
-      <PageHeader title="Dashboard" />
-      <Reveal fallback={<AttentionPlaceholder />}>
-        <Attention />
+      <PageHeader title={COPY[language].title} />
+      <Reveal fallback={<AttentionPlaceholder t={COPY[language]} />}>
+        <Attention language={language} />
       </Reveal>
     </PageTransition>
   );
@@ -26,12 +30,14 @@ export default function DashboardPage() {
 
 type Forecast = StockForecast;
 
-async function Attention() {
+async function Attention({ language }: { language: Language }) {
+  const t = COPY[language];
+  const f = formats(language);
   await getCurrentUser();
   // Forecasts are relative to now, so they belong to the request, never to a prerender.
   await connection();
   const forecasts = await getStockForecasts(await getDb());
-  const m = moneyFormat(await getMoneyPrefs());
+  const m = moneyFormat(await getMoneyPrefs(), language);
   const attention = forecasts.filter((f) => f.status !== "ok");
   const out = attention.filter((f) => f.status === "out").length;
   const reorderCost = attention.reduce((sum, f) => sum + f.suggestedQuantity * f.unitCostCents, 0);
@@ -39,32 +45,28 @@ async function Attention() {
   return (
     <>
       <dl className="grid grid-cols-3 border-b-2 border-ink">
-        <Tally name="Out of stock" value={out} />
-        <Tally name="Reorder now" value={attention.length - out} />
-        <Tally name="Cost to reorder" value={m.whole(reorderCost)} />
+        <Tally name={t.tallies[0]} value={out} language={language} />
+        <Tally name={t.tallies[1]} value={attention.length - out} language={language} />
+        <Tally name={t.tallies[2]} value={m.whole(reorderCost)} language={language} />
       </dl>
 
       <section aria-labelledby="attention-title" className="pt-6 pb-8">
         <h2 id="attention-title" className="px-5 text-lg font-bold sm:px-8">
-          Needs attention
+          {t.attention}
         </h2>
         {attention.length === 0 ? (
-          <p className="mt-2 max-w-prose px-5 text-ink-2 sm:px-8">
-            Nothing to reorder. Every product has more stock, counting what&apos;s already on order, than it will sell
-            before its supplier could deliver.
-          </p>
+          <p className="mt-2 max-w-prose px-5 text-ink-2 sm:px-8">{t.nothing}</p>
         ) : (
           <>
             <p className="mt-1 max-w-prose px-5 text-sm text-ink-2 sm:px-8">
-              Cover is how long stock lasts at the last 28 days&apos; sales. The mark on each bar is the supplier&apos;s
-              lead time: cover short of it runs out before a new order can arrive.{" "}
+              {t.coverHelp}{" "}
               <Link
                 href="/orders"
                 prefetch={false}
                 transitionTypes={NAV_FORWARD}
                 className="font-semibold text-ink underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
               >
-                Draft the orders
+                {t.draft}
               </Link>
             </p>
             {/* A table from md up, running to the sheet's edges so a row's hover fill does too;
@@ -72,16 +74,16 @@ async function Attention() {
             <table className="mt-4 w-full border-collapse text-left max-md:block">
               <thead className="max-md:hidden">
                 <tr className="border-b border-ink">
-                  <Th>Product</Th>
-                  <Th align="right">On hand</Th>
-                  <Th align="right">On order</Th>
-                  <Th className="w-[30%]">Cover</Th>
-                  <Th align="right">Suggested order</Th>
+                  <Th>{t.product}</Th>
+                  <Th align="right">{t.onHand}</Th>
+                  <Th align="right">{t.onOrder}</Th>
+                  <Th className="w-[30%]">{t.cover}</Th>
+                  <Th align="right">{t.suggested}</Th>
                 </tr>
               </thead>
               <tbody className="max-md:block max-md:border-t max-md:border-ink">
-                {attention.map((f) => (
-                  <AttentionRow key={f.id} forecast={f} m={m} />
+                {attention.map((row) => (
+                  <AttentionRow key={row.id} forecast={row} m={m} f={f} t={t} />
                 ))}
               </tbody>
             </table>
@@ -92,43 +94,53 @@ async function Attention() {
   );
 }
 
-function AttentionRow({ forecast: f, m }: { forecast: Forecast; m: MoneyFormat }) {
-  const suggestedCost = f.suggestedQuantity * f.unitCostCents;
+function AttentionRow({
+  forecast: row,
+  m,
+  f,
+  t,
+}: {
+  forecast: Forecast;
+  m: MoneyFormat;
+  f: Formats;
+  t: DashboardCopy;
+}) {
+  const suggestedCost = row.suggestedQuantity * row.unitCostCents;
 
   return (
     <tr className="relative border-b border-hairline align-top transition-colors duration-150 last:border-b-0 hover:bg-liner/60 max-md:grid max-md:grid-cols-[4.5rem_minmax(0,1fr)_6.5rem] max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8">
       <td className="py-3 pr-4 max-md:col-span-3 max-md:p-0 md:pl-8">
         <div className="flex items-baseline gap-2">
-          <StatusMark status={f.status} />
+          <StatusMark status={row.status} language={f.language} />
           {/* The name links to the product; its hit area stretches over the whole row. */}
           <Link
-            href={`/products/${f.id}`}
+            href={`/products/${row.id}`}
             prefetch={false}
             transitionTypes={NAV_FORWARD}
             className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
           >
-            {f.name}
+            {row.name}
           </Link>
         </div>
         <p className="mt-0.5 text-sm text-ink-3">
-          <span className="font-mono text-xs">{f.sku}</span>
-          {f.supplierName ? <> · {f.supplierName}</> : null}
+          <span className="font-mono text-xs">{row.sku}</span>
+          {row.supplierName ? <> · {row.supplierName}</> : null}
         </p>
       </td>
       <td className="tabular py-3 pr-4 text-right text-lg font-semibold max-md:p-0 max-md:text-left">
-        <MobileName>On hand</MobileName>
-        {formatCount(f.onHand)}
+        <MobileName>{t.onHand}</MobileName>
+        {f.count(row.onHand)}
       </td>
       <td className="tabular py-3 pr-4 text-right text-ink-2 max-md:hidden">
-        {f.onOrder > 0 ? formatCount(f.onOrder) : "–"}
+        {row.onOrder > 0 ? f.count(row.onOrder) : "–"}
       </td>
       <td className="py-3 pr-6 max-md:p-0">
-        <MobileName>Cover</MobileName>
-        <CoverBar daysOfCover={f.daysOfCover} leadTimeDays={f.leadTimeDays} />
+        <MobileName>{t.cover}</MobileName>
+        <CoverBar daysOfCover={row.daysOfCover} leadTimeDays={row.leadTimeDays} language={f.language} />
       </td>
       <td className="tabular py-3 text-right max-md:p-0 max-md:text-left md:pr-8">
-        <MobileName>Order</MobileName>
-        <span className="font-semibold">{formatCount(f.suggestedQuantity)} units</span>
+        <MobileName>{t.order}</MobileName>
+        <span className="font-semibold">{t.units(f.count(row.suggestedQuantity))}</span>
         <p className="text-sm text-ink-2">{m.money(suggestedCost)}</p>
       </td>
     </tr>
@@ -136,10 +148,10 @@ function AttentionRow({ forecast: f, m }: { forecast: Forecast; m: MoneyFormat }
 }
 
 /** The same label, unprinted: the tally fields and rows hold their space while data loads. */
-function AttentionPlaceholder() {
+function AttentionPlaceholder({ t }: { t: DashboardCopy }) {
   return (
     <div aria-hidden>
-      <TallyPlaceholder names={["Out of stock", "Reorder now", "Cost to reorder"]} />
+      <TallyPlaceholder names={t.tallies} />
       <div className="px-5 pt-6 sm:px-8">
         <div className="h-5 w-36 bg-liner" />
         <div className="mt-6 space-y-5">
@@ -151,3 +163,43 @@ function AttentionPlaceholder() {
     </div>
   );
 }
+
+const en = {
+  title: "Dashboard",
+  tallies: ["Out of stock", "Reorder now", "Cost to reorder"],
+  attention: "Needs attention",
+  nothing:
+    "Nothing to reorder. Every product has more stock, counting what's already on order, than it will sell before its supplier could deliver.",
+  coverHelp:
+    "Cover is how long stock lasts at the last 28 days' sales. The mark on each bar is the supplier's lead time: cover short of it runs out before a new order can arrive.",
+  draft: "Draft the orders",
+  product: "Product",
+  onHand: "On hand",
+  onOrder: "On order",
+  cover: "Cover",
+  suggested: "Suggested order",
+  order: "Order",
+  units: (n: string) => `${n} units`,
+};
+type DashboardCopy = typeof en;
+
+const COPY: Copy<DashboardCopy> = {
+  en,
+  bn: {
+    title: "ড্যাশবোর্ড",
+    tallies: ["স্টক শেষ", "এখনই অর্ডার দিন", "অর্ডারের খরচ"],
+    attention: "নজর দরকার",
+    nothing:
+      "এখন কিছু অর্ডার করার নেই। অর্ডারে থাকা মাল ধরে প্রতিটি পণ্যের মজুত সরবরাহকারীর পৌঁছানোর আগ পর্যন্ত বিক্রির চেয়ে বেশি।",
+    coverHelp:
+      "চলবে মানে গত ২৮ দিনের বিক্রির হারে মজুত কত দিন টিকবে। প্রতিটি বারের খাড়া দাগটি সরবরাহকারীর সরবরাহ সময়: যার মজুত সেই দাগের আগেই ফুরায়, নতুন অর্ডার পৌঁছানোর আগে তা শেষ হয়ে যাবে।",
+    draft: "অর্ডারের খসড়া করুন",
+    product: "পণ্য",
+    onHand: "মজুত",
+    onOrder: "অর্ডারে",
+    cover: "চলবে",
+    suggested: "প্রস্তাবিত অর্ডার",
+    order: "অর্ডার",
+    units: (n) => `${n} ইউনিট`,
+  },
+};

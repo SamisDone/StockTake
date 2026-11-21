@@ -18,20 +18,26 @@ import { FilterLink, FilterRow, FilterRowPlaceholder } from "@/components/filter
 import { PageHeader } from "@/components/page-header";
 import { FOUR_TALLIES, MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
-import { formatChange, formatCount, formatDate, formatDay, formatDays } from "@/lib/format";
+import { type Formats, formats } from "@/lib/format";
+import { type Language, localDigits } from "@/lib/i18n";
 import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { getCurrentUser } from "@/server/dal";
-import { getMoneyPrefs } from "@/server/preferences";
+import { getLanguage, getMoneyPrefs } from "@/server/preferences";
+import { ANALYTICS_COPY, type AnalyticsCopy } from "./copy";
 import { SalesChart } from "./sales-chart";
 
-export const metadata: Metadata = { title: "Analytics" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: ANALYTICS_COPY[await getLanguage()].title };
+}
 
-export default function AnalyticsPage({ searchParams }: PageProps<"/analytics">) {
+export default async function AnalyticsPage({ searchParams }: PageProps<"/analytics">) {
+  const language = await getLanguage();
+  const t = ANALYTICS_COPY[language];
   return (
     <PageTransition>
-      <PageHeader title="Analytics" />
-      <Reveal fallback={<ReportPlaceholder />}>
-        <Report searchParams={searchParams} />
+      <PageHeader title={t.title} />
+      <Reveal fallback={<ReportPlaceholder t={t} />}>
+        <Report searchParams={searchParams} language={language} />
       </Reveal>
     </PageTransition>
   );
@@ -42,20 +48,26 @@ const one = (value: string | string[] | undefined) => (Array.isArray(value) ? va
 /** The plain URL is the first period, so only the other one carries a query. */
 const periodHref = (days: PeriodDays) => (days === PERIODS[0] ? "/analytics" : `/analytics?period=${days}`) as Route;
 
-const TALLY_NAMES = ["Sales", "Gross margin", "Stock at cost", "Lost stock"];
-
 /**
  * A period's trading read straight off the ledger. The period lives in the URL, so any
  * view can be shared.
  */
-async function Report({ searchParams }: { searchParams: PageProps<"/analytics">["searchParams"] }) {
+async function Report({
+  searchParams,
+  language,
+}: {
+  searchParams: PageProps<"/analytics">["searchParams"];
+  language: Language;
+}) {
   await getCurrentUser();
+  const t = ANALYTICS_COPY[language];
+  const f = formats(language);
   const days = readPeriod(one((await searchParams).period));
   // The period ends now.
   await connection();
   const now = new Date();
   const [analytics, money] = await Promise.all([getAnalytics(await getDb(), days, now), getMoneyPrefs()]);
-  const m = moneyFormat(money);
+  const m = moneyFormat(money, language);
   const { sales, stock } = analytics;
   const lost = stock.writtenOff.costCents + stock.countShort.costCents - stock.countFound.costCents;
   // Counts can find more than they miss; the note says which way they came out.
@@ -64,65 +76,60 @@ async function Report({ searchParams }: { searchParams: PageProps<"/analytics">[
   return (
     <>
       <div className="flex flex-wrap items-end justify-between gap-x-6 border-b-2 border-ink">
-        <FilterRow legend="Period">
+        <FilterRow legend={t.period}>
           {PERIODS.map((p) => (
             <FilterLink key={p} href={periodHref(p)} current={p === days}>
-              Last {p} days
+              {t.lastDays(f.count(p))}
             </FilterLink>
           ))}
         </FilterRow>
-        <p className="px-5 pb-3.5 text-sm text-ink-2 sm:px-8">
-          {formatDate(analytics.from, now)} to today · days are UTC
-        </p>
+        <p className="px-5 pb-3.5 text-sm text-ink-2 sm:px-8">{t.toToday(f.date(analytics.from, now))}</p>
       </div>
 
       {/* A new period is new content in the same place: the old tears off, the new prints in. */}
       <ViewTransition key={days} enter="print" exit="tear" default="none">
         <div>
           <dl className={`grid border-b-2 border-ink ${FOUR_TALLIES}`}>
-            <Tally name="Sales" value={m.whole(sales.valueCents)}>
-              <Note>{formatCount(sales.units)} units at list price</Note>
+            <Tally name={t.tallies[0]} value={m.whole(sales.valueCents)} language={language}>
+              <Note>{t.atList(f.count(sales.units))}</Note>
             </Tally>
-            <Tally name="Gross margin" value={m.whole(sales.marginCents)}>
+            <Tally name={t.tallies[1]} value={m.whole(sales.marginCents)} language={language}>
               <Note>
                 {sales.valueCents > 0
-                  ? `${Math.round((sales.marginCents / sales.valueCents) * 100)}% of sales`
-                  : "No sales"}
+                  ? t.ofSales(f.count(Math.round((sales.marginCents / sales.valueCents) * 100)))
+                  : t.noSales}
               </Note>
             </Tally>
-            <Tally name="Stock at cost" value={m.whole(stock.onHand.costCents)}>
-              <Note>{formatCount(stock.onHand.units)} units on hand</Note>
+            <Tally name={t.tallies[2]} value={m.whole(stock.onHand.costCents)} language={language}>
+              <Note>{t.unitsOnHand(f.count(stock.onHand.units))}</Note>
             </Tally>
-            <Tally name="Lost stock" value={m.whole(lost)}>
-              <Note>
-                {formatCount(stock.writtenOff.units)} written off, {formatCount(Math.abs(netShort))} net{" "}
-                {netShort < 0 ? "over" : "short"} in counts
-              </Note>
+            <Tally name={t.tallies[3]} value={m.whole(lost)} language={language}>
+              <Note>{t.lostNote(f.count(stock.writtenOff.units), f.count(Math.abs(netShort)), netShort < 0)}</Note>
             </Tally>
           </dl>
 
-          <Statement analytics={analytics} now={now} m={m} />
-          <Sales analytics={analytics} now={now} money={money} m={m} />
-          <Categories analytics={analytics} m={m} />
+          <Statement analytics={analytics} now={now} m={m} f={f} t={t} />
+          <Sales analytics={analytics} now={now} money={money} m={m} f={f} t={t} />
+          <Categories analytics={analytics} m={m} f={f} t={t} />
           <div className="grid lg:grid-cols-2">
             <ProductList
               id="best"
-              title="Best sellers"
-              note="By sales at list price, net of returns."
-              empty="Nothing sold in this period."
+              title={t.best}
+              note={t.bestNote}
+              empty={t.bestEmpty}
               products={analytics.best}
-              figure={(p) => ({ value: m.whole(p.salesCents), detail: `${formatCount(p.netSold)} units` })}
+              figure={(p) => ({ value: m.whole(p.salesCents), detail: t.unitsSold(f.count(p.netSold)) })}
             />
             <ProductList
               id="slowest"
-              title="Slowest to sell"
-              note="Active products whose stock lasts longest at this period's sales."
-              empty="No active product has stock."
+              title={t.slowest}
+              note={t.slowestNote}
+              empty={t.slowestEmpty}
               products={analytics.slowest}
               className="border-ink max-lg:border-t lg:border-l"
               figure={(p) => ({
-                value: p.lastsDays === null ? "No sales" : formatDays(p.lastsDays),
-                detail: `${formatCount(p.onHand)} on hand · ${m.whole(p.stockCents)}`,
+                value: p.lastsDays === null ? t.noSales : f.days(p.lastsDays),
+                detail: t.onHandValue(f.count(p.onHand), m.whole(p.stockCents)),
               })}
             />
           </div>
@@ -170,15 +177,27 @@ type Line = { name: string; sign: 1 | -1; amount: Amount };
  * to, with each line's bar floating from the running total before it to the one after,
  * all on one scale. The foot checks the sum against the products' own on-hand counts.
  */
-function Statement({ analytics, now, m }: { analytics: Analytics; now: Date; m: MoneyFormat }) {
+function Statement({
+  analytics,
+  now,
+  m,
+  f,
+  t,
+}: {
+  analytics: Analytics;
+  now: Date;
+  m: MoneyFormat;
+  f: Formats;
+  t: AnalyticsCopy;
+}) {
   const { stock, from } = analytics;
   const lines: Line[] = [
-    { name: "Received", sign: 1, amount: stock.received },
-    { name: "Returned", sign: 1, amount: stock.returned },
-    { name: "Sold", sign: -1, amount: stock.sold },
-    { name: "Written off", sign: -1, amount: stock.writtenOff },
-    { name: "Found in counts", sign: 1, amount: stock.countFound },
-    { name: "Short in counts", sign: -1, amount: stock.countShort },
+    { name: t.lines.received, sign: 1, amount: stock.received },
+    { name: t.lines.returned, sign: 1, amount: stock.returned },
+    { name: t.lines.sold, sign: -1, amount: stock.sold },
+    { name: t.lines.writtenOff, sign: -1, amount: stock.writtenOff },
+    { name: t.lines.found, sign: 1, amount: stock.countFound },
+    { name: t.lines.short, sign: -1, amount: stock.countShort },
   ];
 
   // Running totals in units: where each line's bar starts and ends.
@@ -194,36 +213,29 @@ function Statement({ analytics, now, m }: { analytics: Analytics; now: Date; m: 
   return (
     <Zone
       id="statement"
-      title="Stock, from the ledger"
+      title={t.statement}
       note={
         <>
-          What was on the shelves on {formatDate(from, now)}, plus every movement the ledger recorded since, is
-          what&apos;s on hand now. Money is at today&apos;s unit costs
-          {m.currency === "BDT" ? " and today's taka rate" : ""}.
-          {analytics.startsInside && analytics.ledgerStart ? (
-            <>
-              {" "}
-              The ledger starts on {formatDate(analytics.ledgerStart, now)}, inside this period, so it opens at zero.
-            </>
-          ) : null}
+          {t.statementNote(f.date(from, now), m.currency === "BDT")}
+          {analytics.startsInside && analytics.ledgerStart ? t.startsInside(f.date(analytics.ledgerStart, now)) : null}
         </>
       }
     >
       <table className="mt-4 w-full border-collapse text-left">
         <thead>
           <tr className="border-b border-ink">
-            <Th className="w-[45%] md:w-[26%]">Movement</Th>
-            <Th align="right">Units</Th>
-            <Th align="right">At cost</Th>
+            <Th className="w-[45%] md:w-[26%]">{t.movement}</Th>
+            <Th align="right">{t.units}</Th>
+            <Th align="right">{t.atCost}</Th>
             <Th className="w-[38%] max-md:hidden">
-              <span className="sr-only">Running total</span>
+              <span className="sr-only">{t.runningTotal}</span>
             </Th>
           </tr>
         </thead>
         <tbody>
           <StatementRow
-            name={`Opening stock, ${formatDate(from, now)}`}
-            units={formatCount(stock.opening.units)}
+            name={t.opening(f.date(from, now))}
+            units={f.count(stock.opening.units)}
             cost={m.whole(stock.opening.costCents)}
             bar={[0, stock.opening.units]}
             scale={scale}
@@ -233,7 +245,7 @@ function Statement({ analytics, now, m }: { analytics: Analytics; now: Date; m: 
             <StatementRow
               key={name}
               name={name}
-              units={formatChange(sign * amount.units)}
+              units={f.change(sign * amount.units)}
               cost={m.change(sign * amount.costCents)}
               bar={spans[i]}
               scale={scale}
@@ -242,8 +254,8 @@ function Statement({ analytics, now, m }: { analytics: Analytics; now: Date; m: 
         </tbody>
         <tfoot>
           <StatementRow
-            name="On hand now"
-            units={formatCount(stock.closing.units)}
+            name={t.onHandNow}
+            units={f.count(stock.closing.units)}
             cost={m.whole(stock.closing.costCents)}
             bar={[0, stock.closing.units]}
             scale={scale}
@@ -254,12 +266,11 @@ function Statement({ analytics, now, m }: { analytics: Analytics; now: Date; m: 
       {agrees ? (
         <p className="mt-3 flex items-start gap-2 px-5 text-sm text-ink-2 sm:px-8">
           <Check aria-hidden size={16} strokeWidth={2.25} className="mt-0.5 shrink-0 text-ink" />
-          <span>Matches the on-hand count of every product, which the database keeps equal to the ledger.</span>
+          <span>{t.agrees}</span>
         </p>
       ) : (
         <p role="alert" className="mt-3 bg-stock px-5 py-3 text-sm font-medium text-ink sm:px-8">
-          The ledger adds up to {formatCount(stock.closing.units)} units, but the products&apos; on-hand counts add up
-          to {formatCount(stock.onHand.units)}.
+          {t.disagrees(f.count(stock.closing.units), f.count(stock.onHand.units))}
         </p>
       )}
     </Zone>
@@ -316,23 +327,37 @@ function StatementRow({
   );
 }
 
-function Sales({ analytics, now, money, m }: { analytics: Analytics; now: Date; money: MoneyPrefs; m: MoneyFormat }) {
+function Sales({
+  analytics,
+  now,
+  money,
+  m,
+  f,
+  t,
+}: {
+  analytics: Analytics;
+  now: Date;
+  money: MoneyPrefs;
+  m: MoneyFormat;
+  f: Formats;
+  t: AnalyticsCopy;
+}) {
   const { daily } = analytics.sales;
   const any = daily.some((d) => d.units !== 0);
   return (
-    <Zone
-      id="sales"
-      title="Sales by day"
-      note="Units sold less returns, at today's list prices: the ledger records units, not the price a sale was made at."
-    >
+    <Zone id="sales" title={t.sales} note={t.salesNote}>
       {any ? (
         <>
           <div className="mt-5 px-5 sm:px-8">
-            <SalesChart money={money} days={daily.map(({ day, units, valueCents }) => ({ day, units, valueCents }))} />
+            <SalesChart
+              money={money}
+              language={f.language}
+              days={daily.map(({ day, units, valueCents }) => ({ day, units, valueCents }))}
+            />
           </div>
           <details className="group mt-6">
             <summary className="press-quiet mx-2 flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 rounded-control px-3 text-sm font-semibold hover:bg-liner sm:mx-5 [&::-webkit-details-marker]:hidden">
-              Every day as a table
+              {t.table}
               <ChevronDown
                 aria-hidden
                 size={18}
@@ -343,19 +368,21 @@ function Sales({ analytics, now, money, m }: { analytics: Analytics; now: Date; 
             <table className="mt-2 w-full border-collapse text-left">
               <thead>
                 <tr className="border-b border-ink">
-                  <Th>Day</Th>
-                  <Th align="right">Units</Th>
-                  <Th align="right">Sales</Th>
+                  <Th>{t.day}</Th>
+                  <Th align="right">{t.units}</Th>
+                  <Th align="right">{t.salesColumn}</Th>
                 </tr>
               </thead>
               <tbody>
                 {[...daily].reverse().map((d, i) => (
                   <tr key={d.day.getTime()} className="border-b border-hairline last:border-b-0">
                     <th scope="row" className="py-2 pr-4 pl-5 text-sm font-normal sm:pl-8">
-                      {i === 0 ? "Today so far" : formatDay(d.day)}
-                      {d.day.getUTCFullYear() !== now.getUTCFullYear() ? `, ${d.day.getUTCFullYear()}` : ""}
+                      {i === 0 ? t.todaySoFar : f.day(d.day)}
+                      {d.day.getUTCFullYear() !== now.getUTCFullYear()
+                        ? `, ${localDigits(String(d.day.getUTCFullYear()), f.language)}`
+                        : ""}
                     </th>
-                    <td className="tabular py-2 pr-4 text-right text-sm">{formatCount(d.units)}</td>
+                    <td className="tabular py-2 pr-4 text-right text-sm">{f.count(d.units)}</td>
                     <td className="tabular py-2 pr-5 text-right text-sm sm:pr-8">{m.whole(d.valueCents)}</td>
                   </tr>
                 ))}
@@ -364,31 +391,27 @@ function Sales({ analytics, now, money, m }: { analytics: Analytics; now: Date; 
           </details>
         </>
       ) : (
-        <p className="mt-4 px-5 font-semibold sm:px-8">Nothing sold in the last {analytics.days} days.</p>
+        <p className="mt-4 px-5 font-semibold sm:px-8">{t.nothingSold(f.count(analytics.days))}</p>
       )}
     </Zone>
   );
 }
 
 /** Sales, margin and stock by category. Each sales bar is the category's share, on one scale. */
-function Categories({ analytics, m }: { analytics: Analytics; m: MoneyFormat }) {
+function Categories({ analytics, m, f, t }: { analytics: Analytics; m: MoneyFormat; f: Formats; t: AnalyticsCopy }) {
   const { categories } = analytics;
   const top = Math.max(...categories.map((c) => c.salesCents), 1);
   const total = categories.reduce((sum, c) => sum + c.salesCents, 0);
   return (
-    <Zone
-      id="categories"
-      title="By category"
-      note="Lasts is how long a category's stock would last at this period's cost of sales."
-    >
+    <Zone id="categories" title={t.categories} note={t.categoriesNote}>
       <table className="mt-4 w-full border-collapse text-left max-md:block">
         <thead className="max-md:hidden">
           <tr className="border-b border-ink">
-            <Th>Category</Th>
-            <Th className="w-[28%]">Sales</Th>
-            <Th align="right">Gross margin</Th>
-            <Th align="right">Stock at cost</Th>
-            <Th align="right">Lasts</Th>
+            <Th>{t.category}</Th>
+            <Th className="w-[28%]">{t.salesColumn}</Th>
+            <Th align="right">{t.grossMargin}</Th>
+            <Th align="right">{t.stockAtCost}</Th>
+            <Th align="right">{t.lasts}</Th>
           </tr>
         </thead>
         <tbody className="max-md:block max-md:border-t max-md:border-ink">
@@ -398,35 +421,36 @@ function Categories({ analytics, m }: { analytics: Analytics; m: MoneyFormat }) 
               className="border-b border-hairline align-top last:border-b-0 max-md:grid max-md:grid-cols-3 max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8"
             >
               <th scope="row" className="py-3 pr-4 font-semibold max-md:col-span-3 max-md:p-0 md:pl-8">
-                <span className={c.name === UNCATEGORISED ? "text-ink-2" : undefined}>{c.name}</span>
-                <p className="mt-0.5 text-sm font-normal text-ink-3">
-                  {formatCount(c.products)} {c.products === 1 ? "product" : "products"}
-                </p>
+                {c.name === UNCATEGORISED ? <span className="text-ink-2">{t.uncategorised}</span> : c.name}
+                <p className="mt-0.5 text-sm font-normal text-ink-3">{t.products(c.products, f.count(c.products))}</p>
               </th>
               <td className="py-3 pr-6 max-md:col-span-3 max-md:p-0">
-                <MobileName>Sales</MobileName>
+                <MobileName>{t.salesColumn}</MobileName>
                 <p className="text-sm">
                   <span className="font-semibold">{m.whole(c.salesCents)}</span>
-                  <span className="text-ink-3"> · {total > 0 ? Math.round((c.salesCents / total) * 100) : 0}%</span>
+                  <span className="text-ink-3">
+                    {" "}
+                    · {f.count(total > 0 ? Math.round((c.salesCents / total) * 100) : 0)}%
+                  </span>
                 </p>
                 <div aria-hidden className="mt-2 h-1.5 bg-liner">
                   <div className="h-full bg-ink" style={{ width: `${(c.salesCents / top) * 100}%` }} />
                 </div>
               </td>
               <td className="tabular py-3 pr-4 text-right max-md:p-0 max-md:text-left">
-                <MobileName>Gross margin</MobileName>
+                <MobileName>{t.grossMargin}</MobileName>
                 {m.whole(c.marginCents)}
                 <p className="text-sm text-ink-2">
-                  {c.salesCents > 0 ? `${Math.round((c.marginCents / c.salesCents) * 100)}%` : "–"}
+                  {c.salesCents > 0 ? `${f.count(Math.round((c.marginCents / c.salesCents) * 100))}%` : "–"}
                 </p>
               </td>
               <td className="tabular py-3 pr-4 text-right max-md:p-0 max-md:text-left">
-                <MobileName>Stock at cost</MobileName>
+                <MobileName>{t.stockAtCost}</MobileName>
                 {m.whole(c.stockCents)}
               </td>
               <td className="tabular py-3 text-right max-md:p-0 max-md:text-left md:pr-8">
-                <MobileName>Lasts</MobileName>
-                {c.lastsDays === null ? <span className="text-ink-2">No sales</span> : formatDays(c.lastsDays)}
+                <MobileName>{t.lasts}</MobileName>
+                {c.lastsDays === null ? <span className="text-ink-2">{t.noSales}</span> : f.days(c.lastsDays)}
               </td>
             </tr>
           ))}
@@ -492,15 +516,15 @@ function ProductList({
 }
 
 /** The same report, unprinted: the period row, tallies and statement hold their space. */
-function ReportPlaceholder() {
+function ReportPlaceholder({ t }: { t: AnalyticsCopy }) {
   return (
     <div aria-hidden>
       <div className="border-b-2 border-ink">
-        <FilterRowPlaceholder legend="Period" count={2} />
+        <FilterRowPlaceholder legend={t.period} count={2} />
       </div>
-      <TallyPlaceholder names={TALLY_NAMES} className={FOUR_TALLIES} notes />
+      <TallyPlaceholder names={t.tallies} className={FOUR_TALLIES} notes />
       <div className="px-5 pt-6 sm:px-8">
-        <p className="text-lg font-bold">Stock, from the ledger</p>
+        <p className="text-lg font-bold">{t.statement}</p>
         <div className="mt-2 h-10 max-w-prose bg-liner/70" />
         <div className="mt-6 space-y-5">
           {Array.from({ length: 8 }, (_, i) => (

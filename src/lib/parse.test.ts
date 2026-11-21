@@ -42,3 +42,12 @@ describe("centsToInput", () => {
     expect(centsToInput(0)).toBe("0.00");
   });
 });
+
+describe("Bangla digits", () => {
+  it("reads them like Latin ones, grouped in thousands or lakhs", () => {
+    expect(parseUnits("১,২০০")).toBe(1200);
+    expect(parseCents("৪.৫০")).toBe(450);
+    expect(parseCents("১,২৩,৪৫৬.০৫")).toBe(12_345_605);
+    expect(parseCents("1,234.05")).toBe(123_405);
+  });
+});

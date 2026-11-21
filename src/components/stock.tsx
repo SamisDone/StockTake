@@ -1,6 +1,8 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { StockStatus } from "@/domain/forecast";
-import { formatCount, formatDays } from "@/lib/format";
+import { formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
+import { COMPONENT_COPY } from "./copy";
 
 /**
  * The printed parts every stock screen shares: tallies, status marks, the cover bar,
@@ -18,8 +20,18 @@ export const FOUR_TALLIES =
   "grid-cols-2 sm:grid-cols-4 max-sm:[&>div:nth-child(3)]:border-l-0 max-sm:[&>div:nth-child(n+3)]:border-t";
 
 /** One field of a label's tally zone: its name small, the value printed large. */
-export function Tally({ name, value, children }: { name: string; value: number | string; children?: ReactNode }) {
-  const text = typeof value === "number" ? formatCount(value) : value;
+export function Tally({
+  name,
+  value,
+  language,
+  children,
+}: {
+  name: string;
+  value: number | string;
+  language: Language;
+  children?: ReactNode;
+}) {
+  const text = typeof value === "number" ? formats(language).count(value) : value;
   return (
     <div className="@container min-w-0 border-l border-ink px-5 pt-3 pb-4 first:border-l-0 sm:px-8">
       <dt className="field-name">{name}</dt>
@@ -37,18 +49,24 @@ export function Tally({ name, value, children }: { name: string; value: number |
 }
 
 /** Out is reverse-printed; reorder is printed on yellow attention stock. Healthy stock carries no mark. */
-export function StatusMark({ status }: { status: StockStatus }) {
+export function StatusMark({ status, language }: { status: StockStatus; language: Language }) {
   if (status === "ok") return null;
+  const t = COMPONENT_COPY[language];
   return status === "out" ? (
-    <span className="shrink-0 rounded-mark bg-ink px-1.5 py-px text-xs font-bold text-label">Out</span>
+    <span className="shrink-0 rounded-mark bg-ink px-1.5 py-px text-xs font-bold whitespace-nowrap text-label">
+      {t.out}
+    </span>
   ) : (
-    <span className="shrink-0 rounded-mark bg-stock px-1.5 py-px text-xs font-bold text-ink">Reorder</span>
+    <span className="shrink-0 rounded-mark bg-stock px-1.5 py-px text-xs font-bold whitespace-nowrap text-ink">
+      {t.reorder}
+    </span>
   );
 }
 
 /** What a cover bar says in words, so an empty bar is never left to interpretation. */
-export function coverLabel(daysOfCover: number | null) {
-  return daysOfCover === null ? "No sales in 28 days" : daysOfCover === 0 ? "None left" : formatDays(daysOfCover);
+export function coverLabel(daysOfCover: number | null, language: Language) {
+  const t = COMPONENT_COPY[language];
+  return daysOfCover === null ? t.noSales : daysOfCover === 0 ? t.noneLeft : formats(language).days(daysOfCover);
 }
 
 /** The bar alone: its length is the exact cover on the shared scale; the tick is the lead time. */
@@ -63,14 +81,23 @@ export function CoverTrack({ daysOfCover, leadTimeDays }: { daysOfCover: number 
 }
 
 /** Cover in words above its bar, with the lead time the tick marks. */
-export function CoverBar({ daysOfCover, leadTimeDays }: { daysOfCover: number | null; leadTimeDays: number }) {
+export function CoverBar({
+  daysOfCover,
+  leadTimeDays,
+  language,
+}: {
+  daysOfCover: number | null;
+  leadTimeDays: number;
+  language: Language;
+}) {
   return (
     <div>
       <p className="text-sm">
-        <span className="font-semibold whitespace-nowrap">{coverLabel(daysOfCover)}</span>
+        <span className="font-semibold whitespace-nowrap">{coverLabel(daysOfCover, language)}</span>
         {/* On a phone the lead time takes its own line, so neither part breaks. */}
         <span className="whitespace-nowrap text-ink-3 max-md:block">
-          <span className="max-md:hidden"> · </span>lead {formatDays(leadTimeDays)}
+          <span className="max-md:hidden"> · </span>
+          {COMPONENT_COPY[language].lead(leadTimeDays)}
         </span>
       </p>
       <div className="mt-2">

@@ -2,6 +2,7 @@ import { Suspense, ViewTransition } from "react";
 import { CloseSpace } from "../../../drawer";
 import { NewProduct, NewProductPlaceholder } from "../../../new-product";
 import { ProductLabel, ProductLabelPlaceholder, productId } from "../../../product-label";
+import { getLanguage } from "@/server/preferences";
 
 /**
  * What opens over the list: a product's label, sliding in and printing as its data
@@ -20,10 +21,11 @@ export default function ProductDrawer({ params }: PageProps<"/products/[id]">) {
 
 async function Opened({ params }: { params: PageProps<"/products/[id]">["params"] }) {
   const { id } = await params;
+  const language = await getLanguage();
   if (id === "new") {
     return (
       <ViewTransition exit="tear" default="none">
-        <Suspense fallback={<NewProductPlaceholder action={<CloseSpace />} />}>
+        <Suspense fallback={<NewProductPlaceholder language={language} action={<CloseSpace />} />}>
           <NewProduct heading={2} action={<CloseSpace />} />
         </Suspense>
       </ViewTransition>
@@ -34,7 +36,7 @@ async function Opened({ params }: { params: PageProps<"/products/[id]">["params"
     <Suspense
       fallback={
         <ViewTransition exit="tear" default="none">
-          <ProductLabelPlaceholder action={<CloseSpace />} />
+          <ProductLabelPlaceholder language={language} action={<CloseSpace />} />
         </ViewTransition>
       }
     >

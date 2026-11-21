@@ -4,16 +4,13 @@ import { Check } from "lucide-react";
 import { useActionState, useState } from "react";
 import { Choice } from "@/components/choice";
 import { Field } from "@/components/field";
-import { formatChange, formatCount } from "@/lib/format";
+import { type Formats, formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
 import { parseUnits } from "@/lib/parse";
 import { type StockFormState, type StockKind, recordStock } from "@/server/stock-actions";
+import { PRODUCTS_COPY, type ProductsCopy } from "./copy";
 
-const KINDS: { kind: StockKind; label: string; quantity: string; submit: string }[] = [
-  { kind: "count", label: "Count", quantity: "Counted on the shelf", submit: "Record count" },
-  { kind: "sale", label: "Sale", quantity: "Units sold", submit: "Record sale" },
-  { kind: "return", label: "Return", quantity: "Units returned", submit: "Record return" },
-  { kind: "write_off", label: "Write-off", quantity: "Units written off", submit: "Record write-off" },
-];
+const KINDS: StockKind[] = ["count", "sale", "return", "write_off"];
 
 const initial: StockFormState = {};
 
@@ -25,11 +22,14 @@ export function RecordStock({
   productId,
   onHand,
   headingLevel,
+  language,
 }: {
   productId: number;
   onHand: number;
   headingLevel: 2 | 3;
+  language: Language;
 }) {
+  const t = PRODUCTS_COPY[language];
   const [state, formAction, pending] = useActionState(recordStock, initial);
   const [kind, setKind] = useState<StockKind>("count");
   const [quantity, setQuantity] = useState("");
@@ -45,7 +45,7 @@ export function RecordStock({
   }
   const defaultKind = (state.values?.kind as StockKind | undefined) ?? "count";
 
-  const spec = KINDS.find((k) => k.kind === kind)!;
+  const spec = t.stockKinds[kind];
   const error = state.error;
   const quantityError = error?.field === "quantity" ? error.message : undefined;
   const Heading = headingLevel === 2 ? "h2" : "h3";
@@ -54,35 +54,27 @@ export function RecordStock({
     <section aria-labelledby="record-title" className="border-b-2 border-ink">
       <div className="px-5 pt-5 sm:px-8">
         <Heading id="record-title" className="text-lg font-bold">
-          Record stock
+          {t.record}
         </Heading>
-        <p className="mt-1 max-w-prose text-sm text-ink-2">
-          Each entry is a new line in the ledger. A count that differs from the system is recorded as an adjustment.
-        </p>
+        <p className="mt-1 max-w-prose text-sm text-ink-2">{t.recordHelp}</p>
       </div>
 
       <form action={formAction} aria-busy={pending} className="mt-3">
         <input type="hidden" name="productId" value={productId} />
         <fieldset disabled={pending}>
           <fieldset className="px-5 pb-3 sm:px-8">
-            <legend className="sr-only">What happened</legend>
+            <legend className="sr-only">{t.whatHappened}</legend>
             <div className="flex flex-wrap gap-1">
               {KINDS.map((k) => (
-                <Choice
-                  key={k.kind}
-                  name="kind"
-                  value={k.kind}
-                  defaultChecked={defaultKind === k.kind}
-                  onSelect={() => setKind(k.kind)}
-                >
-                  {k.label}
+                <Choice key={k} name="kind" value={k} defaultChecked={defaultKind === k} onSelect={() => setKind(k)}>
+                  {t.stockKinds[k].label}
                 </Choice>
               ))}
             </div>
           </fieldset>
 
           <div className="grid border-y border-ink sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
-            <Field name="quantity" label={spec.quantity} error={quantityError}>
+            <Field name="quantity" label={spec.quantity} error={quantityError} language={language}>
               <input
                 id="quantity"
                 name="quantity"
@@ -95,7 +87,7 @@ export function RecordStock({
                 className="field-input"
               />
             </Field>
-            <Field name="note" label={kind === "write_off" ? "Reason" : "Note"} optional divided>
+            <Field name="note" label={kind === "write_off" ? t.reason : t.note} optional divided language={language}>
               <input
                 id="note"
                 name="note"
@@ -108,7 +100,7 @@ export function RecordStock({
           </div>
 
           <p id="quantity-effect" className="px-5 pt-2.5 text-sm text-ink-2 sm:px-8">
-            <Effect kind={kind} onHand={onHand} quantity={parseUnits(quantity)} />
+            <Effect kind={kind} onHand={onHand} quantity={parseUnits(quantity)} f={formats(language)} t={t} />
           </p>
 
           {error && !error.field ? (
@@ -122,7 +114,7 @@ export function RecordStock({
                 line even when empty, so nothing below it moves when it speaks. */}
             <p role="status" className="min-h-5 min-w-0 flex-1 text-sm font-medium">
               {pending ? (
-                "Recording…"
+                t.recording
               ) : state.done ? (
                 <span key={state.done.at} className="print-in flex items-start gap-1.5">
                   <Check aria-hidden size={16} strokeWidth={2.5} className="mt-0.5 shrink-0" />
@@ -138,8 +130,8 @@ export function RecordStock({
                   longest and never changes width; the status line says when it's working. */}
               <span className="inline-grid transition-transform duration-150 ease-out group-enabled:group-active:scale-[0.96]">
                 {KINDS.map((k) => (
-                  <span key={k.kind} className={`col-start-1 row-start-1 ${k.kind === kind ? "" : "invisible"}`}>
-                    {k.submit}
+                  <span key={k} className={`col-start-1 row-start-1 ${k === kind ? "" : "invisible"}`}>
+                    {t.stockKinds[k].submit}
                   </span>
                 ))}
               </span>
@@ -152,28 +144,72 @@ export function RecordStock({
 }
 
 /** What the entry will do to on hand, worked out before it is sent. */
-function Effect({ kind, onHand, quantity }: { kind: StockKind; onHand: number; quantity: number | null }) {
-  const now = <strong className="font-semibold text-ink">{formatCount(onHand)}</strong>;
-  if (quantity === null) return <>The ledger says {now} on hand.</>;
+function Effect({
+  kind,
+  onHand,
+  quantity,
+  f,
+  t,
+}: {
+  kind: StockKind;
+  onHand: number;
+  quantity: number | null;
+  f: Formats;
+  t: ProductsCopy;
+}) {
+  const e = t.effect;
+  const now = <strong className="font-semibold text-ink">{f.count(onHand)}</strong>;
+  if (quantity === null) {
+    return (
+      <>
+        {e.ledgerSays[0]}
+        {now}
+        {e.ledgerSays[1]}
+      </>
+    );
+  }
 
   if (kind === "count") {
     const difference = quantity - onHand;
-    return difference === 0 ? (
-      <>Matches the {now} on hand: logged, with no adjustment.</>
-    ) : (
+    if (difference === 0) {
+      return (
+        <>
+          {e.matches[0]}
+          {now}
+          {e.matches[1]}
+        </>
+      );
+    }
+    const adjusts = e.adjusts(f.change(difference), f.count(quantity));
+    return (
       <>
-        Adjusts on hand by <strong className="font-semibold text-ink">{formatChange(difference)}</strong>, from {now} to{" "}
-        {formatCount(quantity)}.
+        {adjusts.before}
+        <strong className="font-semibold text-ink">{adjusts.change}</strong>
+        {adjusts.middle}
+        {now}
+        {adjusts.after}
       </>
     );
   }
   const after = kind === "return" ? onHand + quantity : onHand - quantity;
-  if (after < 0) return <>Only {now} on hand, so the ledger will refuse this.</>;
+  if (after < 0) {
+    return (
+      <>
+        {e.refuse[0]}
+        {now}
+        {e.refuse[1]}
+      </>
+    );
+  }
   return quantity === 0 ? (
-    <>Enter at least 1.</>
+    <>{e.atLeastOne}</>
   ) : (
     <>
-      On hand goes from {now} to <strong className="font-semibold text-ink">{formatCount(after)}</strong>.
+      {e.goes[0]}
+      {now}
+      {e.goes[1]}
+      <strong className="font-semibold text-ink">{f.count(after)}</strong>
+      {e.goes[2]}
     </>
   );
 }

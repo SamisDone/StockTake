@@ -9,6 +9,7 @@ const entry = (action: string, userName: string, occurredAt: Date): FeedEntry =>
   entityType: "product",
   entityId: 1,
   summary: action,
+  facts: null,
   occurredAt,
   userName,
 });
@@ -67,5 +68,7 @@ describe("dayLabel", () => {
     expect(dayLabel("2026-11-21", now)).toBe("Today");
     expect(dayLabel("2026-11-20", now)).toBe("Yesterday");
     expect(dayLabel("2026-11-18", now)).toBe("Wednesday, Nov 18");
+    expect(dayLabel("2026-11-21", now, "bn")).toBe("আজ");
+    expect(dayLabel("2026-11-18", now, "bn")).toBe("বুধবার ১৮ নভেম্বর");
   });
 });

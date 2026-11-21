@@ -4,13 +4,15 @@ import { Archive } from "lucide-react";
 import { useActionState, useEffect, useRef, type ReactNode } from "react";
 import { Field, fieldProps } from "@/components/field";
 import { useLabelEditor } from "@/components/label-editor";
-import { formatCount } from "@/lib/format";
+import { type Formats, formats } from "@/lib/format";
+import type { Language } from "@/lib/i18n";
 import {
   type ArchiveFormState,
   type FieldFormState,
   saveSupplier,
   setSupplierArchived,
 } from "@/server/supplier-actions";
+import { SUPPLIERS_COPY, type SuppliersCopy } from "./copy";
 
 /** A supplier's details as the form holds them: text, exactly as typed. */
 export type SupplierValues = { name: string; email: string; phone: string; leadTimeDays: string };
@@ -24,18 +26,22 @@ const initial: FieldFormState = {};
  */
 export function SupplierForm({
   supplierId,
+  language,
   defaults,
   action,
   archive,
 }: {
   /** Set when editing. Without it the form adds a supplier. */
   supplierId?: number;
+  language: Language;
   defaults: SupplierValues;
   /** The way out, top right. */
   action: ReactNode;
   archive?: { supplierId: number; name: string; products: number };
 }) {
   const editing = supplierId !== undefined;
+  const copy = SUPPLIERS_COPY[language];
+  const t = copy.form;
   const editor = useLabelEditor();
   const [state, formAction, pending] = useActionState(saveSupplier, initial);
   const values = (state.values as SupplierValues | undefined) ?? defaults;
@@ -48,7 +54,7 @@ export function SupplierForm({
   }, [state.fields]);
 
   useEffect(() => {
-    if (state.saved && editing) editor?.close("Saved changes.");
+    if (state.saved && editing) editor?.close(t.saved);
     // Only a new answer means anything here. A new supplier redirects to its label instead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.saved]);
@@ -73,21 +79,17 @@ export function SupplierForm({
         <header className="flex items-start justify-between gap-4 px-5 pt-6 pb-3 sm:px-8 sm:pt-8">
           <div className="min-w-0">
             <h1 id="supplier-title" className="text-lg font-bold">
-              {editing ? "Edit details" : "New supplier"}
+              {editing ? t.editTitle : t.newTitle}
             </h1>
-            <p className="mt-1 max-w-prose text-sm text-ink-2">
-              {editing
-                ? "Changes go in the activity log. A new lead time changes the cover and suggestions of every product they supply."
-                : "Once it's added, give products this supplier on their labels, and order from it."}
-            </p>
+            <p className="mt-1 max-w-prose text-sm text-ink-2">{editing ? t.editHelp : t.newHelp}</p>
           </div>
           {action}
         </header>
 
         <fieldset disabled={pending} className="min-w-0">
-          <legend className="sr-only">{editing ? "Supplier details" : "The new supplier"}</legend>
+          <legend className="sr-only">{editing ? t.editLegend : t.newLegend}</legend>
           <div className="grid grid-cols-2 gap-px border-y-2 border-ink bg-ink">
-            <Field name="name" label="Name" error={errors.name} className="col-span-2">
+            <Field name="name" label={t.name} language={language} error={errors.name} className="col-span-2">
               <input
                 {...fieldProps("name", { error: errors.name })}
                 defaultValue={values.name}
@@ -97,7 +99,14 @@ export function SupplierForm({
                 className="field-input print-display text-3xl leading-tight font-extrabold sm:text-4xl"
               />
             </Field>
-            <Field name="email" label="Email" optional error={errors.email} className="max-sm:col-span-2">
+            <Field
+              name="email"
+              label={t.email}
+              language={language}
+              optional
+              error={errors.email}
+              className="max-sm:col-span-2"
+            >
               <input
                 {...fieldProps("email", { error: errors.email })}
                 defaultValue={values.email}
@@ -108,7 +117,14 @@ export function SupplierForm({
                 className="field-input"
               />
             </Field>
-            <Field name="phone" label="Phone" optional error={errors.phone} className="max-sm:col-span-2">
+            <Field
+              name="phone"
+              label={t.phone}
+              language={language}
+              optional
+              error={errors.phone}
+              className="max-sm:col-span-2"
+            >
               <input
                 {...fieldProps("phone", { error: errors.phone })}
                 defaultValue={values.phone}
@@ -120,9 +136,10 @@ export function SupplierForm({
             </Field>
             <Field
               name="leadTimeDays"
-              label="Lead time"
+              label={t.leadTime}
+              language={language}
               error={errors.leadTimeDays}
-              hint="Days from placing an order to it arriving. Cover is measured against it."
+              hint={t.leadTimeHint}
               className="col-span-2"
             >
               <div className="flex items-baseline gap-2">
@@ -134,7 +151,7 @@ export function SupplierForm({
                   className="field-input w-24"
                 />
                 <span aria-hidden className={`text-lg font-medium ${errors.leadTimeDays ? "text-ink" : "text-ink-3"}`}>
-                  days
+                  {t.days}
                 </span>
               </div>
             </Field>
@@ -148,7 +165,7 @@ export function SupplierForm({
 
           <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-3 px-5 pt-3 pb-5 sm:px-8">
             <p role="status" className="min-h-5 min-w-0 basis-full text-sm font-medium sm:flex-1 sm:basis-auto">
-              {pending ? (editing ? "Saving…" : "Adding…") : null}
+              {pending ? (editing ? t.saving : t.adding) : null}
             </p>
             {editing ? (
               <button
@@ -156,7 +173,7 @@ export function SupplierForm({
                 onClick={() => editor?.close()}
                 className="press-quiet min-h-12 rounded-control px-4 font-semibold text-ink-2 enabled:hover:bg-liner enabled:hover:text-ink max-sm:flex-1"
               >
-                Cancel
+                {t.cancel}
               </button>
             ) : null}
             <button
@@ -164,14 +181,14 @@ export function SupplierForm({
               className="group h-12 shrink-0 rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 enabled:hover:bg-ink-lift disabled:cursor-progress disabled:bg-ink-2 max-sm:flex-1"
             >
               <span className="inline-block transition-transform duration-150 ease-out group-enabled:group-active:scale-[0.96]">
-                {editing ? "Save changes" : "Add supplier"}
+                {editing ? t.save : t.add}
               </span>
             </button>
           </div>
         </fieldset>
       </form>
 
-      {archive ? <ArchiveZone facts={archive} /> : null}
+      {archive ? <ArchiveZone facts={archive} f={formats(language)} t={copy} /> : null}
     </>
   );
 }
@@ -184,7 +201,16 @@ const archiveInitial: ArchiveFormState = {};
  * archived, the refreshed label has no form, so the editor prints the label again,
  * archived and with Restore.
  */
-function ArchiveZone({ facts }: { facts: { supplierId: number; name: string; products: number } }) {
+function ArchiveZone({
+  facts,
+  f,
+  t,
+}: {
+  facts: { supplierId: number; name: string; products: number };
+  f: Formats;
+  t: SuppliersCopy;
+}) {
+  const a = t.archive;
   const editor = useLabelEditor();
   const [state, formAction, pending] = useActionState(setSupplierArchived, archiveInitial);
 
@@ -196,18 +222,15 @@ function ArchiveZone({ facts }: { facts: { supplierId: number; name: string; pro
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 px-5 pt-5 pb-5 sm:px-8">
           <div className="min-w-0 flex-1 basis-80">
             <h2 id="archive-title" className="text-lg font-bold">
-              Archive
+              {a.title}
             </h2>
             <p className="mt-1 max-w-prose text-sm text-ink-2">
-              Takes {facts.name} off the list and out of new orders. Its orders and reviews stay, and an admin can
-              restore it.
-              {facts.products > 0
-                ? ` Its ${formatCount(facts.products)} ${facts.products === 1 ? "product" : "products"} can't be ordered until then, or until they're given another supplier.`
-                : null}
+              {a.text(facts.name)}
+              {facts.products > 0 ? a.products(facts.products, f.count(facts.products)) : null}
             </p>
             {/* Holds its line while empty, so nothing moves when it speaks. */}
             <p role="status" className="mt-1 min-h-5 text-sm font-medium">
-              {pending ? "Archiving…" : null}
+              {pending ? a.archiving : null}
             </p>
           </div>
           <button
@@ -217,7 +240,7 @@ function ArchiveZone({ facts }: { facts: { supplierId: number; name: string; pro
           >
             <span className="flex items-center gap-2 transition-transform duration-150 ease-out group-enabled:group-active:scale-[0.96]">
               <Archive aria-hidden size={18} strokeWidth={2.25} />
-              Archive supplier
+              {a.button}
             </span>
           </button>
         </div>

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Bangla text: `lang-bn:` styles an element that's read in Bangla (the shell sets `lang`). */
+@custom-variant lang-bn (&:lang(bn));
+
 /*
  * Thermal Label. The app is printed label stock (white, ink black) on a liner-gray
  * ground. Rules separate zones (2px) and fields (1px); reverse print marks the active
@@ -174,6 +177,25 @@
   /* A line that appears after an action prints in, the way loaded content does. */
   .print-in {
     animation: 260ms var(--ease-out) both print-in;
+  }
+}
+
+/*
+ * Bangla. Bengali script hangs vowel signs above the headline and below the baseline,
+ * so display type needs more leading than Latin's 0.95 or wrapped lines collide; it is
+ * never tracked, which would break the headline between letters; and at the field
+ * name's 12px its conjuncts blur, so field names print a size up. Latin inside Bangla
+ * text (names, SKUs) keeps its own settings by carrying lang="en" where it matters.
+ */
+@layer components {
+  .print-display:lang(bn) {
+    --tw-leading: 1.15;
+    line-height: 1.15;
+    letter-spacing: 0;
+  }
+  .field-name:lang(bn) {
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
   }
 }
 

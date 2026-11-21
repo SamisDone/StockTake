@@ -158,9 +158,10 @@ type OpenOrder = {
 
 /**
  * Statements that empty every table. The append-only and lines-locked triggers forbid
- * those deletes, so they're dropped and recreated from the migration's own SQL.
+ * those deletes, so they're dropped and recreated from the migrations' own SQL (all of
+ * them, in order: a later migration can redefine a trigger, so the last definition wins).
  */
-export function resetStatements(rulesMigrationSql: string) {
+export function resetStatements(migrationsSql: string) {
   const blocking = [
     "stock_movements_no_delete",
     "activity_log_no_delete",
@@ -169,8 +170,9 @@ export function resetStatements(rulesMigrationSql: string) {
     "activity_log_no_update",
   ];
   const definitions = blocking.map((name) => {
-    const match = rulesMigrationSql.match(new RegExp("CREATE TRIGGER `" + name + "`[\\s\\S]*?END;"));
-    if (!match) throw new Error(`Trigger ${name} not found in the migration`);
+    const pattern = new RegExp("CREATE TRIGGER `" + name + "`[\\s\\S]*?END;", "g");
+    const match = [...migrationsSql.matchAll(pattern)].at(-1);
+    if (!match) throw new Error(`Trigger ${name} not found in the migrations`);
     return match[0];
   });
   return [
@@ -205,9 +207,12 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
     entityId: number,
     summary: string,
     time: number,
+    // What the summary says, as data, so the feed can print it in any language
+    // (src/domain/activity-copy.ts has the shape for each action).
+    facts: Record<string, string | number>,
   ) =>
     out.push(
-      `INSERT INTO activity_log (user_id, action, entity_type, entity_id, summary, occurred_at) VALUES (${user}, '${action}', '${entityType}', ${entityId}, ${sqlString(summary)}, ${time});`,
+      `INSERT INTO activity_log (user_id, action, entity_type, entity_id, summary, facts, occurred_at) VALUES (${user}, '${action}', '${entityType}', ${entityId}, ${sqlString(summary)}, ${sqlString(JSON.stringify(facts))}, ${time});`,
     );
   const movement = (
     product: Product,
@@ -262,7 +267,11 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
   for (const p of products) {
     const counted = Math.ceil(p.demand * (p.supplier.leadTimeDays + 25));
     movement(p, "adjustment", counted, ADMIN, at(0, 9));
-    activity(ADMIN, "stock.counted", "product", p.id, `Counted ${counted} × ${p.name} (was 0)`, at(0, 9));
+    activity(ADMIN, "stock.counted", "product", p.id, `Counted ${counted} × ${p.name} (was 0)`, at(0, 9), {
+      name: p.name,
+      counted,
+      was: 0,
+    });
     p.onHand = counted;
   }
 
@@ -298,6 +307,7 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
       id,
       `Drafted an order with ${supplier.name}: ${count}, ${money(total)}`,
       at(day, 9),
+      { supplier: supplier.name, lines: lines.length, totalCents: total },
     );
     return { id, lines, total };
   };
@@ -322,6 +332,7 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
         order.id,
         `Received ${poNumber(order.id)} from ${order.supplier.name}: ${units} units`,
         at(day, 11),
+        { order: poNumber(order.id), supplier: order.supplier.name, units },
       );
       open.splice(open.indexOf(order), 1);
     }
@@ -332,20 +343,30 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
       const sold = Math.min(poisson(rand, p.demand * dayFactor * trend), p.onHand);
       if (sold > 0) {
         movement(p, "sale", -sold, STAFF, at(day, 17));
-        activity(STAFF, "stock.sale", "product", p.id, `Sold ${sold} × ${p.name}`, at(day, 17));
+        activity(STAFF, "stock.sale", "product", p.id, `Sold ${sold} × ${p.name}`, at(day, 17), {
+          name: p.name,
+          quantity: sold,
+        });
         p.onHand -= sold;
       }
       if (rand() < 0.025) {
         const returned = 1 + Math.floor(rand() * 2);
         movement(p, "return", returned, STAFF, at(day, 15));
-        activity(STAFF, "stock.return", "product", p.id, `Took back a return of ${returned} × ${p.name}`, at(day, 15));
+        activity(STAFF, "stock.return", "product", p.id, `Took back a return of ${returned} × ${p.name}`, at(day, 15), {
+          name: p.name,
+          quantity: returned,
+        });
         p.onHand += returned;
       }
       if (rand() < 0.006 && p.onHand > 3) {
         const lost = 1 + Math.floor(rand() * 3);
         const reason = WRITE_OFF_REASONS[Math.floor(rand() * WRITE_OFF_REASONS.length)];
         movement(p, "write_off", -lost, STAFF, at(day, 16), reason);
-        activity(STAFF, "stock.write_off", "product", p.id, `Wrote off ${lost} × ${p.name}: ${reason}`, at(day, 16));
+        activity(STAFF, "stock.write_off", "product", p.id, `Wrote off ${lost} × ${p.name}: ${reason}`, at(day, 16), {
+          name: p.name,
+          quantity: lost,
+          note: reason,
+        });
         p.onHand -= lost;
       }
     }
@@ -361,7 +382,12 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
           shrink > 0
             ? `Counted ${counted} × ${p.name} (was ${p.onHand}): Cycle count`
             : `Counted ${counted} × ${p.name}, which matches: Cycle count`;
-        activity(ADMIN, "stock.counted", "product", p.id, summary, at(day, 18));
+        activity(ADMIN, "stock.counted", "product", p.id, summary, at(day, 18), {
+          name: p.name,
+          counted,
+          was: p.onHand,
+          note: "Cycle count",
+        });
         p.onHand = counted;
       }
     }
@@ -383,6 +409,7 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
         id,
         `Placed ${poNumber(id)} with ${supplier.name} for ${money(total)}`,
         at(day, 10),
+        { order: poNumber(id), supplier: supplier.name, totalCents: total },
       );
       for (const line of lines) line.product.onOrder += line.quantity;
       const jitter = Math.floor(rand() * 3) - 1;
@@ -394,7 +421,9 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
       const supplier = SUPPLIERS[2];
       const { id } = placeOrder(supplier, products.filter((p) => p.supplier === supplier).slice(0, 2), day);
       out.push(`UPDATE purchase_orders SET status = 'cancelled', cancelled_at = ${at(day, 14)} WHERE id = ${id};`);
-      activity(ADMIN, "purchase_order.cancelled", "purchase_order", id, `Cancelled ${poNumber(id)}`, at(day, 14));
+      activity(ADMIN, "purchase_order.cancelled", "purchase_order", id, `Cancelled ${poNumber(id)}`, at(day, 14), {
+        order: poNumber(id),
+      });
     }
   }
 

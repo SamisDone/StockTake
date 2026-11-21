@@ -14,10 +14,10 @@ import {
   updateDraft,
 } from "@/domain/purchase-orders";
 import { draftSuggestedOrder } from "@/domain/reorder";
-import { formatCount } from "@/lib/format";
 import { parseCents, parseUnits } from "@/lib/parse";
 import { authorize } from "./dal";
 import { type FormState, field, formError } from "./form-state";
+import { ACTION_COPY } from "./action-copy";
 
 /** What an order's action forms get back: an error, or what was done. */
 export type OrderFormState = FormState & {
@@ -35,15 +35,15 @@ const positiveId = (text: string) => {
  * the server, then opens it. Anyone can draft; an admin places it.
  */
 export async function draftFromSuggestions(_previous: FormState, formData: FormData): Promise<FormState> {
-  const { db, user } = await authorize();
+  const { db, user, language } = await authorize();
   const supplierId = positiveId(field(formData, "supplierId"));
-  if (supplierId === null) return { error: { message: "That supplier doesn't exist." } };
+  if (supplierId === null) return { error: { message: ACTION_COPY[language].noSupplier } };
 
   let id: number;
   try {
     ({ id } = await draftSuggestedOrder(db, user, supplierId));
   } catch (error) {
-    return formError(error);
+    return formError(error, language);
   }
   // Outside the try: redirect() works by throwing.
   redirect(`/orders/${id}`);
@@ -57,29 +57,30 @@ const INTENTS: Intent[] = ["place", "cancel", "receive"];
  * cancelling are an admin's) and whether the order's state allows it.
  */
 export async function changeOrder(_previous: OrderFormState, formData: FormData): Promise<OrderFormState> {
-  const { db, user } = await authorize();
+  const { db, user, language } = await authorize();
+  const t = ACTION_COPY[language];
   const orderId = positiveId(field(formData, "orderId"));
   const intent = field(formData, "intent") as Intent;
-  if (!INTENTS.includes(intent)) return { error: { message: "Choose what to do with the order." } };
-  if (orderId === null) return { error: { message: "That purchase order doesn't exist." } };
+  if (!INTENTS.includes(intent)) return { error: { message: t.chooseIntent } };
+  if (orderId === null) return { error: { message: t.noOrder } };
 
   let message: string;
   try {
     if (intent === "place") {
       await placeOrder(db, user, orderId);
       const order = await getOrder(db, orderId);
-      message = `Placed ${order.number} with ${order.supplierName}.`;
+      message = t.placed(order.number, order.supplierName);
     } else if (intent === "cancel") {
       await cancelOrder(db, user, orderId);
-      message = `Cancelled ${poNumber(orderId)}.`;
+      message = t.cancelled(poNumber(orderId));
     } else {
       await receiveOrder(db, user, orderId);
       const order = await getOrder(db, orderId);
       const units = order.lines.reduce((total, line) => total + line.quantity, 0);
-      message = `Received ${order.number}: ${formatCount(units)} units booked into stock.`;
+      message = t.received(order.number, units);
     }
   } catch (error) {
-    return formError(error);
+    return formError(error, language);
   }
 
   refresh();
@@ -115,16 +116,17 @@ function parseDay(text: string) {
  * stays). Anyone can; an admin places it. A new draft opens on its own label.
  */
 export async function saveDraft(_previous: DraftFormState, formData: FormData): Promise<DraftFormState> {
-  const { db, user } = await authorize();
+  const { db, user, language } = await authorize();
+  const t = ACTION_COPY[language];
   const idText = field(formData, "orderId");
   const orderId = idText ? positiveId(idText) : null;
-  if (idText && orderId === null) return { error: { message: "That purchase order doesn't exist." } };
+  if (idText && orderId === null) return { error: { message: t.noOrder } };
 
   const fields: Record<string, string> = {};
   let supplierId: number | null = null;
   if (orderId === null) {
     supplierId = positiveId(field(formData, "supplierId"));
-    if (supplierId === null) fields.supplierId = "Choose who the order is for.";
+    if (supplierId === null) fields.supplierId = t.chooseSupplier;
   }
 
   const text = (name: string) => formData.getAll(name).map((value) => (typeof value === "string" ? value : ""));
@@ -135,19 +137,19 @@ export async function saveDraft(_previous: DraftFormState, formData: FormData): 
     if (productId === null) return;
     const quantity = parseUnits(quantities[i] ?? "");
     const cents = parseCents(costs[i] ?? "");
-    if (quantity === null || quantity < 1) fields[`quantity-${productId}`] = "Order 1 unit or more.";
-    else if (quantity > MAX_UNITS) fields[`quantity-${productId}`] = `Order ${formatCount(MAX_UNITS)} units or fewer.`;
-    if (cents === null) fields[`unitCost-${productId}`] = "Enter the cost in dollars and cents, like 4.50.";
-    else if (cents > MAX_COST_CENTS) fields[`unitCost-${productId}`] = "That cost is more than an order can take.";
+    if (quantity === null || quantity < 1) fields[`quantity-${productId}`] = t.orderAtLeastOne;
+    else if (quantity > MAX_UNITS) fields[`quantity-${productId}`] = t.orderAtMost(MAX_UNITS);
+    if (cents === null) fields[`unitCost-${productId}`] = t.enterCost;
+    else if (cents > MAX_COST_CENTS) fields[`unitCost-${productId}`] = t.costTooLarge;
     lines.push({ productId, quantity: quantity ?? 0, unitCostCents: cents ?? 0 });
   });
 
   const expectedText = field(formData, "expectedAt").trim();
   const expectedAt = expectedText ? parseDay(expectedText) : undefined;
-  if (expectedAt === null) fields.expectedAt = "Enter a date, or leave it empty.";
+  if (expectedAt === null) fields.expectedAt = t.enterDate;
 
   if (Object.keys(fields).length > 0 || expectedAt === null) return { fields };
-  if (lines.length === 0) return { error: { message: "Add at least one product." } };
+  if (lines.length === 0) return { error: { message: t.addProduct } };
 
   const draft = { notes: field(formData, "notes"), expectedAt, lines };
   let id: number;
@@ -159,13 +161,13 @@ export async function saveDraft(_previous: DraftFormState, formData: FormData): 
     } else if (supplierId !== null) {
       ({ id } = await createDraft(db, user, { ...draft, supplierId }));
     } else {
-      return { fields: { supplierId: "Choose who the order is for." } };
+      return { fields: { supplierId: t.chooseSupplier } };
     }
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
     return error.field === "expectedAt" || error.field === "notes"
-      ? { fields: { [error.field]: error.message } }
-      : { error: { message: error.message } };
+      ? { fields: { [error.field]: error.in(language) } }
+      : { error: { message: error.in(language) } };
   }
 
   if (orderId === null) redirect(`/orders/${id}`);
@@ -184,9 +186,10 @@ export type ProposalFormState = { error?: { message: string }; saved?: { id: num
  * the proposal as written, then opens the draft.
  */
 export async function draftFromProposal(_previous: ProposalFormState, formData: FormData): Promise<ProposalFormState> {
-  const { db, user } = await authorize();
+  const { db, user, language } = await authorize();
+  const t = ACTION_COPY[language];
   const supplierId = positiveId(field(formData, "supplierId"));
-  if (supplierId === null) return { error: { message: "That supplier doesn't exist." } };
+  if (supplierId === null) return { error: { message: t.noSupplier } };
 
   const ids = formData.getAll("productId");
   const quantities = formData.getAll("quantity");
@@ -195,16 +198,16 @@ export async function draftFromProposal(_previous: ProposalFormState, formData: 
     const productId = typeof raw === "string" ? positiveId(raw) : null;
     const quantity = parseUnits(String(quantities[i] ?? ""));
     if (productId === null || quantity === null || quantity < 1 || quantity > MAX_UNITS) {
-      return { error: { message: "A line of the proposal isn't valid any more. Ask again for a new one." } };
+      return { error: { message: t.proposalStale } };
     }
     lines.push({ productId, quantity });
   }
-  if (lines.length === 0) return { error: { message: "The proposal has no lines." } };
+  if (lines.length === 0) return { error: { message: t.proposalEmpty } };
 
   try {
     const { id } = await createDraft(db, user, { supplierId, notes: "Proposed in Ask.", lines });
     return { saved: { id, number: poNumber(id) } };
   } catch (error) {
-    return formError(error);
+    return formError(error, language);
   }
 }
