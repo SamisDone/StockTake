@@ -11,7 +11,7 @@ import { getReorderSuggestions } from "@/domain/reorder";
 import { getSupplier } from "@/domain/suppliers";
 import { EditButton, LabelEditor } from "@/components/label-editor";
 import { Stars, formatRating } from "@/components/stars";
-import { CoverBar, MobileName, StatusMark, Tally, TallyPlaceholder, Th } from "@/components/stock";
+import { CoverBar, FOUR_TALLIES, MobileName, StatusMark, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { NAV_FORWARD } from "@/components/transitions";
 import { formatCount, formatDate, formatMoney } from "@/lib/format";
 import { getCurrentUser } from "@/server/dal";
@@ -20,13 +20,6 @@ import { STATUS_WORD, orderWhen } from "../orders/status";
 import { RestoreSupplier } from "./restore-supplier";
 import { ReviewForm } from "./review-form";
 import { SupplierForm } from "./supplier-form";
-
-/**
- * Four tallies: two by two on a phone, where the third starts a row and so takes a top
- * rule, not a side one; one row from `sm`. Shared with the placeholder so it never jumps.
- */
-const FOUR_TALLIES =
-  "grid-cols-2 sm:grid-cols-4 max-sm:[&>div:nth-child(3)]:border-l-0 max-sm:[&>div:nth-child(n+3)]:border-t";
 
 /** The label lists this many of the supplier's newest orders. */
 const ORDER_LIMIT = 8;

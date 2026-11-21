@@ -60,3 +60,33 @@ const time = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digi
 export function formatTime(date: Date) {
   return time.format(date);
 }
+
+const weekdayDate = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
+/** A UTC day with its weekday, for a single day read off a chart: "Wed, Nov 18". */
+export function formatDay(date: Date) {
+  return weekdayDate.format(date);
+}
+
+const compactMoney = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+/** Whole dollars for an axis: in full under $10,000, compact from there, e.g. "$2,500", "$12K". */
+export function formatAxisMoney(cents: number) {
+  return cents < 1_000_000 ? formatWholeMoney(cents) : compactMoney.format(cents / 100);
+}
+
+/** Whole dollars with a sign, a real minus for money taken off: "+$1,250", "−$80", "$0". */
+export function formatMoneyChange(cents: number) {
+  const whole = Math.round(cents / 100);
+  return whole > 0 ? `+${formatWholeMoney(cents)}` : whole < 0 ? `−${formatWholeMoney(-cents)}` : formatWholeMoney(0);
+}

@@ -10,6 +10,13 @@ import { formatCount, formatDays } from "@/lib/format";
 /** Cover bars share one scale, so any two bars on any screen compare at a glance. */
 export const COVER_SCALE_DAYS = 45;
 
+/**
+ * Four tallies: two by two on a phone, where the third starts a row and so takes a top
+ * rule, not a side one; one row from `sm`. Shared with placeholders so they never jump.
+ */
+export const FOUR_TALLIES =
+  "grid-cols-2 sm:grid-cols-4 max-sm:[&>div:nth-child(3)]:border-l-0 max-sm:[&>div:nth-child(n+3)]:border-t";
+
 /** One field of a label's tally zone: its name small, the value printed large. */
 export function Tally({ name, value, children }: { name: string; value: number | string; children?: ReactNode }) {
   return (

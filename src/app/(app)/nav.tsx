@@ -11,6 +11,7 @@ const SECTIONS: { href: Route; label: string }[] = [
   { href: "/products", label: "Products" },
   { href: "/orders", label: "Orders" },
   { href: "/suppliers", label: "Suppliers" },
+  { href: "/analytics", label: "Analytics" },
   { href: "/activity", label: "Activity" },
 ];
 

@@ -2,9 +2,10 @@ import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ViewTransition, type ReactNode } from "react";
+import { ViewTransition } from "react";
 import { getDb } from "@/db/client";
 import { hasActivityBefore, listActivity, listPeople } from "@/domain/activity";
+import { FilterLink, FilterRow, FilterRowPlaceholder } from "@/components/filters";
 import { PageHeader } from "@/components/page-header";
 import { PageTransition, Reveal } from "@/components/transitions";
 import { formatCount, formatDate, formatTime } from "@/lib/format";
@@ -265,38 +266,6 @@ function Entry({ entry, who, nested = false }: { entry: FeedEntry; who: boolean;
   );
 }
 
-/** A row of filter links, printed like the lists' choices: the current one is reverse print. */
-function FilterRow({ legend, className = "", children }: { legend: string; className?: string; children: ReactNode }) {
-  return (
-    <div role="group" aria-label={legend} className={`min-w-0 pt-2.5 pb-2 ${className}`}>
-      <p aria-hidden className="field-name px-5 sm:px-8">
-        {legend}
-      </p>
-      {/* On a phone the choices scroll sideways rather than wrap. */}
-      <div className="mt-1 flex gap-1 overflow-x-auto px-5 pb-0.5 [scrollbar-width:none] sm:px-8 lg:px-6">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function FilterLink({ href, current, children }: { href: Route; current: boolean; children: ReactNode }) {
-  return (
-    <Link
-      href={href}
-      replace
-      scroll={false}
-      prefetch={false}
-      aria-current={current ? "true" : undefined}
-      className={`inline-flex min-h-9 shrink-0 items-center rounded-control px-3 text-sm font-semibold whitespace-nowrap transition-colors duration-150 select-none pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current ${
-        current ? "bg-ink text-label" : "text-ink-2 hover:bg-liner hover:text-ink"
-      }`}
-    >
-      {children}
-    </Link>
-  );
-}
-
 function PageLink({ href, direction, children }: { href: Route; direction: "earlier" | "later"; children: string }) {
   return (
     <Link
@@ -318,16 +287,8 @@ function FeedPlaceholder() {
   return (
     <div aria-hidden>
       <div className="grid border-b-2 border-ink lg:grid-cols-2">
-        {["Show", "Who"].map((name, i) => (
-          <div key={name} className={`pt-2.5 pb-2 ${i === 1 ? "border-ink max-lg:border-t lg:border-l" : ""}`}>
-            <p className="field-name px-5 sm:px-8">{name}</p>
-            <div className="mt-1 flex gap-1 px-5 pb-0.5 sm:px-8 lg:px-6">
-              {Array.from({ length: 3 }, (_, j) => (
-                <div key={j} className="h-9 w-24 rounded-control bg-liner/70" />
-              ))}
-            </div>
-          </div>
-        ))}
+        <FilterRowPlaceholder legend="Show" count={3} />
+        <FilterRowPlaceholder legend="Who" count={3} className="border-ink max-lg:border-t lg:border-l" />
       </div>
       <div className="px-5 pt-5 sm:px-8">
         <p className="text-lg font-bold">This week</p>

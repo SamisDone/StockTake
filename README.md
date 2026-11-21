@@ -4,7 +4,7 @@ An inventory system whose stock levels you can audit. Every unit on hand traces 
 
 Stocktake rebuilds [StockMaster](https://github.com/SamisDone/StockMaster-Main), a PHP and MySQL course project (CSE 252), on Next.js, Cloudflare Workers and D1.
 
-**Live:** https://stocktake.sarker-samonwita.workers.dev. Open the demo from the landing page as an admin or as staff; no sign-up needed. The app so far has the dashboard; products, purchase orders, suppliers, activity, analytics and the assistant are being built.
+**Live:** https://stocktake.sarker-samonwita.workers.dev. Open the demo from the landing page as an admin or as staff; no sign-up needed. The app has the dashboard, products, purchase orders, suppliers, the activity log and analytics; the AI assistant is being built.
 
 ## What it does
 
@@ -13,6 +13,7 @@ Stocktake rebuilds [StockMaster](https://github.com/SamisDone/StockMaster-Main),
 - **Forecasting.** Days of cover from the last 28 days of net demand, with reorder suggestions that account for stock already on order and each supplier's lead time.
 - **Suppliers.** Lead times, and one 1–5 star review per person.
 - **Activity log.** Who did what, append-only.
+- **Analytics.** A period's stock reconciled from the ledger (opening stock plus every movement equals what's on hand, checked against the products' own counts), sales by day, a breakdown by category, and the best and slowest sellers. Sales are valued at today's list prices, since the ledger records units.
 - **Roles.** Admins manage the catalog and place or cancel orders; staff record stock and receive deliveries.
 
 ## How the integrity works

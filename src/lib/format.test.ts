@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatAxisMoney,
   formatChange,
+  formatDay,
+  formatMoneyChange,
   formatCount,
   formatDate,
   formatDays,
@@ -50,5 +53,21 @@ describe("format", () => {
     const now = new Date(Date.UTC(2026, 10, 20));
     expect(formatDate(new Date(Date.UTC(2026, 10, 14, 23, 30)), now)).toBe("Nov 14");
     expect(formatDate(new Date(Date.UTC(2025, 11, 31)), now)).toBe("Dec 31, 2025");
+  });
+
+  it("prints a chart's day with its weekday, in UTC", () => {
+    expect(formatDay(new Date(Date.UTC(2026, 10, 18, 23, 30)))).toBe("Wed, Nov 18");
+  });
+
+  it("prints axis money in full under $10,000 and compact from there", () => {
+    expect(formatAxisMoney(250000)).toBe("$2,500");
+    expect(formatAxisMoney(1200000)).toBe("$12K");
+    expect(formatAxisMoney(0)).toBe("$0");
+  });
+
+  it("signs money changes with a real minus sign", () => {
+    expect(formatMoneyChange(125000)).toBe("+$1,250");
+    expect(formatMoneyChange(-8000)).toBe("−$80");
+    expect(formatMoneyChange(20)).toBe("$0");
   });
 });
