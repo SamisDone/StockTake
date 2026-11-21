@@ -35,6 +35,27 @@ export type SupplierSuggestion = {
 };
 
 /**
+ * The draft order each of these products is already on (the oldest, if several), and
+ * how many units it holds: so a suggestion isn't made, or drafted, twice.
+ */
+export async function draftsFor(db: Database, productIds: number[]) {
+  const draftOf = new Map<number, { orderId: number; quantity: number }>();
+  if (productIds.length === 0) return draftOf;
+  const rows = await db
+    .select({
+      productId: purchaseOrderLines.productId,
+      orderId: purchaseOrders.id,
+      quantity: purchaseOrderLines.quantity,
+    })
+    .from(purchaseOrderLines)
+    .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
+    .where(and(eq(purchaseOrders.status, "draft"), inArray(purchaseOrderLines.productId, productIds)))
+    .orderBy(asc(purchaseOrders.id));
+  for (const row of rows) if (!draftOf.has(row.productId)) draftOf.set(row.productId, row);
+  return draftOf;
+}
+
+/**
  * Everything the forecast says to reorder, grouped by supplier, most urgent supplier
  * first. Stock on placed orders already counts in the forecast; a product on a draft is
  * marked with that draft instead, so the same suggestion isn't drafted twice. Products
@@ -48,25 +69,10 @@ export async function getReorderSuggestions(
 ) {
   const wanted = (forecasts ?? (await getStockForecasts(db, now))).filter((f) => f.suggestedQuantity > 0);
 
-  const drafted =
-    wanted.length === 0
-      ? []
-      : await db
-          .select({ productId: purchaseOrderLines.productId, orderId: purchaseOrders.id })
-          .from(purchaseOrderLines)
-          .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
-          .where(
-            and(
-              eq(purchaseOrders.status, "draft"),
-              inArray(
-                purchaseOrderLines.productId,
-                wanted.map((f) => f.id),
-              ),
-            ),
-          )
-          .orderBy(asc(purchaseOrders.id));
-  const draftOf = new Map<number, number>();
-  for (const row of drafted) if (!draftOf.has(row.productId)) draftOf.set(row.productId, row.orderId);
+  const draftOf = await draftsFor(
+    db,
+    wanted.map((f) => f.id),
+  );
 
   const bySupplier = new Map<number, SupplierSuggestion>();
   const unsupplied: SuggestedLine[] = [];
@@ -82,7 +88,7 @@ export async function getReorderSuggestions(
       leadTimeDays: f.leadTimeDays,
       quantity: f.suggestedQuantity,
       unitCostCents: f.unitCostCents,
-      draftId: draftOf.get(f.id) ?? null,
+      draftId: draftOf.get(f.id)?.orderId ?? null,
     };
     if (f.supplierId === null || f.supplierName === null || f.supplierArchived) {
       unsupplied.push(line);

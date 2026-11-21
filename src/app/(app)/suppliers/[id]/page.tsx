@@ -7,10 +7,12 @@ import { SUPPLIERS_COPY } from "../copy";
 import { SupplierLabel, SupplierLabelPlaceholder, supplierId } from "../supplier-label";
 import { EitherLanguage } from "@/components/either-language";
 import { WithLanguage } from "@/components/with-language";
+import { recordName } from "@/server/titles";
 
 // A fixed title: naming the supplier would read the database outside the session check.
-export async function generateMetadata(): Promise<Metadata> {
-  return { title: SUPPLIERS_COPY[await getLanguage()].supplierTitle };
+export async function generateMetadata({ params }: PageProps<"/suppliers/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  return { title: (await recordName("supplier", id)) ?? SUPPLIERS_COPY[await getLanguage()].supplierTitle };
 }
 
 /** One supplier, printed as its own label. */

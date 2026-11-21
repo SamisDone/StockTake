@@ -7,9 +7,11 @@ import { PRODUCTS_COPY } from "../copy";
 import { ProductLabel, ProductLabelPlaceholder, productId } from "../product-label";
 import { EitherLanguage } from "@/components/either-language";
 import { WithLanguage } from "@/components/with-language";
+import { recordName } from "@/server/titles";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return { title: PRODUCTS_COPY[await getLanguage()].productTitle };
+export async function generateMetadata({ params }: PageProps<"/products/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  return { title: (await recordName("product", id)) ?? PRODUCTS_COPY[await getLanguage()].productTitle };
 }
 
 /** A product as its own page: what a shared link or a reload of an open drawer prints. */

@@ -7,6 +7,10 @@ import type { ReactNode } from "react";
  * chosen is always what a form would send. The focus rule is drawn inside, in the
  * option's own ink, so a scrolling row never clips it. Pass `checked` to control it, or
  * `defaultChecked` inside a form that resets itself.
+ *
+ * Radios outside a form are grouped by name across the whole document, and recent pages
+ * stay mounted while hidden: a group outside a form needs a name no other page uses
+ * ("orders-show", not "show"), or choosing on one page unchecks the other.
  */
 export function Choice({
   name,

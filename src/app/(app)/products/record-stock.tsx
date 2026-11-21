@@ -46,7 +46,11 @@ export function RecordStock({
   const defaultKind = (state.values?.kind as StockKind | undefined) ?? "count";
 
   const spec = t.stockKinds[kind];
-  const error = state.error;
+  // An error is about what was sent. Once the kind or the units change, it no longer
+  // applies (a sale refused for want of stock says nothing about a count of 0).
+  const sent = state.values;
+  const stale = sent !== undefined && (sent.kind !== kind || (sent.quantity ?? "") !== quantity);
+  const error = stale ? undefined : state.error;
   const quantityError = error?.field === "quantity" ? error.message : undefined;
   const Heading = headingLevel === 2 ? "h2" : "h3";
 

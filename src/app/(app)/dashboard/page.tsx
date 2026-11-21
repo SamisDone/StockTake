@@ -3,6 +3,8 @@ import { connection } from "next/server";
 import { getDb } from "@/db/client";
 import Link from "next/link";
 import { type StockForecast, getStockForecasts } from "@/domain/forecast";
+import { poNumber } from "@/domain/purchase-orders";
+import { draftsFor } from "@/domain/reorder";
 import { type Formats, formats } from "@/lib/format";
 import type { Copy, Language } from "@/lib/i18n";
 import { type MoneyFormat, moneyFormat } from "@/lib/money";
@@ -39,11 +41,19 @@ async function Attention({ language }: { language: Language }) {
   await getCurrentUser();
   // Forecasts are relative to now, so they belong to the request, never to a prerender.
   await connection();
-  const forecasts = await getStockForecasts(await getDb());
+  const db = await getDb();
+  const forecasts = await getStockForecasts(db);
   const m = moneyFormat(await getMoneyPrefs(), language);
   const attention = forecasts.filter((f) => f.status !== "ok");
   const out = attention.filter((f) => f.status === "out").length;
-  const reorderCost = attention.reduce((sum, f) => sum + f.suggestedQuantity * f.unitCostCents, 0);
+  // A product already on a draft order is in hand: it isn't suggested again, or costed.
+  const drafts = await draftsFor(
+    db,
+    attention.map((f) => f.id),
+  );
+  const reorderCost = attention
+    .filter((f) => !drafts.has(f.id))
+    .reduce((sum, f) => sum + f.suggestedQuantity * f.unitCostCents, 0);
 
   return (
     <>
@@ -85,7 +95,7 @@ async function Attention({ language }: { language: Language }) {
               </thead>
               <tbody className="max-md:block max-md:border-t max-md:border-ink">
                 {attention.map((row) => (
-                  <AttentionRow key={row.id} forecast={row} m={m} f={f} t={t} />
+                  <AttentionRow key={row.id} forecast={row} draft={drafts.get(row.id)} m={m} f={f} t={t} />
                 ))}
               </tbody>
             </table>
@@ -98,11 +108,14 @@ async function Attention({ language }: { language: Language }) {
 
 function AttentionRow({
   forecast: row,
+  draft,
   m,
   f,
   t,
 }: {
   forecast: Forecast;
+  /** The draft order this product is already on, if any. */
+  draft: { orderId: number; quantity: number } | undefined;
   m: MoneyFormat;
   f: Formats;
   t: DashboardCopy;
@@ -141,8 +154,27 @@ function AttentionRow({
       </td>
       <td className="tabular py-3 text-right max-md:p-0 max-md:text-left md:pr-8">
         <MobileName>{t.order}</MobileName>
-        <span className="font-semibold">{t.units(f.count(row.suggestedQuantity))}</span>
-        <p className="text-sm text-ink-2">{m.money(suggestedCost)}</p>
+        {draft ? (
+          // Already drafted: say where, rather than suggesting the order a second time.
+          <>
+            <span className="font-semibold">{t.units(f.count(draft.quantity))}</span>
+            <p className="text-sm text-ink-2">
+              {t.onDraft}{" "}
+              <Link
+                href={`/orders/${draft.orderId}`}
+                transitionTypes={NAV_FORWARD}
+                className="relative z-10 font-mono text-xs text-ink underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
+              >
+                {poNumber(draft.orderId)}
+              </Link>
+            </p>
+          </>
+        ) : (
+          <>
+            <span className="font-semibold">{t.units(f.count(row.suggestedQuantity))}</span>
+            <p className="text-sm text-ink-2">{m.money(suggestedCost)}</p>
+          </>
+        )}
       </td>
     </tr>
   );
@@ -181,6 +213,7 @@ const en = {
   suggested: "Suggested order",
   order: "Order",
   units: (n: string) => `${n} units`,
+  onDraft: "On draft",
 };
 type DashboardCopy = typeof en;
 
@@ -202,5 +235,6 @@ const COPY: Copy<DashboardCopy> = {
     suggested: "প্রস্তাবিত অর্ডার",
     order: "অর্ডার",
     units: (n) => `${n} ইউনিট`,
+    onDraft: "খসড়ায় আছে",
   },
 };

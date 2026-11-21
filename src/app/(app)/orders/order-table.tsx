@@ -70,7 +70,7 @@ export function OrderTable({ rows, money, language }: { rows: OrderRow[]; money:
           {SHOWS.map((option) => (
             <Choice
               key={option}
-              name="show"
+              name="orders-show"
               checked={show === option}
               onSelect={() => {
                 setShow(option);

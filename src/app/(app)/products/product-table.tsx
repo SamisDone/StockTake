@@ -20,6 +20,8 @@ export type ProductRow = {
   category: string | null;
   status: StockStatus;
   onHand: number;
+  /** Units on placed orders, not yet received: why stock under its reorder point can be fine. */
+  onOrder: number;
   reorderPoint: number;
   daysOfCover: number | null;
   leadTimeDays: number;
@@ -111,13 +113,13 @@ export function ProductTable({
         <SearchField query={query} onChange={setQuery} t={t} />
 
         <Choices legend={t.category} className="lg:border-l">
-          <Choice name="category" checked={category === ""} onSelect={() => choose(() => setCategory(""))}>
+          <Choice name="products-category" checked={category === ""} onSelect={() => choose(() => setCategory(""))}>
             {t.all}
           </Choice>
           {categories.map((name) => (
             <Choice
               key={name}
-              name="category"
+              name="products-category"
               checked={category === name}
               onSelect={() => choose(() => setCategory(name))}
             >
@@ -127,13 +129,17 @@ export function ProductTable({
         </Choices>
 
         <Choices legend={t.show} className="lg:border-l">
-          <Choice name="show" checked={show === "all"} onSelect={() => choose(() => setShow("all"))}>
+          <Choice name="products-show" checked={show === "all"} onSelect={() => choose(() => setShow("all"))}>
             {t.all}
           </Choice>
-          <Choice name="show" checked={show === "attention"} onSelect={() => choose(() => setShow("attention"))}>
+          <Choice
+            name="products-show"
+            checked={show === "attention"}
+            onSelect={() => choose(() => setShow("attention"))}
+          >
             {t.needsAttention} <span className="ml-1.5">{f.count(attentionCount)}</span>
           </Choice>
-          <Choice name="show" checked={show === "archived"} onSelect={() => choose(() => setShow("archived"))}>
+          <Choice name="products-show" checked={show === "archived"} onSelect={() => choose(() => setShow("archived"))}>
             {t.archived} <span className="ml-1.5">{f.count(archived.length)}</span>
           </Choice>
         </Choices>
@@ -174,6 +180,7 @@ export function ProductTable({
                 <tr className="border-b border-ink">
                   <Th>{t.product}</Th>
                   <Th align="right">{t.onHand}</Th>
+                  <Th align="right">{t.onOrderColumn}</Th>
                   <Th align="right">{t.reorderAt}</Th>
                   <Th className="w-[28%]">{t.cover}</Th>
                   <Th align="right">{t.valueAtCost}</Th>
@@ -231,6 +238,9 @@ function Row({
       <td className="tabular py-3 pr-4 text-right text-lg font-semibold max-md:p-0 max-md:text-left">
         <MobileName>{t.onHand}</MobileName>
         {f.count(row.onHand)}
+      </td>
+      <td className="tabular py-3 pr-4 text-right text-ink-2 max-md:hidden">
+        {row.onOrder > 0 ? f.count(row.onOrder) : "–"}
       </td>
       <td className="tabular py-3 pr-4 text-right text-ink-2 max-md:hidden">{f.count(row.reorderPoint)}</td>
       <td className="py-3 pr-6 max-md:p-0">

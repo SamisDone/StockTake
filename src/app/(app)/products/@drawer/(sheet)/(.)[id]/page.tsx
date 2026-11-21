@@ -5,6 +5,9 @@ import { ProductLabel, ProductLabelPlaceholder, productId } from "../../../produ
 import { getLanguage } from "@/server/preferences";
 import { EitherLanguage } from "@/components/either-language";
 import { DrawerFallback } from "../../../drawer-fallback";
+import { recordName } from "@/server/titles";
+import type { Metadata } from "next";
+import { PRODUCTS_COPY } from "../../../copy";
 
 /**
  * What opens over the list: a product's label, sliding in and printing as its data
@@ -12,6 +15,13 @@ import { DrawerFallback } from "../../../drawer-fallback";
  * intercept: a static `(.)new` beside it in a route group isn't matched (Next.js
  * 16.4), and the dynamic segment caught "new" instead.
  */
+export async function generateMetadata({ params }: PageProps<"/products/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  const t = PRODUCTS_COPY[await getLanguage()];
+  if (id === "new") return { title: t.newTitle };
+  return { title: (await recordName("product", id)) ?? t.productTitle };
+}
+
 export default function ProductDrawer({ params }: PageProps<"/products/[id]">) {
   // The segment and the language are request data, so they're read inside a boundary.
   // Its placeholder is chosen from the URL on the client and printed in both languages,

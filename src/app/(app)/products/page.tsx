@@ -62,6 +62,7 @@ async function ProductList({ language }: { language: Language }) {
     category: f.category,
     status: f.status,
     onHand: f.onHand,
+    onOrder: f.onOrder,
     reorderPoint: f.reorderPoint,
     daysOfCover: f.daysOfCover,
     leadTimeDays: f.leadTimeDays,

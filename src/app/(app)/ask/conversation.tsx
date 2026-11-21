@@ -87,6 +87,11 @@ export function Conversation({
     setTurns((all) => [...all.filter((t) => t.id !== replacing), turn]);
     setDraft("");
     setBusy(true);
+    // The question counts from the moment it's sent (the server claims it before asking
+    // the model), so the count drops now; the answer brings the server's own figures,
+    // and a request that never got an answer gives the question back.
+    const before = allowance;
+    setAllowance((a) => ({ ...a, questionsLeft: Math.max(a.questionsLeft - 1, 0) }));
     // The new question moves to the top of the view, so its answer prints below it.
     requestAnimationFrame(() => {
       const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -113,10 +118,12 @@ export function Conversation({
       // Signed out, the proxy answers with the login page instead of events.
       const events = response.headers.get("content-type")?.includes("application/x-ndjson");
       if (response.status === 401 || (response.ok && !events)) {
+        setAllowance(before);
         update(id, () => ({ problem: "signed-out" }));
         return;
       }
       if (!response.ok || !events) {
+        setAllowance(before);
         update(id, () => ({ problem: "failed" }));
         return;
       }
@@ -132,8 +139,12 @@ export function Conversation({
           );
         }
       }
-      if (!finished) update(id, () => ({ problem: "network" }));
+      if (!finished) {
+        setAllowance(before);
+        update(id, () => ({ problem: "network" }));
+      }
     } catch {
+      setAllowance(before);
       update(id, () => ({ problem: "network" }));
     } finally {
       setBusy(false);
