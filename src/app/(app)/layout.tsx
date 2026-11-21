@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/server/dal";
 import { signOut } from "@/server/auth-actions";
 import { getMoneyPrefs } from "@/server/preferences";
 import { CurrencySwitch } from "@/components/currency-switch";
+import { Mark } from "@/components/logo";
 import { Nav } from "./nav";
 
 /**
@@ -31,7 +32,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
       <div style={{ viewTransitionName: "app-bar" }} className="lg:hidden">
         <div className="flex items-center justify-between gap-4 px-3 pt-4 pb-3">
-          <Wordmark />
+          <Wordmark compact />
           <Suspense fallback={null}>
             <PersonCompact />
           </Suspense>
@@ -50,13 +51,18 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   );
 }
 
-function Wordmark() {
+/**
+ * The mark and the name. On a phone the bar also carries the person, the currency and
+ * the way out, so the mark stands alone there and the name is left to screen readers.
+ */
+function Wordmark({ compact = false }: { compact?: boolean }) {
   return (
     <Link
       href="/dashboard"
-      className="print-display inline-flex min-h-11 items-center px-3 text-2xl uppercase lg:min-h-0"
+      className={`print-display inline-flex min-h-11 shrink-0 items-center gap-2.5 text-2xl uppercase lg:min-h-0 ${compact ? "min-w-11" : "px-3"}`}
     >
-      Stocktake
+      <Mark size={32} />
+      <span className={compact ? "sr-only" : undefined}>Stocktake</span>
     </Link>
   );
 }

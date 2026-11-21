@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DemoDoors } from "@/components/demo-doors";
+import { Mark } from "@/components/logo";
 import { DEMO_ROLES } from "@/lib/demo-roles";
 import { REFUSALS } from "@/lib/refusals";
 
@@ -16,7 +17,8 @@ export default function LandingPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-8">
       <header className="flex items-center justify-between py-5">
-        <Link href="/" className="print-display text-2xl uppercase">
+        <Link href="/" className="print-display flex items-center gap-2.5 text-2xl uppercase">
+          <Mark size={32} />
           Stocktake
         </Link>
         {/* No prefetch: on Workers the /login route-tree prefetch costs ~100 ms of CPU per

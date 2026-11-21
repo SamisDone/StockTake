@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useActionState, useState, type ReactNode } from "react";
 import { DemoStub } from "@/components/demo-doors";
+import { Mark } from "@/components/logo";
 import { DEMO_ROLES } from "@/lib/demo-roles";
 import { signIn } from "@/server/auth-actions";
 import { initialFormState } from "@/server/form-state";
@@ -29,7 +30,8 @@ export function LoginLabel() {
       </Suspense>
 
       <header className="border-b-2 border-ink px-6 pt-6 pb-4">
-        <h1 id="login-title" className="print-display text-[2.75rem] uppercase">
+        <h1 id="login-title" className="print-display flex items-center gap-3 text-[2.75rem] uppercase">
+          <Mark size={48} />
           Stocktake
         </h1>
         <p className="mt-1.5 text-sm text-ink-2">Inventory you can audit</p>
