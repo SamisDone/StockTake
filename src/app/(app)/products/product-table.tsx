@@ -11,7 +11,7 @@ import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { PRODUCTS_COPY, type ProductsCopy } from "./copy";
-import { IntentLink } from "@/components/intent-link";
+import { ProductLink } from "@/components/product-link";
 
 export type ProductRow = {
   id: number;
@@ -222,13 +222,12 @@ function Row({
       <td className="py-3 pr-4 max-md:col-span-3 max-md:p-0 md:pl-8">
         <div className="flex items-baseline gap-2">
           {row.archivedOn ? null : <StatusMark status={row.status} language={f.language} />}
-          <IntentLink
-            href={`/products/${row.id}`}
-            scroll={false}
+          <ProductLink
+            id={row.id}
             className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
           >
             {row.name}
-          </IntentLink>
+          </ProductLink>
         </div>
         <p className="mt-0.5 text-sm text-ink-3">
           <span className="font-mono text-xs">{row.sku}</span>

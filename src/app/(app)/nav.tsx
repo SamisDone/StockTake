@@ -2,7 +2,7 @@
 
 import type { Route } from "next";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useSelectedLayoutSegment } from "next/navigation";
 import { Suspense } from "react";
 import type { NavLabels } from "./copy";
 
@@ -21,27 +21,31 @@ type Props = { layout: "rail" | "strip"; labels: NavLabels; name: string };
 
 /**
  * Section links. The current one is reverse-printed, the way a label marks what matters.
- * Under a page with a dynamic param (a product) the path is only known at request time,
- * so the links prerender unmarked and the mark arrives with the request.
+ * It follows the page in the sheet, not the address: a product opened in the drawer
+ * over the dashboard has a product's address, but the dashboard is still where you are.
+ * Under a page with a dynamic param (a product) the segment is only known at request
+ * time, so the links prerender unmarked and the mark arrives with the request.
  */
 export function Nav(props: Props) {
   return (
-    <Suspense fallback={<NavLinks {...props} pathname={null} />}>
+    <Suspense fallback={<NavLinks {...props} section={null} />}>
       <CurrentNav {...props} />
     </Suspense>
   );
 }
 
 function CurrentNav(props: Props) {
-  return <NavLinks {...props} pathname={usePathname()} />;
+  // The sheet's top segment ("dashboard", "products"…); the drawer is a slot of its own.
+  const segment = useSelectedLayoutSegment();
+  return <NavLinks {...props} section={segment === null ? null : `/${segment}`} />;
 }
 
-function NavLinks({ layout, labels, name, pathname }: Props & { pathname: string | null }) {
+function NavLinks({ layout, labels, name, section }: Props & { section: string | null }) {
   return (
     <nav aria-label={name}>
       <ul className={layout === "rail" ? "flex flex-col gap-0.5" : "flex gap-1 overflow-x-auto"}>
         {SECTIONS.map((href) => {
-          const current = pathname !== null && (pathname === href || pathname.startsWith(`${href}/`));
+          const current = section === href;
           return (
             <li key={href}>
               <Link

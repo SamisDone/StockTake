@@ -39,11 +39,15 @@ function printed(content: Inline[], language: Language): ReactNode[] {
     if (part.type === "text") return localProse(part.text, language);
     if (part.type === "bold") return <strong key={i}>{printed(part.children, language)}</strong>;
     const machine = part.ref.code !== undefined && part.text.toLowerCase() === part.ref.code.toLowerCase();
+    // A product opens in the drawer over the conversation, which keeps its place; an
+    // order or a supplier is a page of its own, deeper in.
+    const product = part.ref.kind === "product";
     return (
       <IntentLink
         key={i}
         href={refHref(part.ref)}
-        transitionTypes={NAV_FORWARD}
+        scroll={product ? false : undefined}
+        transitionTypes={product ? undefined : NAV_FORWARD}
         className={`font-semibold underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink ${
           machine ? "font-mono text-[0.875em] font-normal" : ""
         }`}

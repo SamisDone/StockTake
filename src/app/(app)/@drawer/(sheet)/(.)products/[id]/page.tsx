@@ -1,13 +1,13 @@
 import { Suspense } from "react";
-import { CloseSpace } from "../../../drawer";
-import { NewProduct, NewProductPlaceholder } from "../../../new-product";
-import { ProductLabel, ProductLabelPlaceholder, productId } from "../../../product-label";
+import { CloseSpace } from "../../../../products/drawer";
+import { NewProduct, NewProductPlaceholder } from "../../../../products/new-product";
+import { ProductLabel, ProductLabelPlaceholder, productId } from "../../../../products/product-label";
 import { getLanguage } from "@/server/preferences";
 import { EitherLanguage } from "@/components/either-language";
-import { DrawerFallback } from "../../../drawer-fallback";
+import { DrawerFallback } from "../../../../products/drawer-fallback";
 import { recordName } from "@/server/titles";
 import type { Metadata } from "next";
-import { PRODUCTS_COPY } from "../../../copy";
+import { PRODUCTS_COPY } from "../../../../products/copy";
 
 /**
  * What opens over the list: a product's label, sliding in and printing as its data

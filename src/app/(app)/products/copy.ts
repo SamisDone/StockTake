@@ -16,6 +16,7 @@ const en = {
   addProduct: "Add product",
   allProducts: "All products",
   close: "Close",
+  openAsPage: "Open as a page",
 
   // The list
   search: "Search",
@@ -189,6 +190,7 @@ const bn: ProductsCopy = {
   addProduct: "পণ্য যোগ করুন",
   allProducts: "সব পণ্য",
   close: "বন্ধ",
+  openAsPage: "পাতা হিসেবে খুলুন",
 
   search: "খুঁজুন",
   searchPlaceholder: "নাম বা SKU",

@@ -16,7 +16,7 @@ import {
 import { FilterLink, FilterRow, FilterRowPlaceholder } from "@/components/filters";
 import { PageHeader } from "@/components/page-header";
 import { FOUR_TALLIES, MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
-import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
+import { PageTransition, Reveal } from "@/components/transitions";
 import { type Formats, formats } from "@/lib/format";
 import { type Language, localDigits } from "@/lib/i18n";
 import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
@@ -28,10 +28,10 @@ import { SalesChart } from "./sales-chart";
 import { StockChart } from "./stock-chart";
 import { WhereItWent } from "./where-it-went";
 import { Key, Zone } from "./zone";
-import { IntentLink } from "@/components/intent-link";
 import { EitherLanguage } from "@/components/either-language";
 import { WithLanguage } from "@/components/with-language";
 import { both } from "@/lib/i18n";
+import { ProductLink } from "@/components/product-link";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: ANALYTICS_COPY[await getLanguage()].title };
@@ -510,13 +510,12 @@ function ProductList({
               >
                 <div className="min-w-0">
                   {/* The name links to the product; its hit area stretches over the whole row. */}
-                  <IntentLink
-                    href={`/products/${p.id}`}
-                    transitionTypes={NAV_FORWARD}
+                  <ProductLink
+                    id={p.id}
                     className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
                   >
                     {p.name}
-                  </IntentLink>
+                  </ProductLink>
                   <p className="mt-0.5 font-mono text-xs text-ink-3">{p.sku}</p>
                 </div>
                 <div className="shrink-0 text-right">

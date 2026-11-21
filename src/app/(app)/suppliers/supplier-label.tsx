@@ -25,6 +25,7 @@ import { RestoreSupplier } from "./restore-supplier";
 import { ReviewForm } from "./review-form";
 import { SupplierForm } from "./supplier-form";
 import { IntentLink } from "@/components/intent-link";
+import { ProductLink } from "@/components/product-link";
 
 /** The label lists this many of the supplier's newest orders. */
 const ORDER_LIMIT = 8;
@@ -197,12 +198,12 @@ export async function SupplierLabel({ id, action }: { id: number; action: ReactN
                   <td className="py-3 pr-4 max-md:col-span-2 max-md:p-0 md:pl-8">
                     <div className="flex items-baseline gap-2">
                       <StatusMark status={p.status} language={language} />
-                      <IntentLink
-                        href={`/products/${p.id}`}
+                      <ProductLink
+                        id={p.id}
                         className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
                       >
                         {p.name}
-                      </IntentLink>
+                      </ProductLink>
                     </div>
                     <p className="mt-0.5 font-mono text-xs text-ink-3">{p.sku}</p>
                   </td>

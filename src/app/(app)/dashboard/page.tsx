@@ -13,10 +13,10 @@ import { CoverBar, MobileName, StatusMark, Tally, TallyPlaceholder, Th } from "@
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
 import { getCurrentUser } from "@/server/dal";
 import { getLanguage, getMoneyPrefs } from "@/server/preferences";
-import { IntentLink } from "@/components/intent-link";
 import { EitherLanguage } from "@/components/either-language";
 import { WithLanguage } from "@/components/with-language";
 import { both } from "@/lib/i18n";
+import { ProductLink } from "@/components/product-link";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: COPY[await getLanguage()].title };
@@ -128,13 +128,12 @@ function AttentionRow({
         <div className="flex items-baseline gap-2">
           <StatusMark status={row.status} language={f.language} />
           {/* The name links to the product; its hit area stretches over the whole row. */}
-          <IntentLink
-            href={`/products/${row.id}`}
-            transitionTypes={NAV_FORWARD}
+          <ProductLink
+            id={row.id}
             className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
           >
             {row.name}
-          </IntentLink>
+          </ProductLink>
         </div>
         <p className="mt-0.5 text-sm text-ink-3">
           <span className="font-mono text-xs">{row.sku}</span>

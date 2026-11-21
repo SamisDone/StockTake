@@ -21,6 +21,7 @@ import { IntentLink } from "@/components/intent-link";
 import { EitherLanguage } from "@/components/either-language";
 import { WithLanguage } from "@/components/with-language";
 import { both } from "@/lib/i18n";
+import { ProductLink } from "@/components/product-link";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: ORDERS_COPY[await getLanguage()].title };
@@ -154,12 +155,12 @@ function Suggestions({
           {unsupplied.map((line, i) => (
             <span key={line.productId}>
               {i > 0 ? ", " : null}
-              <IntentLink
-                href={`/products/${line.productId}`}
+              <ProductLink
+                id={line.productId}
                 className="font-semibold text-ink underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
               >
                 {line.name}
-              </IntentLink>
+              </ProductLink>
             </span>
           ))}
           {t.unsupplied[1]}

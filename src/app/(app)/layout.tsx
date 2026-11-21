@@ -17,15 +17,20 @@ import { Nav } from "./nav";
  * at once; the signed-in person streams in after the session is read. Layouts persist
  * between pages, so this happens on a full load only.
  */
-export default function AppLayout({ children }: { children: ReactNode }) {
+export default function AppLayout({ children, drawer }: LayoutProps<"/"> & { drawer: ReactNode }) {
   return (
     <Suspense fallback={<div className="min-h-dvh" />}>
-      <Shell>{children}</Shell>
+      <Shell drawer={drawer}>{children}</Shell>
     </Suspense>
   );
 }
 
-async function Shell({ children }: { children: ReactNode }) {
+/**
+ * `drawer` is a product opened over whatever page linked to it: a link to
+ * /products/[id] from anywhere in the app is intercepted into it, so the same click
+ * always opens the same drawer. Loading the URL itself prints the product as a page.
+ */
+async function Shell({ children, drawer }: { children: ReactNode; drawer: ReactNode }) {
   const language = await getLanguage();
   const t = SHELL_COPY[language];
   return (
@@ -62,6 +67,7 @@ async function Shell({ children }: { children: ReactNode }) {
           {children}
         </div>
       </main>
+      {drawer}
     </div>
   );
 }
