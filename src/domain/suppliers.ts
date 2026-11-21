@@ -1,11 +1,12 @@
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/database";
-import { products, supplierReviews, suppliers, users } from "@/db/schema";
+import { products, purchaseOrders, supplierReviews, suppliers, users } from "@/db/schema";
 import { logActivity } from "./activity";
 import { type Actor, requireAdmin } from "./actor";
 import { DomainError, parseInput } from "./errors";
 import { optionalText, outer } from "./input";
+import { poNumber } from "./purchase-orders";
 
 export const supplierInput = z.object({
   name: z.string().trim().min(1, "Enter a name.").max(120),
@@ -23,7 +24,7 @@ export type ReviewInput = z.input<typeof reviewInput>;
 
 async function loadSupplier(db: Database, supplierId: number) {
   const [supplier] = await db
-    .select({ id: suppliers.id, name: suppliers.name })
+    .select({ id: suppliers.id, name: suppliers.name, archivedAt: suppliers.archivedAt })
     .from(suppliers)
     .where(eq(suppliers.id, supplierId));
   if (!supplier) throw new DomainError("not_found", "That supplier doesn't exist.");
@@ -72,7 +73,10 @@ export async function updateSupplier(
 ) {
   requireAdmin(actor, "edit suppliers");
   const input = parseInput(supplierInput, raw);
-  await loadSupplier(db, supplierId);
+  const supplier = await loadSupplier(db, supplierId);
+  if (supplier.archivedAt) {
+    throw new DomainError("invalid_state", `${supplier.name} is archived. Restore it to edit it.`);
+  }
   await db.batch([
     db.update(suppliers).set(toRow(input)).where(eq(suppliers.id, supplierId)),
     logActivity(
@@ -84,25 +88,56 @@ export async function updateSupplier(
   ]);
 }
 
-/** Hides a supplier from lists and new orders. Its history stays. Admin-only. */
-export async function archiveSupplier(db: Database, actor: Actor, supplierId: number, now = new Date()) {
-  requireAdmin(actor, "archive suppliers");
+/** Refuses while the supplier has drafts or placed orders: archiving would strand them. */
+async function assertNoOpenOrders(db: Database, supplier: { id: number; name: string }) {
+  const open = await db
+    .select({ id: purchaseOrders.id })
+    .from(purchaseOrders)
+    .where(and(eq(purchaseOrders.supplierId, supplier.id), inArray(purchaseOrders.status, ["draft", "ordered"])))
+    .orderBy(asc(purchaseOrders.id));
+  if (open.length === 0) return;
+  const numbers = open.map((order) => poNumber(order.id));
+  const list = numbers.length === 1 ? numbers[0] : `${numbers.slice(0, -1).join(", ")} and ${numbers.at(-1)}`;
+  throw new DomainError(
+    "invalid_state",
+    `${supplier.name} has ${list} open. Receive or cancel ${numbers.length === 1 ? "it" : "them"} first.`,
+  );
+}
+
+async function setArchived(db: Database, actor: Actor, supplierId: number, archived: boolean, now: Date) {
+  requireAdmin(actor, archived ? "archive suppliers" : "restore suppliers");
   const supplier = await loadSupplier(db, supplierId);
+  if (archived) await assertNoOpenOrders(db, supplier);
   await db.batch([
-    db.update(suppliers).set({ archivedAt: now }).where(eq(suppliers.id, supplierId)),
+    db
+      .update(suppliers)
+      .set({ archivedAt: archived ? now : null })
+      .where(eq(suppliers.id, supplierId)),
     logActivity(
       db,
       actor,
       {
-        action: "supplier.archived",
+        action: archived ? "supplier.archived" : "supplier.restored",
         entityType: "supplier",
         entityId: supplierId,
-        summary: `Archived ${supplier.name}`,
+        summary: `${archived ? "Archived" : "Restored"} ${supplier.name}`,
       },
       now,
     ),
   ]);
 }
+
+/**
+ * Hides a supplier from lists and new orders; its products can't be ordered until it's
+ * restored or they get another supplier. Its history stays. Refused while it has open
+ * orders. Admin-only.
+ */
+export const archiveSupplier = (db: Database, actor: Actor, supplierId: number, now = new Date()) =>
+  setArchived(db, actor, supplierId, true, now);
+
+/** Puts an archived supplier back. Admin-only. */
+export const restoreSupplier = (db: Database, actor: Actor, supplierId: number, now = new Date()) =>
+  setArchived(db, actor, supplierId, false, now);
 
 /** Adds the person's review of a supplier, or replaces their earlier one. */
 export async function reviewSupplier(

@@ -91,17 +91,31 @@ export function Th({
   );
 }
 
-/** Field names of a tally zone over unprinted blocks, holding its space while data loads. */
-export function TallyPlaceholder({ names }: { names: string[] }) {
+/**
+ * Field names of a tally zone over unprinted blocks, holding its space while data loads.
+ * A zone that isn't one row at every width passes its own column classes as `className`.
+ */
+export function TallyPlaceholder({
+  names,
+  className,
+  notes = false,
+}: {
+  names: string[];
+  className?: string;
+  /** The tallies print a line of notes under their figures, so the blocks hold that too. */
+  notes?: boolean;
+}) {
   return (
     <div
-      className="grid border-b-2 border-ink"
-      style={{ gridTemplateColumns: `repeat(${names.length}, minmax(0, 1fr))` }}
+      className={`grid border-b-2 border-ink ${className ?? ""}`}
+      style={className ? undefined : { gridTemplateColumns: `repeat(${names.length}, minmax(0, 1fr))` }}
     >
       {names.map((name) => (
         <div key={name} className="border-l border-ink px-5 pt-3 pb-4 first:border-l-0 sm:px-8">
           <p className="field-name">{name}</p>
-          <div className="mt-2 h-9 w-14 bg-liner sm:h-11" />
+          {/* The figure: 1.75rem (3rem from sm) at 0.95 leading, under a 4px gap. */}
+          <div className="mt-1.5 h-7 w-14 bg-liner sm:h-11" />
+          {notes ? <div className="mt-1 h-5 w-24 bg-liner/70" /> : null}
         </div>
       ))}
     </div>

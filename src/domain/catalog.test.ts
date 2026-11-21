@@ -16,6 +16,7 @@ import {
   deleteReview,
   getSupplier,
   listSuppliers,
+  restoreSupplier,
   reviewSupplier,
   updateSupplier,
 } from "@/domain/suppliers";
@@ -190,5 +191,34 @@ describe("suppliers", () => {
     await archiveSupplier(db, admin, 1);
     expect(await listSuppliers(db)).toEqual([]);
     expect(await listSuppliers(db, { includeArchived: true })).toHaveLength(1);
+  });
+
+  it("refuses to archive a supplier with open orders, naming them", async () => {
+    const draft = await createDraft(db, staff, { supplierId: 1, lines: [{ productId: 1, quantity: 5 }] });
+    const placed = await createDraft(db, staff, { supplierId: 1, lines: [{ productId: 2, quantity: 5 }] });
+    await placeOrder(db, admin, placed.id);
+    await expect(archiveSupplier(db, admin, 1)).rejects.toMatchObject({
+      code: "invalid_state",
+      message: `Northwind Supply has ${poNumber(draft.id)} and ${poNumber(placed.id)} open. Receive or cancel them first.`,
+    });
+
+    await cancelOrder(db, admin, draft.id);
+    await cancelOrder(db, admin, placed.id);
+    await archiveSupplier(db, admin, 1);
+  });
+
+  it("restores an archived supplier, admin-only", async () => {
+    await archiveSupplier(db, admin, 1);
+    await expect(restoreSupplier(db, staff, 1)).rejects.toMatchObject({ code: "forbidden" });
+    await restoreSupplier(db, admin, 1);
+    expect((await getSupplier(db, 1)).archivedAt).toBeNull();
+  });
+
+  it("won't edit an archived supplier until it's restored", async () => {
+    await archiveSupplier(db, admin, 1);
+    await expect(updateSupplier(db, admin, 1, { name: "Northwind", leadTimeDays: 3 })).rejects.toMatchObject({
+      code: "invalid_state",
+      message: "Northwind Supply is archived. Restore it to edit it.",
+    });
   });
 });

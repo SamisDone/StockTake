@@ -77,6 +77,8 @@ async function forecastRows(db: Database, where: SQL | undefined, now: Date) {
       category: products.category,
       supplierId: products.supplierId,
       supplierName: suppliers.name,
+      /** An archived supplier takes no orders, so its products have no one to order from. */
+      supplierArchived: sql<boolean>`${suppliers.archivedAt} IS NOT NULL`.mapWith(Boolean),
       onHand: products.onHand,
       reorderPoint: products.reorderPoint,
       reorderQuantity: products.reorderQuantity,

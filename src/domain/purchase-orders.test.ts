@@ -5,6 +5,7 @@ import { activityLog, products, suppliers } from "@/db/schema";
 import {
   cancelOrder,
   createDraft,
+  deliveryRecord,
   getOrder,
   listOrders,
   placeOrder,
@@ -274,5 +275,35 @@ describe("listOrders", () => {
     // Northwind's lead time is 7 days.
     expect(due).toEqual({ "PO-0001": at(9), "PO-0002": at(20), "PO-0003": null });
     expect((await getOrder(db, plain.id)).dueAt).toEqual(at(9));
+  });
+});
+
+describe("listOrders by supplier", () => {
+  it("lists only that supplier's orders", async () => {
+    await db.insert(suppliers).values({ id: 2, name: "Copperleaf Tools", leadTimeDays: 5 });
+    await db
+      .insert(products)
+      .values({ id: 3, sku: "SAW-1", name: "Saw", supplierId: 2, unitCostCents: 900, unitPriceCents: 2000 });
+    await createDraft(db, staff, twoLines, at(1));
+    const { id } = await createDraft(db, staff, { supplierId: 2, lines: [{ productId: 3, quantity: 2 }] }, at(2));
+    expect((await listOrders(db, { supplierId: 2 })).map((o) => o.id)).toEqual([id]);
+  });
+});
+
+describe("deliveryRecord", () => {
+  it("counts received orders that arrived by their due day", async () => {
+    // Placed on the 1st with a 7-day lead time: due the 8th unless the supplier gave a date.
+    const receive = async (receivedDay: number, expectedAt?: Date) => {
+      const { id } = await createDraft(db, staff, { ...twoLines, expectedAt }, at(1));
+      await placeOrder(db, admin, id, at(1));
+      await receiveOrder(db, staff, id, new Date(Date.UTC(2026, 10, receivedDay, 17)));
+    };
+    await receive(8); // on the due day, late in the day: on time
+    await receive(9); // a day late
+    await receive(4, at(3)); // a day after the date they gave
+    const cancelled = await createDraft(db, staff, twoLines, at(1));
+    await cancelOrder(db, admin, cancelled.id, at(2));
+
+    expect(deliveryRecord(await listOrders(db, { supplierId: 1 }))).toEqual({ received: 3, onTime: 1 });
   });
 });

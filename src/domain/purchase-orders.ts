@@ -396,12 +396,16 @@ export async function getOrder(db: Database, id: number) {
   };
 }
 
-/** Orders newest first, with line counts and totals. */
-export async function listOrders(db: Database, { status }: { status?: PurchaseOrderStatus } = {}) {
+/** Orders newest first, with line counts and totals; optionally one status or one supplier's. */
+export async function listOrders(
+  db: Database,
+  { status, supplierId }: { status?: PurchaseOrderStatus; supplierId?: number } = {},
+) {
   const rows = await db
     .select({
       id: purchaseOrders.id,
       status: purchaseOrders.status,
+      supplierId: purchaseOrders.supplierId,
       supplierName: suppliers.name,
       leadTimeDays: suppliers.leadTimeDays,
       createdAt: purchaseOrders.createdAt,
@@ -418,8 +422,38 @@ export async function listOrders(db: Database, { status }: { status?: PurchaseOr
     .from(purchaseOrders)
     .innerJoin(suppliers, eq(suppliers.id, purchaseOrders.supplierId))
     .leftJoin(purchaseOrderLines, eq(purchaseOrderLines.purchaseOrderId, purchaseOrders.id))
-    .where(status ? eq(purchaseOrders.status, status) : undefined)
+    .where(
+      and(
+        status ? eq(purchaseOrders.status, status) : undefined,
+        supplierId ? eq(purchaseOrders.supplierId, supplierId) : undefined,
+      ),
+    )
     .groupBy(purchaseOrders.id)
     .orderBy(desc(purchaseOrders.createdAt), desc(purchaseOrders.id));
   return rows.map((row) => ({ ...row, number: poNumber(row.id), dueAt: dueDate(row) }));
+}
+
+/**
+ * How a supplier has delivered: of the orders received, how many arrived by their due
+ * day. Due is the date the supplier gave, else the day it was placed plus their lead
+ * time (as it is now). Days are whole UTC days, so arriving late on the due day counts.
+ */
+export function deliveryRecord(
+  orders: {
+    status: PurchaseOrderStatus;
+    expectedAt: Date | null;
+    orderedAt: Date | null;
+    receivedAt: Date | null;
+    leadTimeDays: number;
+  }[],
+) {
+  let received = 0;
+  let onTime = 0;
+  for (const order of orders) {
+    if (order.status !== "received" || !order.receivedAt || !order.orderedAt) continue;
+    received += 1;
+    const due = order.expectedAt ?? new Date(order.orderedAt.getTime() + order.leadTimeDays * DAY_MS);
+    if (startOfDay(order.receivedAt) <= startOfDay(due)) onTime += 1;
+  }
+  return { received, onTime };
 }

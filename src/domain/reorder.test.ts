@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "@/db/database";
-import { products } from "@/db/schema";
+import { products, suppliers } from "@/db/schema";
 import { createDraft, getOrder, placeOrder } from "@/domain/purchase-orders";
 import { draftSuggestedOrder, getOrderableProducts, getReorderSuggestions } from "@/domain/reorder";
 import { createTestDb } from "@/test/db";
@@ -87,6 +87,16 @@ describe("getOrderableProducts", () => {
       ["Gadget", 1, 20, 20],
       ["Widget", 1, 0, 50],
     ]);
+  });
+});
+
+describe("an archived supplier", () => {
+  it("takes its products out of what can be ordered, listing them as having no supplier", async () => {
+    await db.update(suppliers).set({ archivedAt: now });
+    const { suppliers: groups, unsupplied } = await getReorderSuggestions(db, now);
+    expect(groups).toEqual([]);
+    expect(unsupplied.map((l) => l.name)).toEqual(["Gadget", "Widget"]);
+    expect(await getOrderableProducts(db, now)).toEqual([]);
   });
 });
 

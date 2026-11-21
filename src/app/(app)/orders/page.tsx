@@ -8,10 +8,11 @@ import { type SupplierSuggestion, type SuggestedLine, getReorderSuggestions } fr
 import { PageHeader } from "@/components/page-header";
 import { MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
-import { formatCount, formatDate, formatMoney, formatWholeMoney } from "@/lib/format";
+import { formatCount, formatMoney, formatWholeMoney } from "@/lib/format";
 import { getCurrentUser } from "@/server/dal";
 import { DraftButton } from "./draft-button";
 import { type OrderRow, OrderTable } from "./order-table";
+import { orderWhen } from "./status";
 
 export const metadata: Metadata = { title: "Purchase orders" };
 
@@ -53,14 +54,7 @@ async function Orders() {
   // Only what the table prints crosses to the browser.
   const rows: OrderRow[] = orders.map((o) => {
     const late = o.dueAt !== null && o.dueAt < now;
-    const when =
-      o.status === "draft"
-        ? `Drafted ${formatDate(o.createdAt, now)}`
-        : o.status === "ordered"
-          ? `Due ${o.dueAt ? formatDate(o.dueAt, now) : "–"}`
-          : o.status === "received"
-            ? `Received ${o.receivedAt ? formatDate(o.receivedAt, now) : "–"}`
-            : `Cancelled ${o.cancelledAt ? formatDate(o.cancelledAt, now) : "–"}`;
+    const when = orderWhen(o, now);
     return {
       id: o.id,
       number: o.number,

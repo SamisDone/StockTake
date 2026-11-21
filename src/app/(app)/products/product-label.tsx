@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
@@ -111,7 +112,22 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
         <Detail name="Reorder quantity" value={`${formatCount(product.reorderQuantity)} units`}>
           the smallest suggested order
         </Detail>
-        <Detail name="Supplier" value={product.supplierName ?? "None"}>
+        <Detail
+          name="Supplier"
+          value={
+            product.supplierId !== null && product.supplierName ? (
+              <Link
+                href={`/suppliers/${product.supplierId}`}
+                prefetch={false}
+                className="underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
+              >
+                {product.supplierName}
+              </Link>
+            ) : (
+              "None"
+            )
+          }
+        >
           {product.supplierName
             ? `${product.leadTimeDays}‑day lead time`
             : `${product.leadTimeDays}‑day lead time assumed`}
@@ -237,7 +253,7 @@ function Status({ product }: { product: StockForecast }) {
 }
 
 /** One boxed field of the details zone. The grid's 1px gaps over ink are the rules between fields. */
-function Detail({ name, value, children }: { name: string; value: string; children?: ReactNode }) {
+function Detail({ name, value, children }: { name: string; value: ReactNode; children?: ReactNode }) {
   return (
     <div className="min-w-0 bg-label px-5 pt-2.5 pb-3 sm:px-8">
       <dt className="field-name">{name}</dt>

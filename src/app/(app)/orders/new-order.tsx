@@ -11,8 +11,15 @@ import { type SupplierChoice, dayInput } from "./draft-values";
  * A blank order to write by hand. Anyone can draft one; an admin places it. Only
  * suppliers with something to order are offered.
  */
-export async function NewOrder({ action }: { action: ReactNode }) {
+export async function NewOrder({
+  action,
+  searchParams,
+}: {
+  action: ReactNode;
+  searchParams: PageProps<"/orders/new">["searchParams"];
+}) {
   await getCurrentUser();
+  const { supplier: wanted } = await searchParams;
   // The forecast behind each new line's quantity is relative to now.
   await connection();
   const db = await getDb();
@@ -24,11 +31,13 @@ export async function NewOrder({ action }: { action: ReactNode }) {
     .filter((s) => stocked.has(s.id))
     .map((s) => ({ id: s.id, name: s.name, leadTimeDays: s.leadTimeDays }));
 
+  const chosen = suppliers.find((s) => String(s.id) === wanted);
+
   return (
     <DraftForm
       suppliers={suppliers}
       products={products}
-      defaults={{ supplierId: "", lines: [], expectedAt: "", notes: "" }}
+      defaults={{ supplierId: chosen ? String(chosen.id) : "", lines: [], expectedAt: "", notes: "" }}
       today={dayInput(now)}
       action={action}
     />

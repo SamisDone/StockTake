@@ -3,7 +3,7 @@ import type { Database } from "@/db/database";
 import { purchaseOrderLines, purchaseOrders } from "@/db/schema";
 import type { Actor } from "./actor";
 import { DomainError } from "./errors";
-import { type StockStatus, getStockForecasts } from "./forecast";
+import { type StockForecast, type StockStatus, getStockForecasts } from "./forecast";
 import { createDraft } from "./purchase-orders";
 
 /** One product the forecast says to order, and how many. */
@@ -37,10 +37,15 @@ export type SupplierSuggestion = {
  * Everything the forecast says to reorder, grouped by supplier, most urgent supplier
  * first. Stock on placed orders already counts in the forecast; a product on a draft is
  * marked with that draft instead, so the same suggestion isn't drafted twice. Products
- * with no supplier are listed apart: an order needs a supplier.
+ * with no supplier, or an archived one, are listed apart: an order needs a supplier.
  */
-export async function getReorderSuggestions(db: Database, now = new Date()) {
-  const wanted = (await getStockForecasts(db, now)).filter((f) => f.suggestedQuantity > 0);
+export async function getReorderSuggestions(
+  db: Database,
+  now = new Date(),
+  /** Forecasts already worked out for this request, so they aren't worked out twice. */
+  forecasts?: StockForecast[],
+) {
+  const wanted = (forecasts ?? (await getStockForecasts(db, now))).filter((f) => f.suggestedQuantity > 0);
 
   const drafted =
     wanted.length === 0
@@ -78,7 +83,7 @@ export async function getReorderSuggestions(db: Database, now = new Date()) {
       unitCostCents: f.unitCostCents,
       draftId: draftOf.get(f.id) ?? null,
     };
-    if (f.supplierId === null || f.supplierName === null) {
+    if (f.supplierId === null || f.supplierName === null || f.supplierArchived) {
       unsupplied.push(line);
       continue;
     }
@@ -126,7 +131,7 @@ export type OrderableProduct = {
 export async function getOrderableProducts(db: Database, now = new Date()): Promise<OrderableProduct[]> {
   const forecasts = await getStockForecasts(db, now);
   return forecasts.flatMap((f) =>
-    f.supplierId === null
+    f.supplierId === null || f.supplierArchived
       ? []
       : [
           {
