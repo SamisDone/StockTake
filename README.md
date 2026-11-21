@@ -79,6 +79,8 @@ pnpm db:seed:remote                  # optional: the demo dataset
 pnpm run deploy                      # not `pnpm deploy`, which is a built-in pnpm command
 ```
 
+After that, every push to `main` that passes the checks deploys itself: [`.github/workflows/ci.yml`](.github/workflows/ci.yml) applies new D1 migrations, then builds and deploys the Worker. It needs two repository secrets, `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit and D1: Edit) and `CLOUDFLARE_ACCOUNT_ID`.
+
 ## Project layout
 
 ```
