@@ -5,26 +5,20 @@ import { authenticate } from "@/domain/auth";
 import { listActivity } from "@/domain/activity";
 import { activityText } from "@/domain/activity-copy";
 import { getStockForecasts } from "@/domain/forecast";
-import { DEMO_PASSWORD, DEMO_USERS, demoPasswordHash, demoStatements, resetStatements } from "@/seed/demo";
-import { createTestDb, migrationsSql, scalar } from "@/test/db";
+import { DEMO_PASSWORD_HASH } from "@/seed/accounts";
+import { DEMO_PASSWORD, DEMO_USERS, demoPasswordHash, demoStatements } from "@/seed/demo";
+import { createTestDb, scalar, seedDemo } from "@/test/db";
 
 const anchor = new Date(Date.UTC(2026, 10, 20));
-const rules = migrationsSql();
 
 let client: Client;
 let db: Database;
-let passwordHash: string;
 
-async function seed() {
-  const sql = [...resetStatements(rules), ...demoStatements({ anchor, passwordHash })].join("\n");
-  await client.executeMultiple(sql);
-}
-
+const seed = () => seedDemo(client, anchor);
 const count = (table: string) => scalar(client, `SELECT count(*) FROM ${table}`);
 
 beforeAll(async () => {
   ({ client, db } = await createTestDb());
-  passwordHash = await demoPasswordHash();
   await seed();
 });
 
@@ -70,6 +64,10 @@ describe("demo seed", () => {
     }
   });
 
+  it("writes the published password's hash, precomputed", async () => {
+    expect(DEMO_PASSWORD_HASH).toBe(await demoPasswordHash());
+  });
+
   it("writes every activity entry's facts, which say what its summary says", async () => {
     const entries = await listActivity(db, { limit: 100_000 });
     expect(entries.length).toBeGreaterThan(100);
@@ -79,8 +77,15 @@ describe("demo seed", () => {
     }
   });
 
+  it("folds rows into a few hundred statements, each well inside D1's 100 KB", () => {
+    const statements = demoStatements({ anchor });
+    expect(statements.length).toBeLessThan(1000);
+    const encoder = new TextEncoder();
+    for (const sql of statements) expect(encoder.encode(sql).length).toBeLessThan(100_000);
+  });
+
   it("is deterministic", () => {
-    expect(demoStatements({ anchor, passwordHash })).toEqual(demoStatements({ anchor, passwordHash }));
+    expect(demoStatements({ anchor })).toEqual(demoStatements({ anchor }));
   });
 
   it("can be run again over an existing dataset", async () => {

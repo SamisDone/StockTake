@@ -279,7 +279,8 @@ const en = {
     staff: "Counts shelves, records sales, returns and write-offs, and receives deliveries against placed orders.",
   },
   openAs: "Open the demo as",
-  demoNote: "The demo is a small distributor with six suppliers and four months of trading. Changes you make are real.",
+  demoNote:
+    "The demo is a small distributor with six suppliers and four months of trading. Changes you make are real, and everyone sees them until the demo starts over at midnight, Dhaka time.",
 };
 type LandingCopy = typeof en;
 
@@ -321,6 +322,7 @@ const COPY: Copy<LandingCopy> = {
       staff: "তাকের মাল গোনেন, বিক্রি, ফেরত ও বাতিল লেখেন, আর দেওয়া অর্ডারের ডেলিভারি বুঝে নেন।",
     },
     openAs: "ডেমো খুলুন যে হিসেবে",
-    demoNote: "ডেমোটি ছয় সরবরাহকারী আর চার মাসের কেনাবেচার একটি ছোট পরিবেশক। আপনি যা বদলাবেন, তা সত্যিই বদলাবে।",
+    demoNote:
+      "ডেমোটি ছয় সরবরাহকারী আর চার মাসের কেনাবেচার একটি ছোট পরিবেশক। আপনি যা বদলাবেন, তা সত্যিই বদলাবে, আর ঢাকার সময় রাত ১২টায় ডেমো নতুন করে শুরু হওয়া পর্যন্ত সবাই তা দেখবে।",
   },
 };

@@ -54,9 +54,14 @@ export function LoginLabel({ language }: { language: Language }) {
 
       <fieldset disabled={busy} className="border-b-2 border-dashed border-ink">
         <legend className="sr-only">{t.tryDemo}</legend>
-        <p aria-hidden className="field-name px-6 pt-3">
-          {t.tryDemo}
-        </p>
+        {/* What the stubs open: shared data that starts over every night. On a narrow
+            label the note drops under the heading instead of crowding it. */}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 px-6 pt-3">
+          <p aria-hidden className="field-name">
+            {t.tryDemo}
+          </p>
+          <p className="text-xs text-ink-2">{t.startsOver}</p>
+        </div>
         <div className="grid grid-cols-2">
           {DEMO_ROLES[language].map(({ role, label, duty }, index) => (
             <DemoStub
@@ -162,6 +167,7 @@ const COPY: Copy<{
   title: string;
   tagline: string;
   tryDemo: string;
+  startsOver: string;
   email: string;
   password: string;
   signIn: string;
@@ -171,6 +177,7 @@ const COPY: Copy<{
     title: "Sign in",
     tagline: "Inventory you can audit",
     tryDemo: "Try the demo",
+    startsOver: "Starts over at midnight, Dhaka time",
     email: "Email",
     password: "Password",
     signIn: "Sign in",
@@ -180,6 +187,7 @@ const COPY: Copy<{
     title: "সাইন ইন",
     tagline: "যে মজুতের হিসাব যাচাই করা যায়",
     tryDemo: "ডেমো দেখুন",
+    startsOver: "ঢাকার সময় রাত ১২টায় নতুন করে শুরু হয়",
     email: "ইমেইল",
     password: "পাসওয়ার্ড",
     signIn: "সাইন ইন",

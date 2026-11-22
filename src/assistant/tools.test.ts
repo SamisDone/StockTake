@@ -2,8 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "@/db/database";
 import { getStockForecasts } from "@/domain/forecast";
 import { getReorderSuggestions } from "@/domain/reorder";
-import { demoPasswordHash, demoStatements, resetStatements } from "@/seed/demo";
-import { createTestDb, migrationsSql } from "@/test/db";
+import { createTestDb, seedDemo } from "@/test/db";
 import { moneyFormat } from "@/lib/money";
 import { TOOL_DEFINITIONS, type ToolOutcome, runTool } from "./tools";
 
@@ -13,12 +12,7 @@ let db: Database;
 beforeAll(async () => {
   const test = await createTestDb();
   db = test.db;
-  const rules = migrationsSql();
-  const statements = demoStatements({
-    anchor: new Date(Date.UTC(2026, 10, 20)),
-    passwordHash: await demoPasswordHash(),
-  });
-  await test.client.executeMultiple([...resetStatements(rules), ...statements].join("\n"));
+  await seedDemo(test.client, new Date(Date.UTC(2026, 10, 20)));
 });
 
 async function ok(name: string, args: unknown = {}): Promise<ToolOutcome & { data: Record<string, unknown> }> {

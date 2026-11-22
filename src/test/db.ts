@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import type { Database } from "@/db/database";
 import * as schema from "@/db/schema";
+import { demoReset, triggerDefinitions } from "@/seed/demo";
 
 /**
  * A fresh in-memory database with every migration in drizzle/ applied, the same SQL
@@ -23,11 +24,16 @@ export async function scalar<T = number>(client: Client, sql: string, args: unkn
   return result.rows[0]?.[0] as T;
 }
 
-/** Every migration's SQL, in order, the way scripts/seed.mts hands it to `resetStatements`. */
+/** Every migration's SQL, in order, the way scripts/seed.mts hands it to `triggerDefinitions`. */
 export function migrationsSql() {
   return readdirSync("drizzle")
     .filter((name) => name.endsWith(".sql"))
     .sort()
     .map((name) => readFileSync(`drizzle/${name}`, "utf8"))
     .join("\n");
+}
+
+/** Empties the database and writes the demo dataset ending at `anchor`, as `pnpm db:seed:local` does. */
+export async function seedDemo(client: Client, anchor: Date) {
+  await client.executeMultiple(demoReset(triggerDefinitions(migrationsSql()), anchor).join("\n"));
 }

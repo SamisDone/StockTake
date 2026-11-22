@@ -1,7 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "stocktake",
-  "main": ".open-next/worker.js",
+  // OpenNext's generated handler plus the nightly demo reset.
+  "main": "worker.mjs",
   "compatibility_date": "2026-10-30",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
@@ -26,6 +27,11 @@
   // Workers AI, for the assistant. Always runs remotely, also under `next dev`.
   "ai": {
     "binding": "AI",
+  },
+  // The demo starts over at midnight in Dhaka (UTC+6, no daylight saving), which is
+  // 18:00 UTC; cron schedules run on UTC. src/seed/reset.test.ts keeps the two in step.
+  "triggers": {
+    "crons": ["0 18 * * *"],
   },
   "observability": {
     "enabled": true,

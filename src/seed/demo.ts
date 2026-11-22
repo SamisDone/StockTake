@@ -4,15 +4,16 @@
  * start of today in Dhaka, the business's midnight) so the history always ends now and
  * forecasts stay meaningful, and an hour of the day is an hour on the business's clock.
  *
- * Output is plain SQL so the same file seeds local and remote D1, and every row goes
- * through the database's ledger triggers, so the seed itself is checked by them.
+ * Output is plain SQL so the same statements seed local and remote D1 from a script and
+ * reset the live demo every night from the Worker (`src/seed/reset.ts`), and every row
+ * goes through the database's ledger triggers, so the seed itself is checked by them.
  *
  * It imports nothing from the app but the plain business clock, so `scripts/seed.mts`
  * can run it with Node.
  */
 
 import { startOfDay, weekday as weekdayOf } from "../lib/business-time.ts";
-import { DEMO_PASSWORD, DEMO_USERS } from "./accounts.ts";
+import { DEMO_PASSWORD, DEMO_PASSWORD_HASH, DEMO_USERS } from "./accounts.ts";
 
 export { DEMO_PASSWORD, DEMO_USERS };
 
@@ -160,27 +161,90 @@ type OpenOrder = {
 };
 
 /**
- * Statements that empty every table. The append-only and lines-locked triggers forbid
- * those deletes, so they're dropped and recreated from the migrations' own SQL (all of
- * them, in order: a later migration can redefine a trigger, so the last definition wins).
+ * D1 refuses a statement over 100 KB. Rows are folded into one INSERT until it holds
+ * this many characters, which leaves room for names written in multi-byte characters.
  */
-export function resetStatements(migrationsSql: string) {
-  const blocking = [
-    "stock_movements_no_delete",
-    "activity_log_no_delete",
-    "purchase_order_lines_locked_delete",
-    "stock_movements_no_update",
-    "activity_log_no_update",
-  ];
-  const definitions = blocking.map((name) => {
+const MAX_STATEMENT_CHARS = 40_000;
+
+/**
+ * Collects statements, folding consecutive inserts into the same table into one
+ * multi-row INSERT. The dataset is about 7,000 rows; folded, it's a few hundred
+ * statements, cheap enough to build and send inside a Worker's CPU allowance. Rows
+ * still go in one at a time, in order, so every trigger checks each of them.
+ */
+function sqlWriter() {
+  const out: string[] = [];
+  let into = "";
+  let rows: string[] = [];
+  let size = 0;
+  const flush = () => {
+    if (rows.length > 0) out.push(`INSERT INTO ${into} VALUES ${rows.join(", ")};`);
+    rows = [];
+    size = 0;
+  };
+  return {
+    /** One row: `table (columns)` and its `(values)`. */
+    insert(table: string, values: string) {
+      if (table !== into || size + values.length > MAX_STATEMENT_CHARS) flush();
+      into = table;
+      rows.push(values);
+      size += values.length + 2;
+    },
+    statement(sql: string) {
+      flush();
+      into = "";
+      out.push(sql);
+    },
+    done() {
+      flush();
+      return out;
+    },
+  };
+}
+
+/**
+ * The triggers that forbid emptying the tables: the append-only ledger and log, and
+ * placed orders' locked lines. A reset drops them, empties the tables and recreates
+ * each one from its definition.
+ */
+export const BLOCKING_TRIGGERS = [
+  "stock_movements_no_delete",
+  "activity_log_no_delete",
+  "purchase_order_lines_locked_delete",
+  "stock_movements_no_update",
+  "activity_log_no_update",
+] as const;
+
+/**
+ * Each blocking trigger's definition as the migrations leave it: all of them, in order,
+ * because a later migration can redefine a trigger, so the last definition wins.
+ */
+export function triggerDefinitions(migrationsSql: string) {
+  return BLOCKING_TRIGGERS.map((name) => {
     const pattern = new RegExp("CREATE TRIGGER `" + name + "`[\\s\\S]*?END;", "g");
     const match = [...migrationsSql.matchAll(pattern)].at(-1);
     if (!match) throw new Error(`Trigger ${name} not found in the migrations`);
     return match[0];
   });
+}
+
+/**
+ * Statements that empty every table the demo writes, given the blocking triggers'
+ * definitions (from the migrations, or read back from the database itself).
+ *
+ * The demo people keep their rows and their sessions, so anyone signed in when the
+ * demo starts over stays signed in and simply sees the fresh data; anyone else's
+ * account goes, with its sessions. The assistant's shared neuron budget and the
+ * exchange rate are real, so they're kept.
+ */
+export function resetStatements(definitions: readonly string[]) {
+  if (definitions.length !== BLOCKING_TRIGGERS.length) {
+    throw new Error(`Expected ${BLOCKING_TRIGGERS.length} trigger definitions, got ${definitions.length}`);
+  }
+  const demoIds = DEMO_USERS.map((user) => user.id).join(", ");
   return [
-    ...blocking.map((name) => `DROP TRIGGER IF EXISTS \`${name}\`;`),
-    "DELETE FROM sessions;",
+    ...BLOCKING_TRIGGERS.map((name) => `DROP TRIGGER IF EXISTS \`${name}\`;`),
+    `DELETE FROM sessions WHERE user_id NOT IN (${demoIds});`,
     "DELETE FROM assistant_usage;",
     "DELETE FROM activity_log;",
     "DELETE FROM stock_movements;",
@@ -189,19 +253,27 @@ export function resetStatements(migrationsSql: string) {
     "DELETE FROM supplier_reviews;",
     "DELETE FROM products;",
     "DELETE FROM suppliers;",
-    "DELETE FROM users;",
-    ...definitions,
+    `DELETE FROM users WHERE id NOT IN (${demoIds});`,
+    ...definitions.map((sql) => (sql.trimEnd().endsWith(";") ? sql : `${sql};`)),
   ];
 }
 
+/** Everything a reset runs: empty the tables, then write the dataset ending at `anchor`. */
+export function demoReset(definitions: readonly string[], anchor: Date) {
+  return [...resetStatements(definitions), ...demoStatements({ anchor })];
+}
+
 /** The full dataset as SQL statements, in an order the ledger triggers accept. */
-export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwordHash: string }) {
+export function demoStatements({ anchor }: { anchor: Date }) {
   const rand = random(2026);
   // Day 0 is the opening stocktake and the last trading day is yesterday, so nothing
   // is timestamped later than the moment the seed runs.
   const start = anchor.getTime() - (HISTORY_DAYS + 1) * DAY;
   const at = (day: number, hour: number) => start + day * DAY + hour * HOUR;
-  const out: string[] = [];
+  const out = sqlWriter();
+  // The log goes in after everything else, in its own order: nothing depends on it, and
+  // kept apart its rows fold into a handful of statements.
+  const log = sqlWriter();
 
   const activity = (
     user: number,
@@ -214,8 +286,9 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
     // (src/domain/activity-copy.ts has the shape for each action).
     facts: Record<string, string | number>,
   ) =>
-    out.push(
-      `INSERT INTO activity_log (user_id, action, entity_type, entity_id, summary, facts, occurred_at) VALUES (${user}, '${action}', '${entityType}', ${entityId}, ${sqlString(summary)}, ${sqlString(JSON.stringify(facts))}, ${time});`,
+    log.insert(
+      "activity_log (user_id, action, entity_type, entity_id, summary, facts, occurred_at)",
+      `(${user}, '${action}', '${entityType}', ${entityId}, ${sqlString(summary)}, ${sqlString(JSON.stringify(facts))}, ${time})`,
     );
   const movement = (
     product: Product,
@@ -226,20 +299,24 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
     note: string | null = null,
     lineId: number | null = null,
   ) =>
-    out.push(
-      `INSERT INTO stock_movements (product_id, kind, quantity, note, purchase_order_line_id, user_id, occurred_at) VALUES (${product.id}, '${kind}', ${quantity}, ${sqlString(note)}, ${lineId ?? "NULL"}, ${user}, ${time});`,
+    out.insert(
+      "stock_movements (product_id, kind, quantity, note, purchase_order_line_id, user_id, occurred_at)",
+      `(${product.id}, '${kind}', ${quantity}, ${sqlString(note)}, ${lineId ?? "NULL"}, ${user}, ${time})`,
     );
 
   // People, suppliers, products ----------------------------------------------------
   const created = at(0, 8);
   for (const user of DEMO_USERS) {
-    out.push(
-      `INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (${user.id}, '${user.email}', ${sqlString(user.name)}, '${passwordHash}', '${user.role}', ${created});`,
+    // An upsert, because a reset keeps the demo people's rows (and their sessions).
+    out.statement(
+      `INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES (${user.id}, '${user.email}', ${sqlString(user.name)}, '${DEMO_PASSWORD_HASH}', '${user.role}', ${created}) ` +
+        "ON CONFLICT (id) DO UPDATE SET email = excluded.email, name = excluded.name, password_hash = excluded.password_hash, role = excluded.role, created_at = excluded.created_at;",
     );
   }
   for (const s of SUPPLIERS) {
-    out.push(
-      `INSERT INTO suppliers (id, name, email, phone, lead_time_days, created_at) VALUES (${s.id}, ${sqlString(s.name)}, '${s.email}', '${s.phone}', ${s.leadTimeDays}, ${created});`,
+    out.insert(
+      "suppliers (id, name, email, phone, lead_time_days, created_at)",
+      `(${s.id}, ${sqlString(s.name)}, '${s.email}', '${s.phone}', ${s.leadTimeDays}, ${created})`,
     );
   }
 
@@ -261,8 +338,9 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
     };
   });
   for (const p of products) {
-    out.push(
-      `INSERT INTO products (id, sku, name, category, supplier_id, unit_cost_cents, unit_price_cents, reorder_point, reorder_quantity, created_at) VALUES (${p.id}, '${p.sku}', ${sqlString(p.name)}, '${p.category}', ${p.supplier.id}, ${p.costCents}, ${p.priceCents}, ${p.reorderPoint}, ${p.reorderQuantity}, ${created});`,
+    out.insert(
+      "products (id, sku, name, category, supplier_id, unit_cost_cents, unit_price_cents, reorder_point, reorder_quantity, created_at)",
+      `(${p.id}, '${p.sku}', ${sqlString(p.name)}, '${p.category}', ${p.supplier.id}, ${p.costCents}, ${p.priceCents}, ${p.reorderPoint}, ${p.reorderQuantity}, ${created})`,
     );
   }
 
@@ -294,12 +372,14 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
       return { id: nextLineId++, product, quantity };
     });
     const total = lines.reduce((sum, line) => sum + line.quantity * line.product.costCents, 0);
-    out.push(
-      `INSERT INTO purchase_orders (id, supplier_id, status, created_by, created_at) VALUES (${id}, ${supplier.id}, 'draft', ${STAFF}, ${at(day, 9)});`,
+    out.insert(
+      "purchase_orders (id, supplier_id, status, created_by, created_at)",
+      `(${id}, ${supplier.id}, 'draft', ${STAFF}, ${at(day, 9)})`,
     );
     for (const line of lines) {
-      out.push(
-        `INSERT INTO purchase_order_lines (id, purchase_order_id, product_id, quantity, unit_cost_cents) VALUES (${line.id}, ${id}, ${line.product.id}, ${line.quantity}, ${line.product.costCents});`,
+      out.insert(
+        "purchase_order_lines (id, purchase_order_id, product_id, quantity, unit_cost_cents)",
+        `(${line.id}, ${id}, ${line.product.id}, ${line.quantity}, ${line.product.costCents})`,
       );
     }
     const count = `${lines.length} ${lines.length === 1 ? "line" : "lines"}`;
@@ -326,7 +406,9 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
         line.product.onHand += line.quantity;
         line.product.onOrder -= line.quantity;
       }
-      out.push(`UPDATE purchase_orders SET status = 'received', received_at = ${at(day, 11)} WHERE id = ${order.id};`);
+      out.statement(
+        `UPDATE purchase_orders SET status = 'received', received_at = ${at(day, 11)} WHERE id = ${order.id};`,
+      );
       const units = order.lines.reduce((sum, line) => sum + line.quantity, 0);
       activity(
         STAFF,
@@ -404,7 +486,7 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
       );
       if (wanted.length === 0) continue;
       const { id, lines, total } = placeOrder(supplier, wanted, day);
-      out.push(`UPDATE purchase_orders SET status = 'ordered', ordered_at = ${at(day, 10)} WHERE id = ${id};`);
+      out.statement(`UPDATE purchase_orders SET status = 'ordered', ordered_at = ${at(day, 10)} WHERE id = ${id};`);
       activity(
         ADMIN,
         "purchase_order.placed",
@@ -423,7 +505,7 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
     if (day === 45) {
       const supplier = SUPPLIERS[2];
       const { id } = placeOrder(supplier, products.filter((p) => p.supplier === supplier).slice(0, 2), day);
-      out.push(`UPDATE purchase_orders SET status = 'cancelled', cancelled_at = ${at(day, 14)} WHERE id = ${id};`);
+      out.statement(`UPDATE purchase_orders SET status = 'cancelled', cancelled_at = ${at(day, 14)} WHERE id = ${id};`);
       activity(ADMIN, "purchase_order.cancelled", "purchase_order", id, `Cancelled ${poNumber(id)}`, at(day, 14), {
         order: poNumber(id),
       });
@@ -440,17 +522,22 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
 
   // Reviews ------------------------------------------------------------------------
   REVIEWS.forEach(([supplierId, userId, rating, comment], index) => {
-    out.push(
-      `INSERT INTO supplier_reviews (supplier_id, user_id, rating, comment, created_at) VALUES (${supplierId}, ${userId}, ${rating}, ${sqlString(comment)}, ${at(10 + index * 9, 13)});`,
+    out.insert(
+      "supplier_reviews (supplier_id, user_id, rating, comment, created_at)",
+      `(${supplierId}, ${userId}, ${rating}, ${sqlString(comment)}, ${at(10 + index * 9, 13)})`,
     );
   });
 
-  return out;
+  return [...out.done(), ...log.done()];
 }
 
 const encoder = new TextEncoder();
 
-/** The demo password hashed in the app's own format, with a fixed salt so the seed is deterministic. */
+/**
+ * The demo password hashed in the app's own format, with a fixed salt so the seed is
+ * deterministic. The seed writes the precomputed `DEMO_PASSWORD_HASH` instead (100,000
+ * PBKDF2 rounds would spend a nightly reset's whole CPU allowance); a test checks the two agree.
+ */
 export async function demoPasswordHash() {
   const salt = encoder.encode("stocktake-demo-salt");
   const key = await crypto.subtle.importKey("raw", encoder.encode(DEMO_PASSWORD), "PBKDF2", false, ["deriveBits"]);
