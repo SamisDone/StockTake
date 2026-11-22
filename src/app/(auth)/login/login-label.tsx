@@ -99,7 +99,10 @@ export function LoginLabel({ language }: { language: Language }) {
         />
       </Field>
 
-      <FaultLine message={error && !error.field ? error.message : undefined} className="border-t border-ink px-6 py-3" />
+      <FaultLine
+        message={error && !error.field ? error.message : undefined}
+        className="border-t border-ink px-6 py-3"
+      />
 
       {/* The label's foot band: reverse print, full bleed, closing the sheet. */}
       <button
