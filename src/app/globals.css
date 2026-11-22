@@ -7,7 +7,8 @@
  * Thermal Label. The app is printed label stock (white, ink black) on a liner-gray
  * ground. Rules separate zones (2px) and fields (1px); reverse print marks the active
  * and the urgent; hi-vis yellow stock marks "needs attention" (and the text selection,
- * the one highlighter a reader holds).
+ * the one highlighter a reader holds). Fault red, the second ink of two-colour thermal
+ * stock, prints only what went wrong: a field or an action the system refused.
  */
 @theme {
   --color-liner: #e5e6e1;
@@ -19,6 +20,7 @@
   --color-ink-3: #67675f; /* field names, on label only: 5.6:1 */
   --color-hairline: #d9dad4; /* row dividers inside a zone */
   --color-stock: #ffd400; /* hi-vis label stock: attention only */
+  --color-fault: #b3131b; /* the second thermal ink, errors only: 6.9:1 on label, 5.5:1 on liner */
 
   --font-sans: var(--font-archivo), var(--font-bengali), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-martian-mono), ui-monospace, monospace;
@@ -172,6 +174,34 @@
      movement, so reduced motion keeps it as is. */
   .swap-in {
     animation: 160ms var(--ease-out) both fade-in;
+  }
+
+  /* A field at fault: a 2px rule of fault red down its leading edge, drawn over the
+     box so nothing inside it moves. The box itself stays white label stock. */
+  .fault-rule {
+    position: relative;
+  }
+  .fault-rule::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: 2px;
+    background: var(--color-fault);
+    pointer-events: none;
+  }
+
+  /* A message that opens by height instead of pushing the page down in one frame. A
+     transition, so a message that clears while opening turns around where it is; it
+     closes faster than it opens. */
+  .fault-reveal {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 120ms var(--ease-out);
+  }
+  .fault-reveal[data-open] {
+    grid-template-rows: 1fr;
+    transition-duration: 160ms;
   }
 
   /* A line that appears after an action prints in, the way loaded content does. */
@@ -359,6 +389,9 @@
   }
   .print-in {
     animation: 150ms ease both fade-in;
+  }
+  .fault-reveal {
+    transition: none;
   }
   .drawer-panel,
   .drawer[data-closing] .drawer-panel {

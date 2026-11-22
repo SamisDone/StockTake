@@ -10,6 +10,7 @@ import type { Language } from "@/lib/i18n";
 import { type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { type ProposalFormState, draftFromProposal } from "@/server/order-actions";
 import { ASK_COPY } from "./copy";
+import { FaultLine } from "@/components/fault";
 
 /**
  * An order the assistant proposed. Nothing exists until the person writes it; the
@@ -124,11 +125,11 @@ export function ProposalSlip({
             </p>
           </form>
         )}
-        {state.error ? (
-          <p role="alert" className="w-full bg-stock px-2 py-1 text-sm font-medium">
-            {state.error.message}
-          </p>
-        ) : null}
+        {/* Takes no room while closed: the negative margin cancels the row's gap, and the
+            line carries the gap inside itself as it opens. */}
+        <div className="-mt-3 w-full">
+          <FaultLine message={pending ? undefined : state.error?.message} hold={false} className="pt-3" />
+        </div>
       </div>
     </section>
   );

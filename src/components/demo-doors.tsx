@@ -7,6 +7,7 @@ import { DEMO_ROLES } from "@/lib/demo-roles";
 import { initialFormState } from "@/server/form-state";
 import type { Language } from "@/lib/i18n";
 import { COMPONENT_COPY } from "./copy";
+import { FaultLine } from "./fault";
 
 /**
  * One tear-off stub: submits its form as that demo account. Used inside the login label
@@ -89,11 +90,7 @@ export function DemoDoors({ language, name }: { language: Language; name?: strin
           ))}
         </div>
       </fieldset>
-      {state.error ? (
-        <p role="alert" className="border-t border-ink bg-stock px-6 py-3 text-sm font-medium">
-          {state.error.message}
-        </p>
-      ) : null}
+      <FaultLine message={state.error?.message} className="border-t border-ink px-6 py-3" />
     </form>
   );
 }

@@ -5,7 +5,8 @@
  *   category default of an indigo sidebar with icon tiles and white KPI cards.
  * OWN-WORLD: direct-thermal white label stock on a liner-gray ground, ink-black type,
  *   2px rules between zones and 1px between fields, reverse print (white on black) for
- *   the active and urgent, hi-vis yellow label stock only for "needs attention". Archivo
+ *   the active and urgent, hi-vis yellow label stock only for "needs attention", and
+ *   fault red (the second ink of two-colour thermal stock) only for errors. Archivo
  *   from condensed to normal width; Martian Mono only for identifiers and literal machine
  *   text (SKUs, PO numbers, SQL, the database's own messages).
  * STORY: the operator sees what's on hand and what's running out, sees why each number

@@ -6,6 +6,7 @@ import type { PurchaseOrderStatus } from "@/db/schema";
 import { type OrderFormState, changeOrder } from "@/server/order-actions";
 import type { Language } from "@/lib/i18n";
 import { ORDERS_COPY } from "./copy";
+import { FaultLine } from "@/components/fault";
 
 const initial: OrderFormState = {};
 
@@ -68,11 +69,7 @@ export function OrderControls({
           </p>
         ) : null}
 
-        {state.error ? (
-          <p role="alert" className="mt-3 bg-stock px-5 py-3 text-sm font-medium sm:px-8">
-            {state.error.message}
-          </p>
-        ) : null}
+        <FaultLine message={pending ? undefined : state.error?.message} className="px-5 pt-3 sm:px-8" />
 
         <fieldset
           disabled={pending}

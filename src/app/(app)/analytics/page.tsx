@@ -32,6 +32,7 @@ import { EitherLanguage } from "@/components/either-language";
 import { WithLanguage } from "@/components/with-language";
 import { both } from "@/lib/i18n";
 import { ProductLink } from "@/components/product-link";
+import { FaultText } from "@/components/fault";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: ANALYTICS_COPY[await getLanguage()].title };
@@ -265,9 +266,9 @@ function Statement({
           <span>{t.agrees}</span>
         </p>
       ) : (
-        <p role="alert" className="mt-3 bg-stock px-5 py-3 text-sm font-medium text-ink sm:px-8">
+        <FaultText role="alert" className="mt-3 px-5 sm:px-8">
           {t.disagrees(f.count(stock.closing.units), f.count(stock.onHand.units))}
-        </p>
+        </FaultText>
       )}
     </Zone>
   );

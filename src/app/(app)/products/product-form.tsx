@@ -4,6 +4,7 @@ import { Archive, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { Field, fieldProps } from "@/components/field";
+import { FaultLine } from "@/components/fault";
 import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
@@ -279,16 +280,15 @@ export function ProductForm({
             </Field>
           </div>
 
-          {state.error ? (
-            <p role="alert" className="bg-stock px-5 py-3 text-sm font-medium sm:px-8">
-              {state.error.message}
-            </p>
-          ) : null}
-
           <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-3 px-5 pt-3 pb-5 sm:px-8">
-            <p role="status" className="min-h-5 min-w-0 basis-full text-sm font-medium sm:basis-auto sm:flex-1">
-              {pending ? (editing ? t.saving : t.adding) : null}
-            </p>
+            {/* Holds a line beside the buttons for "Saving…" and then for a refusal, so
+                neither moves the button that was just pressed. */}
+            <div className="min-h-5 min-w-0 basis-full sm:basis-auto sm:flex-1">
+              <p role="status" className="text-sm font-medium">
+                {pending ? (editing ? t.saving : t.adding) : null}
+              </p>
+              <FaultLine message={pending ? undefined : state.error?.message} hold={false} />
+            </div>
             {editing ? (
               <button
                 type="button"
@@ -342,7 +342,7 @@ function MoneyField({
   return (
     <Field name={name} label={label} language={language} error={error} hint={converted ? `${hint} ${converted}` : hint}>
       <div className="flex items-baseline gap-1">
-        <span aria-hidden className={`text-lg font-medium ${error ? "text-ink" : "text-ink-3"}`}>
+        <span aria-hidden className="text-lg font-medium text-ink-3">
           $
         </span>
         <input
@@ -426,10 +426,13 @@ function ArchiveZone({
               {a.text(facts.name)}
               {facts.onHand > 0 ? a.stock(f.count(facts.onHand), m.money(facts.valueCents)) : null}
             </p>
-            {/* Holds its line while empty, so nothing moves when it speaks. */}
-            <p role="status" className="mt-1 min-h-5 text-sm font-medium">
-              {pending ? a.archiving : null}
-            </p>
+            {/* Holds its line while empty, so nothing moves when it speaks or refuses. */}
+            <div className="mt-1 min-h-5">
+              <p role="status" className="text-sm font-medium">
+                {pending ? a.archiving : null}
+              </p>
+              <FaultLine message={pending ? undefined : state.error?.message} hold={false} />
+            </div>
           </div>
           <button
             type="submit"
@@ -442,11 +445,6 @@ function ArchiveZone({
             </span>
           </button>
         </div>
-        {state.error ? (
-          <p role="alert" className="bg-stock px-5 py-3 text-sm font-medium sm:px-8">
-            {state.error.message}
-          </p>
-        ) : null}
       </form>
     </section>
   );

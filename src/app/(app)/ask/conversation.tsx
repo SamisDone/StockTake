@@ -13,6 +13,7 @@ import type { MoneyPrefs } from "@/lib/money";
 import { formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { ASK_COPY, type AskCopy } from "./copy";
+import { FaultText } from "@/components/fault";
 
 /**
  * The Ask page: a conversation held in the browser. Each question is POSTed with the
@@ -382,7 +383,7 @@ function ProblemNote({
   }
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <p className="text-sm">{t.problem[problem]}</p>
+      <FaultText>{t.problem[problem]}</FaultText>
       <button
         type="button"
         onClick={onRetry}

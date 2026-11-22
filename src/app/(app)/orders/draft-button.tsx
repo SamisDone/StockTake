@@ -5,6 +5,7 @@ import type { FormState } from "@/server/form-state";
 import { draftFromSuggestions } from "@/server/order-actions";
 import type { Language } from "@/lib/i18n";
 import { ORDERS_COPY } from "./copy";
+import { FaultLine } from "@/components/fault";
 
 const initial: FormState = {};
 
@@ -39,11 +40,7 @@ export function DraftButton({
       <p role="status" className="sr-only">
         {pending ? t.drafting(supplierName) : ""}
       </p>
-      {state.error ? (
-        <p role="alert" className="mt-2 bg-stock px-2 py-1 text-sm font-medium">
-          {state.error.message}
-        </p>
-      ) : null}
+      <FaultLine message={pending ? undefined : state.error?.message} className="pt-2" />
     </form>
   );
 }

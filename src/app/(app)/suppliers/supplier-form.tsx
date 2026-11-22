@@ -2,6 +2,7 @@
 
 import { Archive } from "lucide-react";
 import { useActionState, useEffect, useRef, type ReactNode } from "react";
+import { FaultLine } from "@/components/fault";
 import { Field, fieldProps } from "@/components/field";
 import { useLabelEditor } from "@/components/label-editor";
 import { type Formats, formats } from "@/lib/format";
@@ -150,23 +151,22 @@ export function SupplierForm({
                   autoComplete="off"
                   className="field-input w-24"
                 />
-                <span aria-hidden className={`text-lg font-medium ${errors.leadTimeDays ? "text-ink" : "text-ink-3"}`}>
+                <span aria-hidden className="text-lg font-medium text-ink-3">
                   {t.days}
                 </span>
               </div>
             </Field>
           </div>
 
-          {state.error ? (
-            <p role="alert" className="bg-stock px-5 py-3 text-sm font-medium sm:px-8">
-              {state.error.message}
-            </p>
-          ) : null}
-
           <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-3 px-5 pt-3 pb-5 sm:px-8">
-            <p role="status" className="min-h-5 min-w-0 basis-full text-sm font-medium sm:flex-1 sm:basis-auto">
-              {pending ? (editing ? t.saving : t.adding) : null}
-            </p>
+            {/* Holds a line beside the buttons for "Saving…" and then for a refusal, so
+                neither moves the button that was just pressed. */}
+            <div className="min-h-5 min-w-0 basis-full sm:flex-1 sm:basis-auto">
+              <p role="status" className="text-sm font-medium">
+                {pending ? (editing ? t.saving : t.adding) : null}
+              </p>
+              <FaultLine message={pending ? undefined : state.error?.message} hold={false} />
+            </div>
             {editing ? (
               <button
                 type="button"
@@ -228,10 +228,13 @@ function ArchiveZone({
               {a.text(facts.name)}
               {facts.products > 0 ? a.products(facts.products, f.count(facts.products)) : null}
             </p>
-            {/* Holds its line while empty, so nothing moves when it speaks. */}
-            <p role="status" className="mt-1 min-h-5 text-sm font-medium">
-              {pending ? a.archiving : null}
-            </p>
+            {/* Holds its line while empty, so nothing moves when it speaks or refuses. */}
+            <div className="mt-1 min-h-5">
+              <p role="status" className="text-sm font-medium">
+                {pending ? a.archiving : null}
+              </p>
+              <FaultLine message={pending ? undefined : state.error?.message} hold={false} />
+            </div>
           </div>
           <button
             type="submit"
@@ -244,11 +247,6 @@ function ArchiveZone({
             </span>
           </button>
         </div>
-        {state.error ? (
-          <p role="alert" className="bg-stock px-5 py-3 text-sm font-medium sm:px-8">
-            {state.error.message}
-          </p>
-        ) : null}
       </form>
     </section>
   );

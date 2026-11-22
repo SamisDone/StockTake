@@ -5,6 +5,7 @@ import { useLabelEditor } from "@/components/label-editor";
 import { type ArchiveFormState, setSupplierArchived } from "@/server/supplier-actions";
 import type { Language } from "@/lib/i18n";
 import { SUPPLIERS_COPY } from "./copy";
+import { FaultLine } from "@/components/fault";
 
 const initial: ArchiveFormState = {};
 
@@ -32,11 +33,7 @@ export function RestoreSupplier({ supplierId, language }: { supplierId: number; 
       <p role="status" className="sr-only">
         {pending ? t.restoring : ""}
       </p>
-      {state.error ? (
-        <p role="alert" className="mt-2 text-sm font-medium">
-          {state.error.message}
-        </p>
-      ) : null}
+      <FaultLine message={pending ? undefined : state.error?.message} className="pt-2" />
     </form>
   );
 }

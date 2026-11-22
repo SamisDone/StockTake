@@ -3,6 +3,7 @@
 import { Check } from "lucide-react";
 import { useActionState, useState } from "react";
 import { Choice } from "@/components/choice";
+import { FaultLine } from "@/components/fault";
 import { Field } from "@/components/field";
 import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
@@ -87,7 +88,7 @@ export function RecordStock({
                 defaultValue={state.values?.quantity}
                 onChange={(event) => setQuantity(event.target.value)}
                 aria-invalid={quantityError ? true : undefined}
-                aria-describedby={quantityError ? "quantity-error" : "quantity-effect"}
+                aria-describedby={quantityError ? "quantity-error quantity-effect" : "quantity-effect"}
                 className="field-input"
               />
             </Field>
@@ -107,25 +108,23 @@ export function RecordStock({
             <Effect kind={kind} onHand={onHand} quantity={parseUnits(quantity)} f={formats(language)} t={t} />
           </p>
 
-          {error && !error.field ? (
-            <p role="alert" className="mt-3 bg-stock px-5 py-3 text-sm font-medium sm:px-8">
-              {error.message}
-            </p>
-          ) : null}
-
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 pt-3 pb-5 sm:px-8">
             {/* Announced when it changes; keyed so each new entry prints in fresh. It holds a
-                line even when empty, so nothing below it moves when it speaks. */}
-            <p role="status" className="min-h-5 min-w-0 flex-1 text-sm font-medium">
-              {pending ? (
-                t.recording
-              ) : state.done ? (
-                <span key={state.done.at} className="print-in flex items-start gap-1.5">
-                  <Check aria-hidden size={16} strokeWidth={2.5} className="mt-0.5 shrink-0" />
-                  {state.done.message}
-                </span>
-              ) : null}
-            </p>
+                line even when empty, so nothing below it moves when it speaks, and a refusal
+                that isn't about the quantity is printed in the same line. */}
+            <div className="min-h-5 min-w-0 flex-1">
+              <p role="status" className="text-sm font-medium">
+                {pending ? (
+                  t.recording
+                ) : state.done ? (
+                  <span key={state.done.at} className="print-in flex items-start gap-1.5">
+                    <Check aria-hidden size={16} strokeWidth={2.5} className="mt-0.5 shrink-0" />
+                    {state.done.message}
+                  </span>
+                ) : null}
+              </p>
+              <FaultLine message={error && !error.field && !pending ? error.message : undefined} hold={false} />
+            </div>
             <button
               type="submit"
               className="group h-12 shrink-0 rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 enabled:hover:bg-ink-lift disabled:cursor-progress disabled:bg-ink-2 max-sm:w-full"

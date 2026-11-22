@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useActionState, useState, type ReactNode } from "react";
 import { DemoStub } from "@/components/demo-doors";
+import { FaultLine } from "@/components/fault";
 import { LanguageSwitch } from "@/components/language-switch";
 import { Mark } from "@/components/logo";
 import { DEMO_ROLES } from "@/lib/demo-roles";
@@ -98,11 +99,7 @@ export function LoginLabel({ language }: { language: Language }) {
         />
       </Field>
 
-      {error && !error.field ? (
-        <p role="alert" className="bg-stock px-6 py-3 text-sm font-medium">
-          {error.message}
-        </p>
-      ) : null}
+      <FaultLine message={error && !error.field ? error.message : undefined} className="border-t border-ink px-6 py-3" />
 
       {/* The label's foot band: reverse print, full bleed, closing the sheet. */}
       <button
@@ -121,7 +118,8 @@ export function LoginLabel({ language }: { language: Language }) {
 
 /**
  * One boxed field: its name in the top-left corner, the value printed below. A field at
- * fault turns to yellow attention stock and says what's wrong.
+ * fault keeps its white stock, gains a fault-red rule down its leading edge, and opens a
+ * line saying what's wrong.
  */
 function Field({
   name,
@@ -140,17 +138,13 @@ function Field({
     <div
       className={`px-6 pt-2.5 pb-2 focus-within:shadow-[inset_0_0_0_2px_var(--color-ink)] ${
         last ? "" : "border-b border-ink"
-      } ${error ? "bg-stock" : ""}`}
+      } ${error ? "fault-rule" : ""}`}
     >
-      <label htmlFor={name} className={`field-name block ${error ? "text-ink" : ""}`}>
+      <label htmlFor={name} className="field-name block">
         {label}
       </label>
       {children}
-      {error ? (
-        <p id={`${name}-error`} role="alert" className="pb-1 text-sm font-medium">
-          {error}
-        </p>
-      ) : null}
+      <FaultLine id={`${name}-error`} message={error} className="pb-1" />
     </div>
   );
 }
