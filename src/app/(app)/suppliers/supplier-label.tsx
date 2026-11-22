@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { getDb } from "@/db/client";
 import { DomainError } from "@/domain/errors";
 import { getStockForecasts } from "@/domain/forecast";
-import { deliveryRecord, listOrders, poNumber } from "@/domain/purchase-orders";
+import { deliveryRecord, isLate, listOrders, poNumber } from "@/domain/purchase-orders";
 import { getReorderSuggestions } from "@/domain/reorder";
 import { getSupplier } from "@/domain/suppliers";
 import { EditButton, LabelEditor } from "@/components/label-editor";
@@ -250,7 +250,7 @@ export async function SupplierLabel({ id, action }: { id: number; action: ReactN
         {orders.length > 0 ? (
           <ul className="mt-3 border-t border-ink">
             {orders.slice(0, ORDER_LIMIT).map((o) => {
-              const late = o.dueAt !== null && o.dueAt < now;
+              const late = isLate(o, now);
               return (
                 <li
                   key={o.id}

@@ -1,7 +1,7 @@
 // Writes .seed/demo.sql: a reset of every table followed by the demo dataset.
 // Run through `pnpm db:seed:local` or `pnpm db:seed:remote`.
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { demoPasswordHash, demoStatements, resetStatements, todayUtc } from "../src/seed/demo.ts";
+import { demoPasswordHash, demoStatements, resetStatements, today } from "../src/seed/demo.ts";
 
 // Every migration in order: the reset recreates each blocking trigger from its latest definition.
 const migrations = readdirSync("drizzle")
@@ -11,7 +11,7 @@ const migrations = readdirSync("drizzle")
   .join("\n");
 const statements = [
   ...resetStatements(migrations),
-  ...demoStatements({ anchor: todayUtc(), passwordHash: await demoPasswordHash() }),
+  ...demoStatements({ anchor: today(), passwordHash: await demoPasswordHash() }),
 ];
 
 mkdirSync(".seed", { recursive: true });

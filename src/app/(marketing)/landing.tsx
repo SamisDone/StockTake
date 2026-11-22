@@ -7,6 +7,7 @@ import { DEMO_ROLES } from "@/lib/demo-roles";
 import { formats } from "@/lib/format";
 import { type Copy, LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { REFUSALS } from "@/lib/refusals";
+import { parseDayKey } from "@/lib/business-time";
 
 /**
  * The landing page, in either language. It's prerendered once per language (`/` and
@@ -128,7 +129,7 @@ function Refusals({ t, language }: Props) {
 
 type Kind = "receipt" | "sale" | "return" | "writeOff" | "count";
 
-/** An example product's October, dated in UTC like every ledger date. */
+/** An example product's October, on the business's clock like every ledger date. */
 const EXAMPLE_MOVEMENTS: { day: number; kind: Kind; detail: "order" | "crushed" | "found" | null; quantity: number }[] =
   [
     { day: 2, kind: "receipt", detail: "order", quantity: 120 },
@@ -149,7 +150,7 @@ const ON_HAND = LEDGER_ROWS[LEDGER_ROWS.length - 1].balance;
 /** How a count is made: the ledger, with its running balance, ending in the number on hand. */
 function Ledger({ t, language }: Props) {
   const f = formats(language);
-  const october = (day: number) => new Date(Date.UTC(2026, 9, day));
+  const october = (day: number) => parseDayKey(`2026-10-${String(day).padStart(2, "0")}`)!;
   return (
     <section
       aria-labelledby="ledger-title"

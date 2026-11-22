@@ -43,6 +43,13 @@
       "when": 1795244605107,
       "tag": "0005_activity_facts",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795309664783,
+      "tag": "0006_assistant_budget",
+      "breakpoints": true
     }
   ]
 }

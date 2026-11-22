@@ -219,8 +219,9 @@ export const activityLog = sqliteTable(
 );
 
 /**
- * What the assistant has used, per person per UTC day: questions asked and the Workers
- * AI neurons they cost. The daily cap is checked against it before the model is called.
+ * What the assistant has used, per person per business day: questions asked and the
+ * Workers AI neurons they cost. The daily cap is checked against it before the model is
+ * called.
  */
 export const assistantUsage = sqliteTable(
   "assistant_usage",
@@ -228,7 +229,7 @@ export const assistantUsage = sqliteTable(
     userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    /** The UTC day, as YYYY-MM-DD. */
+    /** The business day (Asia/Dhaka), as YYYY-MM-DD. */
     day: text("day").notNull(),
     questions: integer("questions").notNull().default(0),
     neurons: real("neurons").notNull().default(0),
@@ -239,6 +240,21 @@ export const assistantUsage = sqliteTable(
     check("assistant_usage_questions", sql`${t.questions} >= 0`),
     check("assistant_usage_neurons", sql`${t.neurons} >= 0`),
   ],
+);
+
+/**
+ * Neurons all accounts together have spent per UTC day. Workers AI resets its free
+ * allocation at 00:00 UTC, so this budget keeps Cloudflare's day, not the business's:
+ * counted per Dhaka day, it could straddle two of Cloudflare's and overspend them.
+ */
+export const assistantBudget = sqliteTable(
+  "assistant_budget",
+  {
+    /** The UTC day, as YYYY-MM-DD. */
+    day: text("day").primaryKey(),
+    neurons: real("neurons").notNull().default(0),
+  },
+  (t) => [check("assistant_budget_neurons", sql`${t.neurons} >= 0`)],
 );
 
 /**

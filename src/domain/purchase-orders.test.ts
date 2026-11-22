@@ -5,7 +5,9 @@ import { activityLog, products, suppliers } from "@/db/schema";
 import {
   cancelOrder,
   createDraft,
+  daysLate,
   deliveryRecord,
+  isLate,
   getOrder,
   listOrders,
   placeOrder,
@@ -120,14 +122,15 @@ describe("createDraft", () => {
     });
   });
 
-  it("takes an expected date from the day it's drafted on, not before", async () => {
-    const draftedOn = new Date(Date.UTC(2026, 10, 5, 18));
-    const sameDay = new Date(Date.UTC(2026, 10, 5));
+  it("takes an expected date from the day it's drafted on in Dhaka, not before", async () => {
+    // 23:00 on the 5th in Dhaka; the 5th began at 18:00 UTC on the 4th.
+    const draftedOn = new Date("2026-11-05T17:00:00Z");
+    const sameDay = new Date("2026-11-04T18:00:00Z");
     const { id } = await createDraft(db, staff, { ...twoLines, expectedAt: sameDay }, draftedOn);
     expect((await getOrder(db, id)).expectedAt).toEqual(sameDay);
 
     await expect(
-      createDraft(db, staff, { ...twoLines, expectedAt: new Date(Date.UTC(2026, 10, 4)) }, draftedOn),
+      createDraft(db, staff, { ...twoLines, expectedAt: new Date("2026-11-03T18:00:00Z") }, draftedOn),
     ).rejects.toMatchObject({
       code: "invalid_input",
       field: "expectedAt",
@@ -290,12 +293,33 @@ describe("listOrders by supplier", () => {
   });
 });
 
+describe("isLate", () => {
+  // Due on the 8th: the 8th runs from 18:00 UTC on the 7th to 18:00 UTC on the 8th.
+  const order = { dueAt: new Date("2026-11-07T18:00:00Z") };
+
+  it("isn't late on its due day, however late in the day", () => {
+    expect(isLate(order, new Date("2026-11-08T17:59:00Z"))).toBe(false);
+    expect(daysLate(order, new Date("2026-11-08T17:59:00Z"))).toBe(0);
+  });
+
+  it("is late from midnight in Dhaka after the due day, counted in whole days", () => {
+    expect(isLate(order, new Date("2026-11-08T18:00:00Z"))).toBe(true);
+    expect(daysLate(order, new Date("2026-11-08T18:00:00Z"))).toBe(1);
+    expect(daysLate(order, new Date("2026-11-11T09:00:00Z"))).toBe(3);
+  });
+
+  it("is never late without a due day", () => {
+    expect(isLate({ dueAt: null }, new Date("2026-12-01T00:00:00Z"))).toBe(false);
+  });
+});
+
 describe("deliveryRecord", () => {
   it("counts received orders that arrived by their due day", async () => {
     // Placed on the 1st with a 7-day lead time: due the 8th unless the supplier gave a date.
     const receive = async (receivedDay: number, expectedAt?: Date) => {
       const { id } = await createDraft(db, staff, { ...twoLines, expectedAt }, at(1));
       await placeOrder(db, admin, id, at(1));
+      // 23:00 in Dhaka: the last hour of the day.
       await receiveOrder(db, staff, id, new Date(Date.UTC(2026, 10, receivedDay, 17)));
     };
     await receive(8); // on the due day, late in the day: on time

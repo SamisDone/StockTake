@@ -1,3 +1,5 @@
+import { dayKey } from "@/lib/business-time";
+
 /**
  * The draft form's data, in a plain module so Server Components can build it: a
  * "use client" module's constants reach the server only as client references.
@@ -39,5 +41,5 @@ export type DraftValues = {
   notes: string;
 };
 
-/** A day as a date input holds it, in UTC like every date on an order. */
-export const dayInput = (date: Date) => date.toISOString().slice(0, 10);
+/** A day as a date input holds it, on the business's clock like every date on an order. */
+export const dayInput = dayKey;

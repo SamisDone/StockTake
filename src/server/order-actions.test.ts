@@ -131,7 +131,8 @@ describe("saveDraft", () => {
 
     const order = await getOrder(db, 1);
     expect(order).toMatchObject({ status: "draft", notes: "Ring first", createdByName: "Sam Okafor" });
-    expect(order.expectedAt).toEqual(new Date(Date.UTC(2099, 0, 15)));
+    // The day starts at midnight in Dhaka, 18:00 UTC the evening before.
+    expect(order.expectedAt).toEqual(new Date("2099-01-14T18:00:00Z"));
     expect(order.lines.map((l) => [l.productId, l.quantity, l.unitCostCents])).toEqual([
       [1, 1200, 240],
       [2, 6, 400],

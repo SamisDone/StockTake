@@ -1,14 +1,17 @@
 /**
  * The demo dataset: 120 days of simulated trading for a small distributor, generated
  * deterministically from a fixed seed. Dates are relative to `anchor` (normally the
- * start of today, UTC) so the history always ends now and forecasts stay meaningful.
+ * start of today in Dhaka, the business's midnight) so the history always ends now and
+ * forecasts stay meaningful, and an hour of the day is an hour on the business's clock.
  *
  * Output is plain SQL so the same file seeds local and remote D1, and every row goes
  * through the database's ledger triggers, so the seed itself is checked by them.
  *
- * This module imports nothing from the app, so `scripts/seed.mts` can run it with Node.
+ * It imports nothing from the app but the plain business clock, so `scripts/seed.mts`
+ * can run it with Node.
  */
 
+import { startOfDay, weekday as weekdayOf } from "../lib/business-time.ts";
 import { DEMO_PASSWORD, DEMO_USERS } from "./accounts.ts";
 
 export { DEMO_PASSWORD, DEMO_USERS };
@@ -313,7 +316,7 @@ export function demoStatements({ anchor, passwordHash }: { anchor: Date; passwor
   };
 
   for (let day = 1; day <= HISTORY_DAYS; day++) {
-    const weekday = new Date(at(day, 12)).getUTCDay();
+    const weekday = weekdayOf(new Date(at(day, 12)));
     const dayFactor = weekday === 0 || weekday === 6 ? 0.55 : 1.1;
 
     // Deliveries due today.
@@ -460,6 +463,5 @@ export async function demoPasswordHash() {
   return `pbkdf2_sha256$100000$${b64(salt)}$${b64(new Uint8Array(bits))}`;
 }
 
-/** Start of the current UTC day. */
-export const todayUtc = (now = new Date()) =>
-  new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+/** Midnight at the start of today on the business's clock: the seed's usual anchor. */
+export const today = (now = new Date()) => startOfDay(now);

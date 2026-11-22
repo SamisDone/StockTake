@@ -36,18 +36,22 @@ describe("formats in English", () => {
     expect(en.rate(9)).toBe("9 a day");
   });
 
-  it("prints ledger dates in UTC, with the year only when it differs", () => {
-    const now = new Date(Date.UTC(2026, 10, 20));
-    expect(en.date(new Date(Date.UTC(2026, 10, 14, 23, 30)), now)).toBe("Nov 14");
-    expect(en.date(new Date(Date.UTC(2025, 11, 31)), now)).toBe("Dec 31, 2025");
+  it("prints ledger dates on Dhaka's clock, with the year only when it differs", () => {
+    const now = new Date("2026-11-20T06:00:00Z");
+    expect(en.date(new Date("2026-11-14T17:30:00Z"), now)).toBe("Nov 14");
+    // 23:30 UTC is 05:30 the next morning in Dhaka.
+    expect(en.date(new Date("2026-11-14T23:30:00Z"), now)).toBe("Nov 15");
+    expect(en.date(new Date("2025-12-31T12:00:00Z"), now)).toBe("Dec 31, 2025");
+    // Dhaka's new year starts at 18:00 UTC on Dec 31.
+    expect(en.date(new Date("2026-12-31T19:00:00Z"), now)).toBe("Jan 1, 2027");
   });
 
-  it("prints a chart's day with its weekday, in UTC", () => {
-    expect(en.day(new Date(Date.UTC(2026, 10, 18, 23, 30)))).toBe("Wed, Nov 18");
+  it("prints a chart's day with its weekday, on Dhaka's clock", () => {
+    expect(en.day(new Date("2026-11-17T18:00:00Z"))).toBe("Wed, Nov 18");
   });
 
-  it("prints times of day in UTC", () => {
-    expect(en.time(new Date(Date.UTC(2026, 10, 18, 14, 5)))).toBe("2:05 PM");
+  it("prints times of day on Dhaka's clock", () => {
+    expect(en.time(new Date("2026-11-18T08:05:00Z"))).toBe("2:05 PM");
   });
 });
 
@@ -61,13 +65,13 @@ describe("formats in Bangla", () => {
   });
 
   it("names months and weekdays in Bangla", () => {
-    const now = new Date(Date.UTC(2026, 10, 20));
-    expect(bn.date(new Date(Date.UTC(2026, 10, 14)), now)).toBe("১৪ নভেম্বর");
-    expect(bn.date(new Date(Date.UTC(2025, 11, 31)), now)).toBe("৩১ ডিসেম্বর, ২০২৫");
+    const now = new Date("2026-11-20T06:00:00Z");
+    expect(bn.date(new Date("2026-11-14T06:00:00Z"), now)).toBe("১৪ নভেম্বর");
+    expect(bn.date(new Date("2025-12-31T06:00:00Z"), now)).toBe("৩১ ডিসেম্বর, ২০২৫");
   });
 
   it("puts the part of the day before the time", () => {
-    expect(bn.time(new Date(Date.UTC(2026, 10, 18, 14, 5)))).toBe("দুপুর ২:০৫");
+    expect(bn.time(new Date("2026-11-18T08:05:00Z"))).toBe("দুপুর ২:০৫");
   });
 });
 

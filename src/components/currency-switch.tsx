@@ -7,6 +7,7 @@ import type { Language } from "@/lib/i18n";
 import { type Currency, type MoneyPrefs } from "@/lib/money";
 import { setCurrency } from "@/server/preference-actions";
 import { COMPONENT_COPY } from "./copy";
+import { parseDayKey } from "@/lib/business-time";
 
 const rateFormats: Record<Language, Intl.NumberFormat> = {
   en: new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -15,7 +16,8 @@ const rateFormats: Record<Language, Intl.NumberFormat> = {
 
 /** "$1 = ৳124.66 on Nov 20": the rate taka is converted at, and the day it was published. */
 export function rateLine(money: MoneyPrefs, language: Language) {
-  const day = money.rateAsOf ? formats(language).date(new Date(`${money.rateAsOf}T00:00:00Z`)) : null;
+  const asOf = money.rateAsOf ? parseDayKey(money.rateAsOf) : null;
+  const day = asOf ? formats(language).date(asOf) : null;
   return COMPONENT_COPY[language].rate(rateFormats[language].format(money.bdtPerUsd), day);
 }
 

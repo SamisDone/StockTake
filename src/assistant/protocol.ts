@@ -32,8 +32,11 @@ export const askRequest = z.object({
 });
 export type AskRequest = z.input<typeof askRequest>;
 
-/** Allowance with its date as text, the way it crosses the wire. */
-export type WireAllowance = Omit<Allowance, "resetsAt"> & { resetsAt: string };
+/** Allowance with its dates as text, the way it crosses the wire. */
+export type WireAllowance = Omit<Allowance, "resetsAt" | "allowanceResetsAt"> & {
+  resetsAt: string;
+  allowanceResetsAt: string;
+};
 
 export type Refusal = "questions" | "allowance" | "failed";
 
@@ -45,4 +48,5 @@ export type AskEvent =
 export const toWire = (allowance: Allowance): WireAllowance => ({
   ...allowance,
   resetsAt: allowance.resetsAt.toISOString(),
+  allowanceResetsAt: allowance.allowanceResetsAt.toISOString(),
 });

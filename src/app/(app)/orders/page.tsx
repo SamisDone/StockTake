@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { getDb } from "@/db/client";
-import { listOrders, poNumber } from "@/domain/purchase-orders";
+import { isLate, listOrders, poNumber } from "@/domain/purchase-orders";
 import { type SupplierSuggestion, type SuggestedLine, getReorderSuggestions } from "@/domain/reorder";
 import { PageHeader } from "@/components/page-header";
 import { MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
@@ -69,7 +69,7 @@ async function Orders({ language }: { language: Language }) {
 
   // Only what the table prints crosses to the browser.
   const rows: OrderRow[] = orders.map((o) => {
-    const late = o.dueAt !== null && o.dueAt < now;
+    const late = isLate(o, now);
     const when = orderWhen(o, now, language);
     return {
       id: o.id,

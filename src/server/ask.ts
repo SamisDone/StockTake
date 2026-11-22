@@ -56,7 +56,7 @@ export function answerStream({
           language,
           onStep: (step) => send({ type: "step", step }),
         });
-        await recordNeurons(db, user.id, claim.day, neurons);
+        await recordNeurons(db, user.id, claim, neurons);
         send({ type: "answer", answer: { text, refs, proposal, steps }, allowance: await allowance() });
       } catch (error) {
         await releaseQuestion(db, user.id, claim.day);

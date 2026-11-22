@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { type FeedEntry, dayLabel, groupFeed, readFeedParams } from "./feed";
 
-const at = (day: number, hour: number, minute = 0) => new Date(Date.UTC(2026, 10, day, hour, minute));
+/** A moment in November 2026 on Dhaka's clock (UTC+6). */
+const at = (day: number, hour: number, minute = 0) => new Date(Date.UTC(2026, 10, day, hour - 6, minute));
+const midnight = (day: number) => at(day, 0);
 let next = 1;
 const entry = (action: string, userName: string, occurredAt: Date): FeedEntry => ({
   id: next++,
@@ -15,7 +17,7 @@ const entry = (action: string, userName: string, occurredAt: Date): FeedEntry =>
 });
 
 describe("groupFeed", () => {
-  it("groups by UTC day and folds a run of one person's sales into one item", () => {
+  it("groups by Dhaka day and folds a run of one person's sales into one item", () => {
     const days = groupFeed([
       entry("stock.sale", "Jordan", at(21, 16)),
       entry("stock.sale", "Jordan", at(21, 15)),
@@ -35,6 +37,12 @@ describe("groupFeed", () => {
     // A run doesn't cross midnight.
     expect(days[1].items).toHaveLength(1);
   });
+
+  it("starts the day at Dhaka midnight, not UTC's", () => {
+    // 01:00 in Dhaka is still the evening before in UTC.
+    const days = groupFeed([entry("stock.count", "Avery", at(21, 1)), entry("stock.count", "Avery", at(20, 23))]);
+    expect(days.map((d) => d.day)).toEqual(["2026-11-21", "2026-11-20"]);
+  });
 });
 
 describe("readFeedParams", () => {
@@ -44,8 +52,8 @@ describe("readFeedParams", () => {
     expect(readFeedParams({}, now)).toEqual({
       kind: "all",
       userId: undefined,
-      from: new Date(Date.UTC(2026, 10, 15)),
-      to: new Date(Date.UTC(2026, 10, 22)),
+      from: midnight(15),
+      to: midnight(22),
     });
   });
 
@@ -53,8 +61,8 @@ describe("readFeedParams", () => {
     expect(readFeedParams({ kind: "orders", person: "2", before: "2026-11-15" }, now)).toEqual({
       kind: "orders",
       userId: 2,
-      from: new Date(Date.UTC(2026, 10, 8)),
-      to: new Date(Date.UTC(2026, 10, 15)),
+      from: midnight(8),
+      to: midnight(15),
     });
     expect(readFeedParams({ kind: "x", person: "-1", before: "2026-02-31" }, now)).toEqual(readFeedParams({}, now));
     // Never a page that starts in the future.

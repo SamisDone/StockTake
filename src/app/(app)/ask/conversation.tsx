@@ -204,7 +204,9 @@ export function Conversation({
       >
         {limit ? (
           <p role="status" className="bg-stock px-5 py-3 text-sm sm:px-8">
-            {t.limit[limit](f.count(allowance.questionsPerDay))}
+            {limit === "questions"
+              ? t.limit.questions(f.count(allowance.questionsPerDay))
+              : t.limit.allowance(f.time(new Date(allowance.allowanceResetsAt)))}
           </p>
         ) : null}
         <div className="flex">

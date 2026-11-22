@@ -11,9 +11,9 @@ export const ASSISTANT_MODEL = "@cf/zai-org/glm-4.7-flash";
 export const FALLBACK_MODEL = "@cf/google/gemma-4-26b-a4b-it";
 
 export const LIMITS = {
-  /** Questions one account can ask per UTC day. */
+  /** Questions one account can ask per business day (they come back at midnight in Dhaka). */
   questionsPerDay: 20,
-  /** Neurons all accounts together can spend per UTC day. */
+  /** Neurons all accounts together can spend per UTC day, Workers AI's day (see `assistant_budget`). */
   neuronsPerDay: 9_000,
 };
 

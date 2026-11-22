@@ -4,7 +4,7 @@ import type { PurchaseOrderStatus } from "@/db/schema";
 import { PERIODS, getAnalytics } from "@/domain/analytics";
 import { DomainError } from "@/domain/errors";
 import { type StockForecast, getProductForecast, getStockForecasts } from "@/domain/forecast";
-import { deliveryRecord, getOrder, listOrders } from "@/domain/purchase-orders";
+import { daysLate, deliveryRecord, getOrder, isLate, listOrders } from "@/domain/purchase-orders";
 import { getReorderSuggestions } from "@/domain/reorder";
 import { listMovements } from "@/domain/stock";
 import { getSupplier, listSuppliers } from "@/domain/suppliers";
@@ -20,7 +20,7 @@ import { DOLLARS, type MoneyFormat, moneyFormat } from "@/lib/money";
  *
  * What a tool returns to the model is reshaped for reading: money as formatted text in
  * the currency the person reads in,
- * dates as UTC days, figures rounded, so the model repeats numbers rather than computing
+ * dates as days on the business's clock, figures rounded, so the model repeats numbers rather than computing
  * them.
  */
 
@@ -71,11 +71,9 @@ type Tool<S extends z.ZodObject> = {
 
 const tool = <S extends z.ZodObject>(definition: Tool<S>) => definition;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-/** A UTC day the way every page prints it: "Nov 14", with the year only when it isn't this one. */
+/** A day the way every page prints it: "Nov 14", with the year only when it isn't this one. */
 const day = (date: Date | null, now: Date) => (date ? formats("en").date(date, now) : null);
 const round = (n: number | null, places = 1) => (n === null ? null : Number(n.toFixed(places)));
-const startOfDay = (date: Date) => Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 /** A count in a Bangla step summary: "১২টি". */
 const bn = (n: number) => `${formats("bn").count(n)}টি`;
@@ -284,11 +282,8 @@ const listOrdersTool = tool({
     limit: z.number().int().min(1).max(25).optional().describe("Default 15."),
   }),
   async run({ db, now, money, language }, { status, late, supplierId, limit = 15 }) {
-    const today = startOfDay(now);
-    const isLate = (o: { status: string; dueAt: Date | null }) =>
-      o.status === "ordered" && o.dueAt !== null && startOfDay(o.dueAt) < today;
     const orders = (await listOrders(db, { status: late ? "ordered" : status, supplierId })).filter(
-      (o) => !late || isLate(o),
+      (o) => !late || isLate(o, now),
     );
     const shown = orders.slice(0, limit);
     return {
@@ -298,8 +293,8 @@ const listOrdersTool = tool({
           orderId: o.id,
           number: o.number,
           status: o.status,
-          late: isLate(o),
-          daysLate: isLate(o) && o.dueAt ? Math.round((today - startOfDay(o.dueAt)) / DAY_MS) : 0,
+          late: isLate(o, now),
+          daysLate: daysLate(o, now),
           supplier: o.supplierName,
           supplierId: o.supplierId,
           lines: o.lineCount,
@@ -367,7 +362,7 @@ const getOrderTool = tool({
 const salesSummary = tool({
   name: "sales_summary",
   description:
-    "Sales over the last 28 or 90 UTC days, ending today: units, sales value and margin (valued at today's prices, " +
+    "Sales over the last 28 or 90 days, ending today: units, sales value and margin (valued at today's prices, " +
     "since the ledger records units), the best sellers by value, the slowest-moving stock, and sales by category.",
   input: z.object({
     days: z

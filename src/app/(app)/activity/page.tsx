@@ -21,6 +21,7 @@ import {
   PAGE_DAYS,
   dayLabel,
   dayParam,
+  dayStart,
   isRecentDay,
   groupFeed,
   readFeedParams,
@@ -29,6 +30,7 @@ import { IntentLink } from "@/components/intent-link";
 import { EitherLanguage } from "@/components/either-language";
 import { WithLanguage } from "@/components/with-language";
 import { both } from "@/lib/i18n";
+import { addDays } from "@/lib/business-time";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: COPY[await getLanguage()].title };
@@ -36,7 +38,6 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /** A week can't hold more than this many entries on the page; the demo's busiest week holds about 200. */
 const WEEK_LIMIT = 2000;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function ActivityPage({ searchParams }: PageProps<"/activity">) {
   return (
@@ -98,7 +99,7 @@ async function Feed({
   const before = latest ? undefined : dayParam(to);
   const lastDay = new Date(to.getTime() - 1);
   // The week after this one; the latest week has no `before`.
-  const laterTo = new Date(to.getTime() + PAGE_DAYS * DAY_MS);
+  const laterTo = addDays(to, PAGE_DAYS);
   const laterBefore = laterTo.getTime() > now.getTime() ? undefined : dayParam(laterTo);
 
   return (
@@ -149,9 +150,7 @@ async function Feed({
                 <h3 id={`day-${day}`} className="border-b border-ink px-5 pb-2 font-semibold sm:px-8">
                   {dayLabel(day, now, language)}
                   {isRecentDay(day, now) ? (
-                    <span className="ml-2 text-sm font-normal text-ink-2">
-                      {f.date(new Date(`${day}T00:00:00Z`), now)}
-                    </span>
+                    <span className="ml-2 text-sm font-normal text-ink-2">{f.date(dayStart(day), now)}</span>
                   ) : null}
                 </h3>
                 <ul>
@@ -340,7 +339,7 @@ const en = {
   kinds: { all: "Everything", stock: "Stock", orders: "Orders", catalog: "Catalog" } as Record<Kind, string>,
   thisWeek: "This week",
   weekTo: (day: string) => `Week to ${day}`,
-  entries: (n: number, text: string) => `${text} ${n === 1 ? "entry" : "entries"} · times are UTC`,
+  entries: (n: number, text: string) => `${text} ${n === 1 ? "entry" : "entries"} · Dhaka time`,
   nothing: (kind: Exclude<Kind, "all"> | null, person: string | null | undefined) =>
     `Nothing ${kind ? `in ${{ stock: "stock", orders: "orders", catalog: "catalog" }[kind]} ` : ""}${
       person === undefined ? "" : `by ${person ?? "them"} `
@@ -366,7 +365,7 @@ const COPY: Copy<ActivityCopy> = {
     kinds: { all: "সব", stock: "স্টক", orders: "অর্ডার", catalog: "পণ্যতালিকা" },
     thisWeek: "এই সপ্তাহ",
     weekTo: (day) => `${day} পর্যন্ত সপ্তাহ`,
-    entries: (_n, text) => `${text}টি এন্ট্রি · সময় UTC অনুযায়ী`,
+    entries: (_n, text) => `${text}টি এন্ট্রি · ঢাকার সময়`,
     nothing: (kind, person) =>
       `এই সপ্তাহে ${person === undefined ? "" : `${person ?? "তাঁর"} `}${
         kind ? `${{ stock: "স্টকে", orders: "অর্ডারে", catalog: "পণ্যতালিকায়" }[kind]} ` : ""

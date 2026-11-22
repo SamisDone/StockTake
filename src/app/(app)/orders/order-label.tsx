@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import type { ReactNode } from "react";
 import { getDb } from "@/db/client";
 import { DomainError } from "@/domain/errors";
-import { getOrder } from "@/domain/purchase-orders";
+import { daysLate, getOrder, isLate } from "@/domain/purchase-orders";
 import { getOrderableProducts } from "@/domain/reorder";
 import { EditButton, LabelEditor } from "@/components/label-editor";
 import { Tally, TallyPlaceholder } from "@/components/stock";
@@ -28,8 +28,6 @@ export function orderId(raw: string) {
 
 type Order = Awaited<ReturnType<typeof getOrder>>;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 /**
  * A purchase order printed as one label: who it's for, what state it's in and why,
  * what can be done with it next, its lines with the total, and its history. While it's
@@ -53,7 +51,7 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
     throw error;
   }
   const units = order.lines.reduce((total, line) => total + line.quantity, 0);
-  const late = order.dueAt !== null && order.dueAt < now;
+  const late = isLate(order, now);
   const draft = order.status === "draft";
 
   const label = (
@@ -231,7 +229,7 @@ function Status({ order, late, now, f, t }: { order: Order; late: boolean; now: 
     const due = order.dueAt ? f.date(order.dueAt, now) : "–";
     const basis = order.expectedAt ? s.gaveDate : s.leadBasis(f.count(order.leadTimeDays));
     if (late && order.dueAt) {
-      const overdue = Math.max(1, Math.floor((now.getTime() - order.dueAt.getTime()) / DAY_MS));
+      const overdue = daysLate(order, now);
       said = s.late(due, f.days(overdue), basis);
     } else {
       said = s.onItsWay(due, basis);

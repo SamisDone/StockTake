@@ -1,11 +1,10 @@
 import { type AnyColumn, type SQL, and, asc, eq, gte, lt, sql } from "drizzle-orm";
 import type { Database } from "@/db/database";
 import { products, purchaseOrders, stockMovements, suppliers } from "@/db/schema";
+import { BUSINESS_OFFSET_MS, DAY_MS, addDays, dayFromNumber, dayNumber } from "@/lib/business-time";
 import { arrivedOnTime, daysTaken, poNumber } from "./purchase-orders";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** The periods the analytics page offers, in days ending today (UTC). */
+/** The periods the analytics page offers, in business days ending today. */
 export const PERIODS = [28, 90] as const;
 export type PeriodDays = (typeof PERIODS)[number];
 
@@ -21,10 +20,9 @@ export function readPeriod(raw: string | undefined): PeriodDays {
   return (PERIODS as readonly number[]).includes(days) ? (days as PeriodDays) : PERIODS[0];
 }
 
-/** A period of `days` whole UTC days ending with today, so today's entries count. */
+/** A period of `days` whole business days ending with today, so today's entries count. */
 export function periodRange(days: number, now: Date) {
-  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  return { from: new Date(today - (days - 1) * DAY_MS), to: now };
+  return { from: addDays(now, -(days - 1)), to: now };
 }
 
 /** Sums a movement column over the rows that match `when`, or 0. */
@@ -68,11 +66,12 @@ async function ledgerRows(db: Database, from: Date, to: Date) {
 export type LedgerRow = Awaited<ReturnType<typeof ledgerRows>>[number];
 
 /**
- * The period's ledger by UTC day: net units sold (sales less returns) valued at today's
+ * The period's ledger by business day (`dayNumber`): net units sold (sales less returns) valued at today's
  * prices and costs, and how much every movement that day changed the stock at cost.
  */
 async function dayRows(db: Database, from: Date, to: Date) {
-  const day = sql<number>`cast(${stockMovements.occurredAt} / ${DAY_MS} as integer)`;
+  // Movements are never before 1970, so integer division floors like `dayNumber`.
+  const day = sql<number>`cast((${stockMovements.occurredAt} + ${BUSINESS_OFFSET_MS}) / ${DAY_MS} as integer)`;
   const selling = sql`${stockMovements.kind} IN ('sale', 'return')`;
   const sold = (per: SQL | AnyColumn) =>
     sql<number>`-coalesce(sum(CASE WHEN ${selling} THEN ${stockMovements.quantity} * ${per} END), 0)`.mapWith(Number);
@@ -105,13 +104,13 @@ export type StockDay = { day: Date; costCents: number };
  */
 export function fillDays(rows: DayRow[], from: Date, days: number, openingCents = 0) {
   const byDay = new Map(rows.map((r) => [r.day, r]));
-  const first = Math.floor(from.getTime() / DAY_MS);
+  const first = dayNumber(from);
   const sales: SalesDay[] = [];
   const stock: StockDay[] = [];
   let running = openingCents;
   for (let i = 0; i < days; i++) {
     const row = byDay.get(first + i);
-    const day = new Date((first + i) * DAY_MS);
+    const day = dayFromNumber(first + i);
     sales.push({ day, units: row?.units ?? 0, valueCents: row?.valueCents ?? 0, costCents: row?.costCents ?? 0 });
     running += row?.stockChangeCents ?? 0;
     stock.push({ day, costCents: running });

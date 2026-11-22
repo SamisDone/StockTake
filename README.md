@@ -36,7 +36,7 @@ Ask runs on [Workers AI](https://developers.cloudflare.com/workers-ai/) (`@cf/za
 - Tools hand the model figures already formatted (money as text, dates as the pages print them), so it repeats numbers rather than computing them.
 - Proposing an order writes nothing. The person sees the lines and writes the draft through the same Server Action and domain checks as any other draft.
 - The answer streams back as events: a line per lookup as it runs, then the answer. Links in the answer come only from records the tools returned, never from the model's text.
-- Workers AI's free plan allows 10,000 neurons a day. Each account gets 20 questions a UTC day, and all accounts share a budget kept under the allocation. A question is counted before the model is called and given back if no answer comes. When either runs out, the page says so.
+- Workers AI's free plan allows 10,000 neurons a day. Each account gets 20 questions a day (midnight to midnight in Dhaka), and all accounts share a budget kept under the allocation, counted on Cloudflare's UTC day because that's when the allocation resets. A question is counted before the model is called and given back if no answer comes. When either runs out, the page says so.
 
 ## Stack
 

@@ -1,9 +1,10 @@
 // Money is formatted per person, in src/lib/money.ts.
+import { BUSINESS_TIME_ZONE, yearOf } from "./business-time";
 import type { Language } from "./i18n";
 
 /**
- * Counts, dates and times in the reader's language. Every date in the app is a UTC
- * ledger date. Bangla prints Bangla digits, groups in lakhs (১২,৩৪,৫৬৭), and names
+ * Counts, dates and times in the reader's language. Dates and times are read on the
+ * business's clock (src/lib/business-time.ts), wherever the reader is. Bangla prints Bangla digits, groups in lakhs (১২,৩৪,৫৬৭), and names
  * months and weekdays in Bangla. Build once per render with `formats(language)`.
  */
 export type Formats = ReturnType<typeof build>;
@@ -19,17 +20,17 @@ export function formats(language: Language): Formats {
 function build(language: Language) {
   const bn = language === "bn";
   const locale = bn ? "bn-BD" : "en-US";
-  const utc = { timeZone: "UTC" } as const;
+  const zone = { timeZone: BUSINESS_TIME_ZONE } as const;
   const number = new Intl.NumberFormat(locale);
   const tenths = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
   // English abbreviates months ("Nov 14"); Bangla month names are short enough whole.
   const month = bn ? "long" : "short";
-  const shortDate = new Intl.DateTimeFormat(locale, { ...utc, month, day: "numeric" });
-  const shortDateYear = new Intl.DateTimeFormat(locale, { ...utc, month, day: "numeric", year: "numeric" });
-  const dayDate = new Intl.DateTimeFormat(locale, { ...utc, weekday: "short", month, day: "numeric" });
-  const longDayDate = new Intl.DateTimeFormat(locale, { ...utc, weekday: "long", month, day: "numeric" });
+  const shortDate = new Intl.DateTimeFormat(locale, { ...zone, month, day: "numeric" });
+  const shortDateYear = new Intl.DateTimeFormat(locale, { ...zone, month, day: "numeric", year: "numeric" });
+  const dayDate = new Intl.DateTimeFormat(locale, { ...zone, weekday: "short", month, day: "numeric" });
+  const longDayDate = new Intl.DateTimeFormat(locale, { ...zone, weekday: "long", month, day: "numeric" });
   const time = new Intl.DateTimeFormat(locale, {
-    ...utc,
+    ...zone,
     hour: "numeric",
     minute: "2-digit",
     ...(bn ? { dayPeriod: "short" } : {}),
@@ -55,14 +56,13 @@ function build(language: Language) {
       const value = tenths.format(Math.round(perDay * 10) / 10);
       return bn ? `দিনে ${value}` : `${value} a day`;
     },
-    /** A ledger date in UTC: "Nov 14", with the year only when it isn't the current one. */
-    date: (date: Date, now = new Date()) =>
-      (date.getUTCFullYear() === now.getUTCFullYear() ? shortDate : shortDateYear).format(date),
-    /** A UTC day with its weekday, for a single day read off a chart: "Wed, Nov 18". */
+    /** A ledger date: "Nov 14", with the year only when it isn't the current one. */
+    date: (date: Date, now = new Date()) => (yearOf(date) === yearOf(now) ? shortDate : shortDateYear).format(date),
+    /** A day with its weekday, for a single day read off a chart: "Wed, Nov 18". */
     day: (date: Date) => dayDate.format(date),
     /** A day heading: "Wednesday, Nov 18". */
     longDay: (date: Date) => longDayDate.format(date),
-    /** A time of day in UTC: "2:05 PM"; in Bangla the part of the day comes first, "দুপুর ২:০৫". */
+    /** A time of day: "2:05 PM"; in Bangla the part of the day comes first, "দুপুর ২:০৫". */
     time: (date: Date) => {
       if (!bn) return time.format(date);
       const parts = time.formatToParts(date);

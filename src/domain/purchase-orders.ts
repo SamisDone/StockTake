@@ -14,10 +14,9 @@ import { type Actor, requireAdmin } from "./actor";
 import { logActivity } from "./activity";
 import { said } from "./error-copy";
 import { DomainError, parseInput, violates } from "./errors";
+import { DAY_MS, daysBetween, startOfDay } from "@/lib/business-time";
 
 export const poNumber = (id: number) => `PO-${String(id).padStart(4, "0")}`;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * When a placed order should arrive: the date the supplier promised, else the day it
@@ -33,6 +32,17 @@ export function dueDate(order: {
   if (order.expectedAt) return order.expectedAt;
   return order.orderedAt ? new Date(order.orderedAt.getTime() + order.leadTimeDays * DAY_MS) : null;
 }
+
+/**
+ * Whether a placed order is late: its due day has passed. An order due today isn't late
+ * until the business's midnight, however early in the day it was due.
+ */
+export const isLate = (order: { dueAt: Date | null }, now: Date) =>
+  order.dueAt !== null && daysBetween(order.dueAt, now) > 0;
+
+/** Whole business days since a late order's due day: 1 the day after. 0 when it isn't late. */
+export const daysLate = (order: { dueAt: Date | null }, now: Date) =>
+  order.dueAt === null ? 0 : Math.max(daysBetween(order.dueAt, now), 0);
 
 const lineInput = z.object({
   productId: z.number().int().positive(),
@@ -109,9 +119,6 @@ async function guarded<T>(db: Database, id: number, operation: Operation, write:
     throw stateError(id, status, operation);
   }
 }
-
-/** Midnight UTC at the start of `now`'s day: dates on an order are whole UTC days. */
-const startOfDay = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
 /**
  * Validates the supplier, the expected date and the products, and resolves each line's
@@ -415,7 +422,7 @@ export async function listOrders(
 /**
  * How a supplier has delivered: of the orders received, how many arrived by their due
  * day. Due is the date the supplier gave, else the day it was placed plus their lead
- * time (as it is now). Days are whole UTC days, so arriving late on the due day counts.
+ * time (as it is now). Days are whole business days, so arriving late on the due day counts.
  */
 export function deliveryRecord(
   orders: {
@@ -438,7 +445,7 @@ export function deliveryRecord(
 
 /**
  * Whether a received order arrived by its due day: the date the supplier gave, else the
- * day it was placed plus their lead time. Whole UTC days, so late on the due day is on time.
+ * day it was placed plus their lead time. Whole business days, so late on the due day is on time.
  */
 export function arrivedOnTime(order: {
   expectedAt: Date | null;
@@ -447,9 +454,8 @@ export function arrivedOnTime(order: {
   leadTimeDays: number;
 }) {
   const due = order.expectedAt ?? new Date(order.orderedAt.getTime() + order.leadTimeDays * DAY_MS);
-  return startOfDay(order.receivedAt) <= startOfDay(due);
+  return daysBetween(due, order.receivedAt) <= 0;
 }
 
-/** Whole UTC days from the day an order was placed to the day it arrived. */
-export const daysTaken = (orderedAt: Date, receivedAt: Date) =>
-  Math.round((startOfDay(receivedAt).getTime() - startOfDay(orderedAt).getTime()) / DAY_MS);
+/** Whole business days from the day an order was placed to the day it arrived. */
+export const daysTaken = (orderedAt: Date, receivedAt: Date) => daysBetween(orderedAt, receivedAt);

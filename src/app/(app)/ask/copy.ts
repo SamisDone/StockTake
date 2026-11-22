@@ -12,9 +12,9 @@ const en = {
   ],
   limit: {
     questions: (cap: string) =>
-      `You've asked all ${cap} of today's questions on this account. They come back at 00:00 UTC; everything else works as usual.`,
-    allowance: () =>
-      "Today's free Workers AI allowance has run out. It's shared by everyone using this demo and comes back at 00:00 UTC. Everything else works as usual.",
+      `You've asked all ${cap} of today's questions on this account. They come back at midnight; everything else works as usual.`,
+    allowance: (time: string) =>
+      `Today's free Workers AI allowance has run out. It's shared by everyone using this demo and comes back at ${time}, when Cloudflare resets it. Everything else works as usual.`,
   },
   problem: {
     failed: "The model didn't answer, so this question wasn't counted.",
@@ -29,7 +29,7 @@ const en = {
   charactersLeft: (n: string) => `${n} characters left · `,
   noneLeft: "No questions left today",
   left: (left: string, cap: string) => `${left} of ${cap} questions left today`,
-  more: " · more at 00:00 UTC",
+  more: " · more at midnight",
   startOver: "Start over",
   lookingUp: "Looking it up…",
   answered: "Answered.",
@@ -75,9 +75,9 @@ const bn: AskCopy = {
   ],
   limit: {
     questions: (cap) =>
-      `এই অ্যাকাউন্টে আজকের ${cap}টি প্রশ্নই করা হয়ে গেছে। রাত ১২টায় (UTC) আবার পাওয়া যাবে; বাকি সব আগের মতোই চলবে।`,
-    allowance: () =>
-      "আজকের বিনামূল্যের Workers AI বরাদ্দ শেষ। এই ডেমোর সবাই এটি ভাগাভাগি করেন, আর রাত ১২টায় (UTC) আবার পাওয়া যাবে। বাকি সব আগের মতোই চলবে।",
+      `এই অ্যাকাউন্টে আজকের ${cap}টি প্রশ্নই করা হয়ে গেছে। রাত ১২টায় আবার পাওয়া যাবে; বাকি সব আগের মতোই চলবে।`,
+    allowance: (time) =>
+      `আজকের বিনামূল্যের Workers AI বরাদ্দ শেষ। এই ডেমোর সবাই এটি ভাগাভাগি করেন, আর ${time}-এ Cloudflare এটি আবার চালু করলে পাওয়া যাবে। বাকি সব আগের মতোই চলবে।`,
   },
   problem: {
     failed: "মডেল উত্তর দেয়নি, তাই এই প্রশ্নটি গোনা হয়নি।",
@@ -92,7 +92,7 @@ const bn: AskCopy = {
   charactersLeft: (n) => `আর ${n}টি অক্ষর · `,
   noneLeft: "আজ আর প্রশ্ন বাকি নেই",
   left: (left, cap) => `আজ ${cap}টির মধ্যে ${left}টি প্রশ্ন বাকি`,
-  more: " · আরও পাবেন রাত ১২টায় (UTC)",
+  more: " · আরও পাবেন রাত ১২টায়",
   startOver: "নতুন করে শুরু",
   lookingUp: "খোঁজা হচ্ছে…",
   answered: "উত্তর এসেছে।",

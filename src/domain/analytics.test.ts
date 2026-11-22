@@ -8,9 +8,10 @@ import { recordCount, recordStockChange } from "@/domain/stock";
 import { createTestDb } from "@/test/db";
 import { admin, seedBasics, staff } from "@/test/fixtures";
 
-const now = new Date(Date.UTC(2026, 10, 29, 12));
-const daysAgo = (days: number, hour = 12) =>
-  new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - days, hour));
+/** A moment in November 2026 on Dhaka's clock (UTC+6). */
+const dhaka = (day: number, hour = 0) => new Date(Date.UTC(2026, 10, day, hour - 6));
+const now = dhaka(29, 12);
+const daysAgo = (days: number, hour = 12) => dhaka(29 - days, hour);
 
 describe("periods", () => {
   it("reads a period from the URL, falling back to 28 days", () => {
@@ -20,9 +21,9 @@ describe("periods", () => {
     expect(readPeriod(undefined)).toBe(28);
   });
 
-  it("runs whole UTC days up to now, today included", () => {
+  it("runs whole Dhaka days up to now, today included", () => {
     const { from, to } = periodRange(28, now);
-    expect(from).toEqual(new Date(Date.UTC(2026, 10, 2)));
+    expect(from).toEqual(dhaka(2));
     expect(to).toEqual(now);
   });
 });
@@ -98,16 +99,23 @@ describe("getAnalytics", () => {
     expect(sales.valueCents).toBe(32 * 900 + 5 * 1500);
     expect(sales.marginCents).toBe(32 * (900 - 250) + 5 * (1500 - 400));
     expect(sales.daily).toHaveLength(28);
-    expect(sales.daily[0].day).toEqual(new Date(Date.UTC(2026, 10, 2)));
+    expect(sales.daily[0].day).toEqual(dhaka(2));
     expect(sales.daily.at(-1)).toEqual({ day: daysAgo(0, 0), units: 4, valueCents: 3600, costCents: 1000 });
     expect(sales.daily.at(-6)).toMatchObject({ day: daysAgo(5, 0), units: 33 });
     expect(sales.daily.filter((d) => d.units === 0)).toHaveLength(26);
   });
 
+  it("counts a sale just after Dhaka midnight on the new day, though it's still yesterday in UTC", async () => {
+    await recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 1 }, daysAgo(0, 1));
+    const { sales } = await getAnalytics(db, 28, now);
+    expect(sales.daily.at(-1)).toMatchObject({ day: daysAgo(0, 0), units: 5 });
+    expect(sales.daily.at(-2)).toMatchObject({ units: 0 });
+  });
+
   it("follows stock at cost through the period, ending at the closing stock", async () => {
     const { stock, stockByDay } = await getAnalytics(db, 28, now);
     expect(stockByDay).toHaveLength(28);
-    expect(stockByDay[0]).toEqual({ day: new Date(Date.UTC(2026, 10, 2)), costCents: stock.opening.costCents });
+    expect(stockByDay[0]).toEqual({ day: dhaka(2), costCents: stock.opening.costCents });
     // The delivery ten days ago adds 50 Widgets at $2.50.
     expect(stockByDay.at(-11)!.costCents - stockByDay.at(-12)!.costCents).toBe(50 * 250);
     expect(stockByDay.at(-1)!.costCents).toBe(stock.closing.costCents);

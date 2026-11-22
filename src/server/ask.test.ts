@@ -63,7 +63,9 @@ describe("answerStream", () => {
       allowance: {
         questionsLeft: LIMITS.questionsPerDay - 1,
         allowanceLeft: true,
-        resetsAt: "2026-11-22T00:00:00.000Z",
+        // Questions come back at midnight in Dhaka; the shared allocation at 00:00 UTC.
+        resetsAt: "2026-11-21T18:00:00.000Z",
+        allowanceResetsAt: "2026-11-22T00:00:00.000Z",
       },
     });
     expect(answer).not.toHaveProperty("answer.neurons");

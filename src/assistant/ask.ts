@@ -3,6 +3,7 @@ import type { Database } from "@/db/database";
 import { ASSISTANT_MODEL, FALLBACK_MODEL, MAX_ANSWER_TOKENS, MAX_HISTORY_TURNS, MAX_MODEL_CALLS } from "./config";
 import { DOLLARS, type MoneyFormat, moneyFormat } from "@/lib/money";
 import { type Proposal, type Ref, TOOL_DEFINITIONS, runTool } from "./tools";
+import { BUSINESS_TIME_ZONE } from "@/lib/business-time";
 
 /**
  * Answers one question: the model is called with the tools until it answers in words,
@@ -66,11 +67,11 @@ const today = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
   year: "numeric",
-  timeZone: "UTC",
+  timeZone: BUSINESS_TIME_ZONE,
 });
 
 export function systemPrompt(now: Date, money: MoneyFormat = moneyFormat(DOLLARS), language: Language = "en") {
-  return `You answer questions about the stock of one small business, using the tools of its inventory system, Stocktake. Today is ${today.format(now)}. Every date is a UTC day.
+  return `You answer questions about the stock of one small business, using the tools of its inventory system, Stocktake. Today is ${today.format(now)}. Dates and days are local time in Dhaka, Bangladesh.
 
 - Every fact comes from a tool. Never guess a number, a name or a date; if the tools don't say, say so.
 - Answer in two to five short sentences, or a short list with "- " items. Plain text: no headings, no tables, no code. Use **bold** for at most the one or two key figures.

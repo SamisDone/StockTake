@@ -18,6 +18,7 @@ import { parseCents, parseUnits } from "@/lib/parse";
 import { authorize } from "./dal";
 import { type FormState, field, formError } from "./form-state";
 import { ACTION_COPY } from "./action-copy";
+import { parseDayKey } from "@/lib/business-time";
 
 /** What an order's action forms get back: an error, or what was done. */
 export type OrderFormState = FormState & {
@@ -103,13 +104,6 @@ export type DraftFormState = {
 const MAX_UNITS = 1_000_000;
 const MAX_COST_CENTS = 100_000_000;
 
-/** A calendar date from a date input ("2026-11-28") as midnight UTC, the way orders store days. */
-function parseDay(text: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
-  const date = new Date(`${text}T00:00:00Z`);
-  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== text ? null : date;
-}
-
 /**
  * Writes a draft by hand: a new order when the form names a supplier, or a draft's
  * new lines, notes and expected date when it carries the order's ID (its supplier
@@ -145,7 +139,8 @@ export async function saveDraft(_previous: DraftFormState, formData: FormData): 
   });
 
   const expectedText = field(formData, "expectedAt").trim();
-  const expectedAt = expectedText ? parseDay(expectedText) : undefined;
+  // A date input's day ("2026-11-28") is stored as the business's midnight it begins at.
+  const expectedAt = expectedText ? parseDayKey(expectedText) : undefined;
   if (expectedAt === null) fields.expectedAt = t.enterDate;
 
   if (Object.keys(fields).length > 0 || expectedAt === null) return { fields };

@@ -17,6 +17,7 @@ import { FilterLink, FilterRow, FilterRowPlaceholder } from "@/components/filter
 import { PageHeader } from "@/components/page-header";
 import { FOUR_TALLIES, MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { PageTransition, Reveal } from "@/components/transitions";
+import { yearOf } from "@/lib/business-time";
 import { type Formats, formats } from "@/lib/format";
 import { type Language, localDigits } from "@/lib/i18n";
 import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
@@ -375,9 +376,7 @@ function Sales({
                   <tr key={d.day.getTime()} className="border-b border-hairline last:border-b-0">
                     <th scope="row" className="py-2 pr-4 pl-5 text-sm font-normal sm:pl-8">
                       {i === 0 ? t.todaySoFar : f.day(d.day)}
-                      {d.day.getUTCFullYear() !== now.getUTCFullYear()
-                        ? `, ${localDigits(String(d.day.getUTCFullYear()), f.language)}`
-                        : ""}
+                      {yearOf(d.day) !== yearOf(now) ? `, ${localDigits(String(yearOf(d.day)), f.language)}` : ""}
                     </th>
                     <td className="tabular py-2 pr-4 text-right text-sm">{f.count(d.units)}</td>
                     <td className="tabular py-2 pr-5 text-right text-sm sm:pr-8">{m.whole(d.valueCents)}</td>
