@@ -95,6 +95,8 @@ const en = {
   loadingOlder: "Loading…",
   olderFailed: "Couldn't load older movements. Try again.",
   ledgerColumns: { date: "Date", movement: "Movement", change: "Change", balance: "Balance", by: "By" },
+  undoOf: (kind: string) => `Undo of a ${kind.toLowerCase()}`,
+  undoneMark: "Undone",
   kinds: {
     receipt: "Receipt",
     sale: "Sale",
@@ -176,6 +178,8 @@ const en = {
     button: "Archive product",
     restore: "Restore product",
     restoring: "Restoring…",
+    done: (name: string) => `Archived ${name}.`,
+    restored: (name: string) => `Restored ${name}.`,
   },
   adminOnly:
     "Only an admin can add products. You can count, sell, return and write off stock from any product's label.",
@@ -264,6 +268,8 @@ const bn: ProductsCopy = {
   loadingOlder: "আনা হচ্ছে…",
   olderFailed: "পুরোনো লেনদেন আনা যায়নি। আবার চেষ্টা করুন।",
   ledgerColumns: { date: "তারিখ", movement: "লেনদেন", change: "পরিবর্তন", balance: "ব্যালান্স", by: "যিনি" },
+  undoOf: (kind) => `${kind} ফিরিয়ে নেওয়া`,
+  undoneMark: "ফিরিয়ে নেওয়া",
   kinds: {
     receipt: "প্রাপ্তি",
     sale: "বিক্রি",
@@ -337,6 +343,8 @@ const bn: ProductsCopy = {
     button: "পণ্য আর্কাইভ করুন",
     restore: "পণ্য ফিরিয়ে আনুন",
     restoring: "ফিরিয়ে আনা হচ্ছে…",
+    done: (name) => `${name} আর্কাইভ করা হলো।`,
+    restored: (name) => `${name} ফিরিয়ে আনা হলো।`,
   },
   adminOnly:
     "শুধু অ্যাডমিন পণ্য যোগ করতে পারেন। যেকোনো পণ্যের লেবেল থেকে আপনি স্টক গুনতে, বিক্রি, ফেরত ও বাতিল লিখতে পারেন।",

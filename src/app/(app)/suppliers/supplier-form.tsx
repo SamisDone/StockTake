@@ -5,6 +5,7 @@ import { useActionState, useEffect, useRef, type ReactNode } from "react";
 import { FaultLine } from "@/components/fault";
 import { Field, fieldProps } from "@/components/field";
 import { useLabelEditor } from "@/components/label-editor";
+import { notify } from "@/components/toasts";
 import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import {
@@ -212,7 +213,26 @@ function ArchiveZone({
 }) {
   const a = t.archive;
   const editor = useLabelEditor();
-  const [state, formAction, pending] = useActionState(setSupplierArchived, archiveInitial);
+  // The form goes as the label refreshes archived, so the toast is raised here, with the answer.
+  const [state, formAction, pending] = useActionState(async (previous: ArchiveFormState, formData: FormData) => {
+    const next = await setSupplierArchived(previous, formData);
+    if (next.done) {
+      notify({
+        message: a.done(facts.name),
+        language: f.language,
+        undo: async () => {
+          const again = new FormData();
+          again.set("supplierId", String(facts.supplierId));
+          again.set("intent", "restore");
+          const answer = await setSupplierArchived({}, again);
+          return answer.done
+            ? { ok: true, message: a.restored(facts.name) }
+            : { ok: false, message: answer.error?.message ?? "" };
+        },
+      });
+    }
+    return next;
+  }, archiveInitial);
 
   return (
     <section aria-labelledby="archive-title" className="border-t-2 border-ink">

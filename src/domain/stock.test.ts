@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "@/db/database";
 import { activityLog, products } from "@/db/schema";
 import { DomainError } from "@/domain/errors";
-import { listMovements, recordCount, recordStockChange } from "@/domain/stock";
+import { UNDO_WINDOW_MS, listMovements, recordCount, recordStockChange, undoMovement } from "@/domain/stock";
 import { createTestDb } from "@/test/db";
+import { getProductForecast } from "@/domain/forecast";
+import { getAnalytics } from "@/domain/analytics";
 import { admin, seedBasics, staff } from "@/test/fixtures";
 
 const at = (day: number) => new Date(Date.UTC(2026, 10, day, 9));
@@ -29,7 +31,7 @@ async function lastActivity() {
 describe("recordCount", () => {
   it("sets opening stock from a count and logs it", async () => {
     const result = await recordCount(db, admin, { productId: 1, counted: 40 }, at(1));
-    expect(result).toEqual({ onHand: 40, difference: 40 });
+    expect(result).toMatchObject({ onHand: 40, difference: 40 });
     expect(await onHand(1)).toBe(40);
     expect(await lastActivity()).toMatchObject({
       userId: 1,
@@ -43,7 +45,7 @@ describe("recordCount", () => {
   it("records the difference as an adjustment when the count is off", async () => {
     await recordCount(db, admin, { productId: 1, counted: 40 }, at(1));
     const result = await recordCount(db, staff, { productId: 1, counted: 37, note: "shelf B" }, at(2));
-    expect(result).toEqual({ onHand: 37, difference: -3 });
+    expect(result).toMatchObject({ onHand: 37, difference: -3 });
     const [movement] = await listMovements(db, 1);
     expect(movement).toMatchObject({ kind: "adjustment", quantity: -3, balance: 37, note: "shelf B" });
   });
@@ -51,7 +53,7 @@ describe("recordCount", () => {
   it("logs a count that matches without writing a movement", async () => {
     await recordCount(db, admin, { productId: 1, counted: 12 }, at(1));
     const result = await recordCount(db, admin, { productId: 1, counted: 12 }, at(2));
-    expect(result).toEqual({ onHand: 12, difference: 0 });
+    expect(result).toMatchObject({ onHand: 12, difference: 0 });
     expect(await listMovements(db, 1)).toHaveLength(1);
     expect((await lastActivity()).summary).toBe("Counted 12 × Widget, which matches");
   });
@@ -124,6 +126,83 @@ describe("recordStockChange", () => {
     await expect(recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 1 })).rejects.toMatchObject({
       code: "invalid_state",
     });
+  });
+});
+
+describe("undoMovement", () => {
+  const second = (date: Date, seconds: number) => new Date(date.getTime() + seconds * 1000);
+
+  beforeEach(async () => {
+    await recordCount(db, admin, { productId: 1, counted: 20 }, at(1));
+  });
+
+  it("appends the exact reverse of a sale, and logs it", async () => {
+    const { movementId } = await recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 4 }, at(2));
+    const result = await undoMovement(db, staff, movementId, second(at(2), 3));
+    expect(result).toMatchObject({ onHand: 20, productId: 1, name: "Widget" });
+    const [reverse, sale] = await listMovements(db, 1);
+    expect(reverse).toMatchObject({ kind: "adjustment", quantity: 4, balance: 20, reversesId: sale.id });
+    expect(sale).toMatchObject({ kind: "sale", quantity: -4, undone: true });
+    expect(await lastActivity()).toMatchObject({ action: "stock.undone", summary: "Undid a sale of 4 × Widget" });
+  });
+
+  it("undoes a count's change", async () => {
+    const { movementId } = await recordCount(db, staff, { productId: 1, counted: 17 }, at(2));
+    await undoMovement(db, staff, movementId!, second(at(2), 2));
+    expect(await onHand(1)).toBe(20);
+  });
+
+  it("has nothing to undo for a count that matched", async () => {
+    const result = await recordCount(db, staff, { productId: 1, counted: 20 }, at(2));
+    expect(result.movementId).toBeNull();
+  });
+
+  it("undoes a line once", async () => {
+    const { movementId } = await recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 4 }, at(2));
+    await undoMovement(db, staff, movementId, second(at(2), 1));
+    await expect(undoMovement(db, staff, movementId, second(at(2), 2))).rejects.toThrow("already been undone");
+    expect(await onHand(1)).toBe(20);
+  });
+
+  it("is only for the person who recorded the line", async () => {
+    const { movementId } = await recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 4 }, at(2));
+    await expect(undoMovement(db, admin, movementId, second(at(2), 1))).rejects.toMatchObject({ code: "forbidden" });
+  });
+
+  it("closes once the undo window has passed", async () => {
+    const { movementId } = await recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 4 }, at(2));
+    const late = new Date(at(2).getTime() + UNDO_WINDOW_MS + 1);
+    await expect(undoMovement(db, staff, movementId, late)).rejects.toThrow("too late");
+  });
+
+  it("refuses an undo the stock can no longer cover", async () => {
+    const { movementId } = await recordStockChange(db, staff, { productId: 1, kind: "return", quantity: 5 }, at(2));
+    await recordStockChange(db, admin, { productId: 1, kind: "sale", quantity: 24 }, second(at(2), 1));
+    await expect(undoMovement(db, staff, movementId, second(at(2), 2))).rejects.toMatchObject({
+      code: "insufficient_stock",
+      message: "Only 1 × Widget on hand now, so that line can't be undone. Record a count instead.",
+    });
+  });
+
+  it("can't undo an undo", async () => {
+    const { movementId } = await recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 4 }, at(2));
+    await undoMovement(db, staff, movementId, second(at(2), 1));
+    const [reverse] = await listMovements(db, 1);
+    await expect(undoMovement(db, staff, reverse.id, second(at(2), 2))).rejects.toThrow("can't be undone here");
+  });
+
+  it("nets an undone sale out of demand and the period's sales", async () => {
+    const { movementId } = await recordStockChange(db, staff, { productId: 1, kind: "sale", quantity: 4 }, at(2));
+    await undoMovement(db, staff, movementId, second(at(2), 1));
+    const forecast = await getProductForecast(db, 1, at(3));
+    expect(forecast.dailyDemand).toBe(0);
+    const analytics = await getAnalytics(db, 28, at(3));
+    expect(analytics.sales.units).toBe(0);
+    expect(analytics.stock.sold.units).toBe(0);
+  });
+
+  it("reports a line that doesn't exist", async () => {
+    await expect(undoMovement(db, staff, 999)).rejects.toMatchObject({ code: "not_found" });
   });
 });
 

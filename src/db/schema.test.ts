@@ -136,6 +136,59 @@ describe("stock ledger", () => {
   });
 });
 
+describe("undoing a movement", () => {
+  const undo = (reverses: number, productId: number, quantity: number, kind = "adjustment") =>
+    run(
+      `INSERT INTO stock_movements (product_id, kind, quantity, reverses_id, user_id, occurred_at)
+       VALUES (?, ?, ?, ?, 1, ?)`,
+      [productId, kind, quantity, reverses, T0],
+    );
+
+  beforeEach(async () => {
+    await move(1, "adjustment", 10); // id 1
+    await move(1, "sale", -4); // id 2
+  });
+
+  it("appends an adjustment that reverses the movement exactly", async () => {
+    await undo(2, 1, 4);
+    expect(await onHand(1)).toBe(10);
+    expect(await scalar(client, "SELECT count(*) FROM stock_movements")).toBe(3);
+  });
+
+  it("undoes a movement once", async () => {
+    await undo(2, 1, 4);
+    await expect(undo(2, 1, 4)).rejects.toThrow(/UNIQUE/);
+    expect(await onHand(1)).toBe(10);
+  });
+
+  it.each([
+    ["the wrong quantity", 2, 1, 3, "adjustment"],
+    ["the same sign", 2, 1, -4, "adjustment"],
+    ["another product", 2, 2, 4, "adjustment"],
+    ["a kind other than adjustment", 2, 1, 4, "return"],
+  ])("refuses an undo with %s", async (_, reverses, productId, quantity, kind) => {
+    await expect(undo(reverses, productId, quantity, kind)).rejects.toThrow(/reverse one movement exactly/);
+  });
+
+  it("refuses to undo an undo", async () => {
+    await undo(2, 1, 4); // id 3
+    await expect(undo(3, 1, -4)).rejects.toThrow(/reverse one movement exactly/);
+  });
+
+  it("refuses to undo a receipt", async () => {
+    await draftOrder();
+    await placeOrder();
+    await receiveOrder();
+    const receipt = await scalar(client, "SELECT id FROM stock_movements WHERE kind = 'receipt' AND product_id = 1");
+    await expect(undo(Number(receipt), 1, -30)).rejects.toThrow(/reverse one movement exactly/);
+  });
+
+  it("keeps what an undo reverses append-only", async () => {
+    await undo(2, 1, 4);
+    await expect(run("UPDATE stock_movements SET reverses_id = NULL WHERE id = 3")).rejects.toThrow(/append-only/);
+  });
+});
+
 describe("purchase orders", () => {
   beforeEach(draftOrder);
 

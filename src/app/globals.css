@@ -29,6 +29,9 @@
   --radius-control: 6px;
   --radius-mark: 3px; /* status marks and refusal chips */
 
+  /* The one layer shadow: a label sheet on the liner, or a control floating over the page. */
+  --shadow-label: 0 1px 1px rgb(14 14 14 / 0.06), 0 4px 16px -6px rgb(14 14 14 / 0.12);
+
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* a label pulled out from the edge */
@@ -102,9 +105,7 @@
   .sheet {
     background: var(--color-label);
     border-radius: var(--radius-label);
-    box-shadow:
-      0 1px 1px rgb(14 14 14 / 0.06),
-      0 4px 16px -6px rgb(14 14 14 / 0.12);
+    box-shadow: var(--shadow-label);
   }
 
   /* Condensed, heavy, tight: how values and titles are printed on a label. */
@@ -295,6 +296,47 @@
   }
 }
 
+/*
+ * Toasts (toasts.tsx over Sonner). They rise and fade in on the print curve and leave
+ * by fading faster, instead of Sonner's 400ms. The hairline along an Undo toast's foot
+ * drains at a constant rate (it is time running out) and holds while the toasts are
+ * pointed at, as Sonner holds their timer.
+ */
+html [data-sonner-toast] {
+  transition:
+    transform var(--dur-print) var(--ease-out),
+    opacity var(--dur-print) var(--ease-out),
+    height var(--dur-print) var(--ease-out);
+}
+html [data-sonner-toast][data-removed="true"] {
+  transition-duration: var(--dur-tear);
+}
+.toast-drain {
+  animation: drain linear both;
+}
+[data-sonner-toast][data-expanded="true"]:hover .toast-drain,
+[data-sonner-toaster]:hover .toast-drain {
+  animation-play-state: paused;
+}
+
+/* On a phone the record sheet rises from the foot of the screen, where the thumb that
+   opened it is. At a desk it's opened from the keyboard, often, so it appears at once. */
+@media (width < 40rem) {
+  .record-sheet[open] > .sheet {
+    transition: translate var(--dur-panel) var(--ease-drawer);
+  }
+  @starting-style {
+    .record-sheet[open] > .sheet {
+      translate: 0 100%;
+    }
+  }
+}
+@media (width < 40rem) and (prefers-reduced-motion: reduce) {
+  .record-sheet[open] > .sheet {
+    transition: none;
+  }
+}
+
 /* Under a sliding pill, the chosen option prints no reverse of its own: its text turns
    white as the pill arrives, in step with it. Unlayered, so it outranks the option's
    own utilities. */
@@ -445,6 +487,11 @@
     translate: 0 0;
   }
 }
+@keyframes drain {
+  to {
+    transform: scaleX(0);
+  }
+}
 @keyframes stamp {
   from {
     scale: 1.08;
@@ -496,6 +543,10 @@
   }
   .pill {
     transition: none;
+  }
+  /* A line that can't drain says nothing about time left, so it goes; Sonner keeps the timer. */
+  .toast-drain {
+    display: none;
   }
   .fault-reveal {
     transition: none;

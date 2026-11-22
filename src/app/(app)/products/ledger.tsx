@@ -86,7 +86,15 @@ export function Ledger({
             <Arrival as="tr" key={move.id} className="border-b border-hairline align-top last:border-b-0">
               <td className="py-2.5 pr-4 pl-5 whitespace-nowrap text-ink-2 sm:pl-8">{f.date(move.occurredAt, now)}</td>
               <td className="py-2.5 pr-4">
-                <span className="font-semibold">{t.kinds[move.kind]}</span>
+                {/* An undo names what it reversed; the line it reversed says it was undone. Both stay. */}
+                <span className="font-semibold">
+                  {move.reversedKind ? t.undoOf(t.kinds[move.reversedKind]) : t.kinds[move.kind]}
+                </span>
+                {move.undone ? (
+                  <span className="ml-2 rounded-mark border border-ink-3 px-1.5 py-px text-xs font-bold text-ink-3">
+                    {t.undoneMark}
+                  </span>
+                ) : null}
                 {move.po ? <span className="ml-2 font-mono text-xs text-ink-3">{move.po}</span> : null}
                 {move.note ? <p className="text-ink-3">{move.note}</p> : null}
                 {move.userName ? <p className="text-ink-3 md:hidden">{move.userName}</p> : null}

@@ -7,7 +7,7 @@ import { createTestDb } from "@/test/db";
 import { seedBasics } from "@/test/fixtures";
 import { fakeRequest, redirectOf } from "@/test/next-request";
 import { SESSION_COOKIE } from "./session-cookie";
-import { recordStock } from "./stock-actions";
+import { recordStock, undoStock } from "./stock-actions";
 
 const request = vi.hoisted(() => ({ current: undefined as unknown as ReturnType<typeof fakeRequest> }));
 const refresh = vi.hoisted(() => vi.fn());
@@ -42,7 +42,7 @@ describe("recordStock", () => {
     const state = await recordStock({}, form({ kind: "count", quantity: "1,200", note: "Aisle 3" }));
 
     expect(state.error).toBeUndefined();
-    expect(state.done?.message).toBe("Counted 1,200, so the ledger was adjusted by +1,200.");
+    expect(state.done?.message).toBe("Counted 1,200 × Widget, so the ledger was adjusted by +1,200.");
     expect(state.values).toEqual({ kind: "count" });
     expect(await onHand()).toBe(1200);
     const [movement] = await db.select().from(stockMovements);
@@ -52,14 +52,15 @@ describe("recordStock", () => {
 
   it("says when a count matches, without a movement", async () => {
     const state = await recordStock({}, form({ kind: "count", quantity: "0" }));
-    expect(state.done?.message).toBe("Counted 0, which matches.");
+    expect(state.done?.message).toBe("Counted 0 × Widget, which matches.");
+    expect(state.done?.movementId).toBeNull();
     expect(await db.select().from(stockMovements)).toHaveLength(0);
   });
 
   it("records a sale and reports what's left", async () => {
     await recordStock({}, form({ kind: "count", quantity: "10" }));
     const state = await recordStock({}, form({ kind: "sale", quantity: "3" }));
-    expect(state.done?.message).toBe("Recorded a sale of 3. 7 on hand.");
+    expect(state.done?.message).toBe("Recorded a sale of 3 × Widget. 7 on hand.");
     expect(await onHand()).toBe(7);
   });
 
@@ -95,5 +96,30 @@ describe("recordStock", () => {
   it("sends someone who isn't signed in to the login page", async () => {
     request.current.jar.clear();
     expect(await redirectOf(recordStock({}, form({ kind: "sale", quantity: "1" })))).toBe("/login");
+  });
+});
+
+describe("undoStock", () => {
+  it("appends the reverse of the line just recorded and says what's on hand", async () => {
+    await recordStock({}, form({ kind: "count", quantity: "10" }));
+    const sale = await recordStock({}, form({ kind: "sale", quantity: "3" }));
+    refresh.mockClear();
+
+    const result = await undoStock(sale.done!.movementId!);
+
+    expect(result).toEqual({ ok: true, message: "Undone. 10 × Widget on hand." });
+    expect(await onHand()).toBe(10);
+    expect(await db.select().from(stockMovements)).toHaveLength(3);
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("says why a line can't be undone, in the reader's words", async () => {
+    await recordStock({}, form({ kind: "count", quantity: "10" }));
+    const sale = await recordStock({}, form({ kind: "sale", quantity: "3" }));
+    await undoStock(sale.done!.movementId!);
+    expect(await undoStock(sale.done!.movementId!)).toEqual({
+      ok: false,
+      message: "That line has already been undone.",
+    });
   });
 });

@@ -22,11 +22,15 @@ export type ActivityEvent =
       facts: { name: string; quantity: number; note?: string };
     }
   | { action: "stock.counted"; facts: { name: string; counted: number; was: number; note?: string } }
+  | { action: "stock.undone"; facts: { name: string; undid: UndoneKind; quantity: number } }
   | { action: "purchase_order.drafted"; facts: { supplier: string; lines: number; totalCents: number } }
   | { action: "purchase_order.edited"; facts: { order: string; lines: number; totalCents: number } }
   | { action: "purchase_order.placed"; facts: { order: string; supplier: string; totalCents: number } }
   | { action: "purchase_order.cancelled"; facts: { order: string } }
   | { action: "purchase_order.received"; facts: { order: string; supplier: string; units: number } };
+
+/** What an undo reversed: a recorded movement's kind ("adjustment" is a count's). */
+export type UndoneKind = "sale" | "return" | "write_off" | "adjustment";
 
 type Action = ActivityEvent["action"];
 type FactsOf<A extends Action> = Extract<ActivityEvent, { action: A }>["facts"];
@@ -54,6 +58,13 @@ const en: Sentences = {
       counted === was ? `Counted ${counted} × ${name}, which matches` : `Counted ${counted} × ${name} (was ${was})`,
       note,
     ),
+  "stock.undone": ({ name, undid, quantity }) =>
+    ({
+      sale: `Undid a sale of ${quantity} × ${name}`,
+      return: `Undid a return of ${quantity} × ${name}`,
+      write_off: `Undid a write-off of ${quantity} × ${name}`,
+      adjustment: `Undid a count's change of ${quantity} × ${name}`,
+    })[undid],
   "purchase_order.drafted": ({ supplier, lines, totalCents }) =>
     `Drafted an order with ${supplier}: ${lines} ${lines === 1 ? "line" : "lines"}, ${enDollars(totalCents)}`,
   "purchase_order.edited": ({ order, lines, totalCents }) =>
@@ -87,6 +98,13 @@ const bn: Sentences = {
         : `${name} গোনা হলো ${n(counted)}টি (আগে ছিল ${n(was)})`,
       note,
     ),
+  "stock.undone": ({ name, undid, quantity }) =>
+    ({
+      sale: `${n(quantity)} × ${name} বিক্রি ফিরিয়ে নেওয়া হলো`,
+      return: `${n(quantity)} × ${name} ফেরত ফিরিয়ে নেওয়া হলো`,
+      write_off: `${n(quantity)} × ${name} বাতিল ফিরিয়ে নেওয়া হলো`,
+      adjustment: `গোনার ${n(quantity)} × ${name} বদল ফিরিয়ে নেওয়া হলো`,
+    })[undid],
   "purchase_order.drafted": ({ supplier, lines, totalCents }) =>
     `${supplier}-এর জন্য অর্ডারের খসড়া: ${n(lines)} লাইন, ${bnDollars(totalCents)}`,
   "purchase_order.edited": ({ order, lines, totalCents }) =>

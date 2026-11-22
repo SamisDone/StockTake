@@ -1,4 +1,5 @@
 import { type SQL, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { countedKind } from "./counted-kind";
 import type { Database } from "@/db/database";
 import { products, purchaseOrderLines, purchaseOrders, stockMovements, suppliers } from "@/db/schema";
 import { said } from "./error-copy";
@@ -65,7 +66,7 @@ async function forecastRows(db: Database, where: SQL | undefined, now: Date) {
     SELECT coalesce(-sum(${stockMovements.quantity}), 0)
     FROM ${stockMovements}
     WHERE ${stockMovements.productId} = ${outer(products, "id")}
-      AND ${stockMovements.kind} IN ('sale', 'return')
+      AND ${countedKind} IN ('sale', 'return')
       AND ${stockMovements.occurredAt} >= ${since.getTime()}
   )`;
 

@@ -2,11 +2,12 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
 import type { Database } from "@/db/database";
-import { products, purchaseOrderLines, stockMovements, users } from "@/db/schema";
+import { type MovementKind, products, purchaseOrderLines, stockMovements, users } from "@/db/schema";
 import type { Actor } from "./actor";
 import { logActivity } from "./activity";
 import { said } from "./error-copy";
 import { DomainError, parseInput, violates } from "./errors";
+import { outer } from "./input";
 
 const productId = z.number().int().positive();
 const units = z.number().int().positive().max(1_000_000);
@@ -57,15 +58,18 @@ export async function recordStockChange(db: Database, actor: Actor, raw: StockCh
   const signed = input.kind === "return" ? input.quantity : -input.quantity;
 
   try {
-    const [, , [after]] = await db.batch([
-      db.insert(stockMovements).values({
-        productId: product.id,
-        kind: input.kind,
-        quantity: signed,
-        note: input.note,
-        userId: actor.id,
-        occurredAt: now,
-      }),
+    const [[movement], , [after]] = await db.batch([
+      db
+        .insert(stockMovements)
+        .values({
+          productId: product.id,
+          kind: input.kind,
+          quantity: signed,
+          note: input.note,
+          userId: actor.id,
+          occurredAt: now,
+        })
+        .returning({ id: stockMovements.id }),
       logActivity(
         db,
         actor,
@@ -79,7 +83,7 @@ export async function recordStockChange(db: Database, actor: Actor, raw: StockCh
       ),
       selectOnHand(db, product.id),
     ]);
-    return { onHand: after.onHand };
+    return { onHand: after.onHand, movementId: movement.id, name: product.name };
   } catch (error) {
     if (violates(error, "products_on_hand_nonnegative")) {
       const [current] = await selectOnHand(db, product.id);
@@ -123,23 +127,107 @@ export async function recordCount(db: Database, actor: Actor, raw: CountInput, n
   const statements: [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]] = [log];
   if (difference !== 0) {
     statements.unshift(
-      db.insert(stockMovements).values({
-        productId: product.id,
-        kind: "adjustment",
-        quantity: sql`${input.counted} - (SELECT ${products.onHand} FROM ${products} WHERE ${products.id} = ${product.id})`,
-        note: input.note,
-        userId: actor.id,
-        occurredAt: now,
-      }),
+      db
+        .insert(stockMovements)
+        .values({
+          productId: product.id,
+          kind: "adjustment",
+          quantity: sql`${input.counted} - (SELECT ${products.onHand} FROM ${products} WHERE ${products.id} = ${product.id})`,
+          note: input.note,
+          userId: actor.id,
+          occurredAt: now,
+        })
+        .returning({ id: stockMovements.id }),
     );
   }
+  let results: unknown[];
   try {
-    await db.batch(statements);
+    results = await db.batch(statements);
   } catch (error) {
     if (violates(error, "product is archived")) throw archivedError(product.name);
     throw error;
   }
-  return { onHand: input.counted, difference };
+  // A count that matches writes no movement, so there's nothing to undo.
+  const movementId = difference === 0 ? null : (results[0] as { id: number }[])[0].id;
+  return { onHand: input.counted, difference, movementId, name: product.name };
+}
+
+/**
+ * How long after recording a line its author can still undo it. The toast offers Undo
+ * for five seconds; the rest is room for a slow connection, never a way to rewrite
+ * history later (that's a correction: a new count or entry).
+ */
+export const UNDO_WINDOW_MS = 60_000;
+
+/**
+ * Undoes a line its author just recorded by appending its exact reverse: an adjustment
+ * of the opposite quantity that names the line it reverses. Nothing is deleted. The
+ * database checks the reverse matches and that a line is undone once; this checks who
+ * and when, and says plainly why not.
+ */
+export async function undoMovement(db: Database, actor: Actor, movementId: number, now = new Date()) {
+  const id = parseInput(productId, movementId);
+  const [line] = await db
+    .select({
+      id: stockMovements.id,
+      kind: stockMovements.kind,
+      quantity: stockMovements.quantity,
+      userId: stockMovements.userId,
+      occurredAt: stockMovements.occurredAt,
+      reversesId: stockMovements.reversesId,
+      productId: products.id,
+      name: products.name,
+      archivedAt: products.archivedAt,
+      undone: sql<number>`EXISTS (SELECT 1 FROM ${stockMovements} r WHERE r.reverses_id = ${outer(stockMovements, "id")})`,
+    })
+    .from(stockMovements)
+    .innerJoin(products, eq(products.id, stockMovements.productId))
+    .where(eq(stockMovements.id, id));
+  if (!line) throw new DomainError("not_found", said("noMovement"));
+  if (line.kind === "receipt" || line.reversesId !== null) throw new DomainError("invalid_state", said("cantUndo"));
+  if (line.undone) throw new DomainError("invalid_state", said("alreadyUndone"));
+  if (line.userId !== actor.id) throw new DomainError("forbidden", said("undoNotYours"));
+  if (now.getTime() - line.occurredAt.getTime() > UNDO_WINDOW_MS) {
+    throw new DomainError("invalid_state", said("undoTooLate"));
+  }
+  if (line.archivedAt) throw archivedError(line.name);
+
+  try {
+    const [, , [after]] = await db.batch([
+      db.insert(stockMovements).values({
+        productId: line.productId,
+        kind: "adjustment",
+        quantity: -line.quantity,
+        reversesId: line.id,
+        userId: actor.id,
+        occurredAt: now,
+      }),
+      logActivity(
+        db,
+        actor,
+        {
+          action: "stock.undone",
+          entityType: "product",
+          entityId: line.productId,
+          facts: { name: line.name, undid: line.kind, quantity: Math.abs(line.quantity) },
+        },
+        now,
+      ),
+      selectOnHand(db, line.productId),
+    ]);
+    return { onHand: after.onHand, productId: line.productId, name: line.name };
+  } catch (error) {
+    if (violates(error, "products_on_hand_nonnegative")) {
+      const [current] = await selectOnHand(db, line.productId);
+      throw new DomainError(
+        "insufficient_stock",
+        said("undoNotEnough", { product: line.name, onHand: current.onHand }),
+      );
+    }
+    if (violates(error, "stock_movements.reverses_id")) throw new DomainError("invalid_state", said("alreadyUndone"));
+    if (violates(error, "product is archived")) throw archivedError(line.name);
+    throw error;
+  }
 }
 
 /** Where a page of the ledger ends: the oldest movement shown so far. */
@@ -166,6 +254,14 @@ export async function listMovements(
       occurredAt: stockMovements.occurredAt,
       userName: users.name,
       purchaseOrderId: purchaseOrderLines.purchaseOrderId,
+      /** On an undo: the line it reverses, and that line's kind. */
+      reversesId: stockMovements.reversesId,
+      reversedKind: sql<MovementKind | null>`(SELECT o.kind FROM ${stockMovements} o WHERE o.id = ${outer(stockMovements, "reversesId")})`,
+      /** Whether a later line undid this one. */
+      undone:
+        sql<boolean>`EXISTS (SELECT 1 FROM ${stockMovements} r WHERE r.reverses_id = ${outer(stockMovements, "id")})`.mapWith(
+          Boolean,
+        ),
     })
     .from(stockMovements)
     .leftJoin(users, eq(users.id, stockMovements.userId))

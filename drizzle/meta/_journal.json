@@ -50,6 +50,13 @@
       "when": 1795309664783,
       "tag": "0006_assistant_budget",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1795322075122,
+      "tag": "0007_undo_reversals",
+      "breakpoints": true
     }
   ]
 }

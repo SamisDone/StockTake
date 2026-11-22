@@ -16,6 +16,7 @@ import {
   setProductArchived,
 } from "@/server/product-actions";
 import { useLabelEditor } from "@/components/label-editor";
+import { notify } from "@/components/toasts";
 import type { ArchiveFacts, ProductValues, SupplierOption } from "./product-values";
 import { PRODUCTS_COPY, type ProductsCopy } from "./copy";
 
@@ -409,7 +410,27 @@ function ArchiveZone({
 }) {
   const a = t.archive;
   const editor = useLabelEditor();
-  const [state, formAction, pending] = useActionState(setProductArchived, archiveInitial);
+  // The form goes as the label refreshes archived, so the toast is raised here, with the
+  // answer, rather than from an effect that would never run.
+  const [state, formAction, pending] = useActionState(async (previous: ArchiveFormState, formData: FormData) => {
+    const next = await setProductArchived(previous, formData);
+    if (next.done) {
+      notify({
+        message: a.done(facts.name),
+        language: f.language,
+        undo: async () => {
+          const again = new FormData();
+          again.set("productId", String(facts.productId));
+          again.set("intent", "restore");
+          const answer = await setProductArchived({}, again);
+          return answer.done
+            ? { ok: true, message: a.restored(facts.name) }
+            : { ok: false, message: answer.error?.message ?? "" };
+        },
+      });
+    }
+    return next;
+  }, archiveInitial);
   const Heading = headingLevel === 2 ? "h2" : "h3";
 
   return (

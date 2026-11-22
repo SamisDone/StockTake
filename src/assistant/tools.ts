@@ -174,7 +174,9 @@ const getProductTool = tool({
         description: f.description,
         latestMovements: movements.map((m) => ({
           day: day(m.occurredAt, now),
-          kind: m.kind.replace("_", "-"),
+          // An undo reads as what it undid, so the model never mistakes it for a count.
+          kind: m.reversedKind ? `undo of ${m.reversedKind.replace("_", "-")}` : m.kind.replace("_", "-"),
+          ...(m.undone ? { undone: true } : {}),
           quantity: m.quantity,
           balanceAfter: m.balance,
           by: m.userName,

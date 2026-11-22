@@ -1,7 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Choice } from "@/components/choice";
 import { FaultLine } from "@/components/fault";
 import { Field } from "@/components/field";
@@ -9,7 +8,8 @@ import { PillRow } from "@/components/pill-row";
 import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { parseUnits } from "@/lib/parse";
-import { type StockFormState, type StockKind, recordStock } from "@/server/stock-actions";
+import { type StockFormState, type StockKind, recordStock, undoStock } from "@/server/stock-actions";
+import { notify } from "@/components/toasts";
 import { PRODUCTS_COPY, type ProductsCopy } from "./copy";
 
 const KINDS: StockKind[] = ["count", "sale", "return", "write_off"];
@@ -19,20 +19,51 @@ const initial: StockFormState = {};
 /**
  * Records a count, sale, return or write-off against one product. Before anything is
  * sent, the form says what the entry will do to on hand, in the ledger's own terms.
+ * What was recorded is confirmed in a toast with Undo, which outlasts the page.
  */
 export function RecordStock({
   productId,
   onHand,
   headingLevel,
   language,
+  idPrefix = "",
+  onRecorded,
+  linkProduct = false,
+  labelledBy,
 }: {
   productId: number;
   onHand: number;
   headingLevel: 2 | 3;
   language: Language;
+  /** Set when the form may be printed twice on a page (the record sheet over a label). */
+  idPrefix?: string;
+  /** Called once a line is recorded (the record sheet closes). */
+  onRecorded?: () => void;
+  /** The toast links to the product's label: recorded from somewhere that isn't it. */
+  linkProduct?: boolean;
+  /** A heading outside names the form (the record sheet's), so it prints none of its own. */
+  labelledBy?: string;
 }) {
   const t = PRODUCTS_COPY[language];
   const [state, formAction, pending] = useActionState(recordStock, initial);
+  const id = (name: string) => `${idPrefix}${name}`;
+
+  // Each new line is confirmed once (the id stops a double call stacking two toasts).
+  const done = state.done;
+  useEffect(() => {
+    if (!done) return;
+    const { movementId } = done;
+    notify({
+      id: `record-${done.at}`,
+      message: done.message,
+      language,
+      undo: movementId === null ? undefined : () => undoStock(movementId),
+      productId: linkProduct ? done.productId : undefined,
+    });
+    onRecorded?.();
+    // Only a new answer means anything here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done]);
   const [kind, setKind] = useState<StockKind>("count");
   const [quantity, setQuantity] = useState("");
 
@@ -57,13 +88,15 @@ export function RecordStock({
   const Heading = headingLevel === 2 ? "h2" : "h3";
 
   return (
-    <section aria-labelledby="record-title" className="border-b-2 border-ink">
-      <div className="px-5 pt-5 sm:px-8">
-        <Heading id="record-title" className="text-lg font-bold">
-          {t.record}
-        </Heading>
-        <p className="mt-1 max-w-prose text-sm text-ink-2">{t.recordHelp}</p>
-      </div>
+    <section aria-labelledby={labelledBy ?? id("record-title")} className="border-b-2 border-ink">
+      {labelledBy ? null : (
+        <div className="px-5 pt-5 sm:px-8">
+          <Heading id={id("record-title")} className="text-lg font-bold">
+            {t.record}
+          </Heading>
+          <p className="mt-1 max-w-prose text-sm text-ink-2">{t.recordHelp}</p>
+        </div>
+      )}
 
       <form action={formAction} aria-busy={pending} className="mt-3">
         <input type="hidden" name="productId" value={productId} />
@@ -80,22 +113,31 @@ export function RecordStock({
           </fieldset>
 
           <div className="grid border-y border-ink sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
-            <Field name="quantity" label={spec.quantity} error={quantityError} language={language}>
+            <Field name="quantity" id={id("quantity")} label={spec.quantity} error={quantityError} language={language}>
               <input
-                id="quantity"
+                id={id("quantity")}
                 name="quantity"
                 inputMode="numeric"
                 autoComplete="off"
                 defaultValue={state.values?.quantity}
                 onChange={(event) => setQuantity(event.target.value)}
                 aria-invalid={quantityError ? true : undefined}
-                aria-describedby={quantityError ? "quantity-error quantity-effect" : "quantity-effect"}
+                aria-describedby={
+                  quantityError ? `${id("quantity-error")} ${id("quantity-effect")}` : id("quantity-effect")
+                }
                 className="field-input"
               />
             </Field>
-            <Field name="note" label={kind === "write_off" ? t.reason : t.note} optional divided language={language}>
+            <Field
+              name="note"
+              id={id("note")}
+              label={kind === "write_off" ? t.reason : t.note}
+              optional
+              divided
+              language={language}
+            >
               <input
-                id="note"
+                id={id("note")}
                 name="note"
                 maxLength={500}
                 autoComplete="off"
@@ -105,24 +147,17 @@ export function RecordStock({
             </Field>
           </div>
 
-          <p id="quantity-effect" className="px-5 pt-2.5 text-sm text-ink-2 sm:px-8">
+          <p id={id("quantity-effect")} className="px-5 pt-2.5 text-sm text-ink-2 sm:px-8">
             <Effect kind={kind} onHand={onHand} quantity={parseUnits(quantity)} f={formats(language)} t={t} />
           </p>
 
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 pt-3 pb-5 sm:px-8">
-            {/* Announced when it changes; keyed so each new entry prints in fresh. It holds a
+            {/* Says when it's working; what was recorded is confirmed in a toast. It holds a
                 line even when empty, so nothing below it moves when it speaks, and a refusal
                 that isn't about the quantity is printed in the same line. */}
             <div className="min-h-5 min-w-0 flex-1">
               <p role="status" className="text-sm font-medium">
-                {pending ? (
-                  t.recording
-                ) : state.done ? (
-                  <span key={state.done.at} className="print-in flex items-start gap-1.5">
-                    <Check aria-hidden size={16} strokeWidth={2.5} className="mt-0.5 shrink-0" />
-                    {state.done.message}
-                  </span>
-                ) : null}
+                {pending ? t.recording : null}
               </p>
               <FaultLine message={error && !error.field && !pending ? error.message : undefined} hold={false} />
             </div>

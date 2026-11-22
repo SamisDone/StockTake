@@ -26,6 +26,13 @@ const en = {
   takaAt: (rate: string) => `taka at ${rate}`,
   rate: (perDollar: string, day: string | null) => `$1 = ৳${perDollar}${day ? ` on ${day}` : ""}`,
   language: "Language",
+
+  // Toasts
+  notifications: "Notifications",
+  undo: "Undo",
+  undoing: "Undoing…",
+  open: "Open",
+  dismiss: "Dismiss",
 };
 
 const bn: typeof en = {
@@ -47,6 +54,12 @@ const bn: typeof en = {
   takaAt: (rate) => `টাকা, ${rate}`,
   rate: (perDollar, day) => `$১ = ৳${perDollar}${day ? `, ${day}-এর হার` : ""}`,
   language: "ভাষা",
+
+  notifications: "বার্তা",
+  undo: "ফিরিয়ে নিন",
+  undoing: "ফিরিয়ে নেওয়া হচ্ছে…",
+  open: "খুলুন",
+  dismiss: "বন্ধ করুন",
 };
 
 export const COMPONENT_COPY: Copy<typeof en> = { en, bn };

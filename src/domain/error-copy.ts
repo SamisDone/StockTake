@@ -51,6 +51,13 @@ const en = {
   // Stock
   productArchivedStock: ({ product }: { product: string }) => `${product} is archived, so its stock can't change.`,
   notEnoughStock: ({ product, onHand }: { product: string; onHand: number }) => `Only ${onHand} × ${product} on hand.`,
+  noMovement: () => "That ledger line doesn't exist.",
+  undoNotYours: () => "Only the person who recorded a line can undo it.",
+  undoTooLate: () => "It's too late to undo that line. Record a correction instead.",
+  alreadyUndone: () => "That line has already been undone.",
+  cantUndo: () => "Receipts and undos can't be undone here.",
+  undoNotEnough: ({ product, onHand }: { product: string; onHand: number }) =>
+    `Only ${onHand} × ${product} on hand now, so that line can't be undone. Record a count instead.`,
 
   // Catalog
   productOnOpenOrders: ({ product, orders }: { product: string } & Orders) =>
@@ -120,6 +127,13 @@ const bn: typeof en = {
 
   productArchivedStock: ({ product }) => `${product} আর্কাইভ করা, তাই এর স্টক বদলানো যাবে না।`,
   notEnoughStock: ({ product, onHand }) => `${product} মজুত আছে মাত্র ${n(onHand)}টি।`,
+  noMovement: () => "খতিয়ানের এই লাইনটি নেই।",
+  undoNotYours: () => "যিনি লাইনটি লিখেছেন, শুধু তিনিই এটি ফিরিয়ে নিতে পারেন।",
+  undoTooLate: () => "এই লাইন ফিরিয়ে নেওয়ার সময় পেরিয়ে গেছে। বদলে একটি সংশোধন লিখুন।",
+  alreadyUndone: () => "এই লাইনটি আগেই ফিরিয়ে নেওয়া হয়েছে।",
+  cantUndo: () => "প্রাপ্তি আর ফিরিয়ে নেওয়া লাইন এখানে ফিরিয়ে নেওয়া যায় না।",
+  undoNotEnough: ({ product, onHand }) =>
+    `${product} এখন মজুত আছে মাত্র ${n(onHand)}টি, তাই লাইনটি ফিরিয়ে নেওয়া যাবে না। বদলে একটি গোনা লিখুন।`,
 
   productOnOpenOrders: ({ product, orders }) =>
     `${product} এখনো খোলা ${banglaList(orders)}-এ আছে। আগে ${orders.length === 1 ? "সেটি" : "সেগুলো"} বুঝে নিন বা বাতিল করুন।`,

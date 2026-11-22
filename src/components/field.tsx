@@ -12,6 +12,7 @@ import { FaultLine } from "./fault";
  */
 export function Field({
   name,
+  id = name,
   label,
   language,
   error,
@@ -22,6 +23,8 @@ export function Field({
   children,
 }: {
   name: string;
+  /** The input's id, when it differs from its name (a form printed twice on one page). */
+  id?: string;
   label: string;
   language: Language;
   error?: string;
@@ -38,17 +41,17 @@ export function Field({
         divided ? "border-ink max-sm:border-t sm:border-l" : ""
       } ${error ? "fault-rule" : ""} ${className}`}
     >
-      <label htmlFor={name} className="field-name block">
+      <label htmlFor={id} className="field-name block">
         {label}
         {optional ? <span className="font-normal"> {COMPONENT_COPY[language].optional}</span> : null}
       </label>
       {children}
       {hint ? (
-        <p id={`${name}-hint`} className="pb-1 text-xs text-ink-3">
+        <p id={`${id}-hint`} className="pb-1 text-xs text-ink-3">
           {hint}
         </p>
       ) : null}
-      <FaultLine id={`${name}-error`} message={error} className="pb-1" />
+      <FaultLine id={`${id}-error`} message={error} className="pb-1" />
     </div>
   );
 }

@@ -7,10 +7,14 @@ import { CurrencySwitch } from "@/components/currency-switch";
 import { LanguageSwitch } from "@/components/language-switch";
 import { Mark } from "@/components/logo";
 import { NavProgress } from "@/components/nav-progress";
+import { Toaster } from "@/components/toasts";
 import { ROLE_NAMES } from "@/lib/demo-roles";
 import { LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { SHELL_COPY } from "./copy";
 import { Nav } from "./nav";
+import { PhoneRecord, RailCommands } from "./commands";
+import { Palette } from "./palette";
+import { RecordSheet } from "./record-sheet";
 
 /**
  * The app shell: a rail on the liner and one label sheet that every page prints onto.
@@ -41,7 +45,10 @@ async function Shell({ children, drawer }: { children: ReactNode; drawer: ReactN
         className="sticky top-0 hidden h-dvh flex-col px-4 pt-6 pb-4 lg:flex"
       >
         <Wordmark />
-        <div className="mt-8">
+        <div className="mt-6">
+          <RailCommands language={language} />
+        </div>
+        <div className="mt-6">
           <Nav layout="rail" labels={t.nav} name={t.sections} />
         </div>
         <div className="mt-auto">
@@ -69,6 +76,12 @@ async function Shell({ children, drawer }: { children: ReactNode; drawer: ReactN
         </div>
       </main>
       {drawer}
+      <PhoneRecord language={language} />
+      <RecordSheet language={language} />
+      <Suspense fallback={null}>
+        <PaletteFor language={language} />
+      </Suspense>
+      <Toaster language={language} />
       {/* It reads the address, which a layout can only do inside a boundary. */}
       <Suspense fallback={null}>
         <NavProgress />
@@ -93,6 +106,13 @@ function Wordmark({ compact = false }: { compact?: boolean }) {
       <span className={compact ? "sr-only" : undefined}>Stocktake</span>
     </Link>
   );
+}
+
+/** The palette offers admin actions to admins and the other currency, so it waits for the person. */
+async function PaletteFor({ language }: { language: Language }) {
+  const user = await getCurrentUser();
+  const money = await getMoneyPrefs();
+  return <Palette language={language} currency={money.currency} isAdmin={user.role === "admin"} />;
 }
 
 /** On a phone: who is signed in, in which role, the currency, the language, and the way out, in one line. */

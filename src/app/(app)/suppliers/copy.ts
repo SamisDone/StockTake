@@ -104,6 +104,8 @@ const en = {
     button: "Archive supplier",
     restore: "Restore supplier",
     restoring: "Restoring…",
+    done: (name: string) => `Archived ${name}.`,
+    restored: (name: string) => `Restored ${name}.`,
   },
   adminOnly: "Only an admin can add suppliers. You can rate any supplier, and draft orders to them, from their label.",
 
@@ -232,6 +234,8 @@ const bn: SuppliersCopy = {
     button: "সরবরাহকারী আর্কাইভ করুন",
     restore: "সরবরাহকারী ফিরিয়ে আনুন",
     restoring: "ফিরিয়ে আনা হচ্ছে…",
+    done: (name) => `${name} আর্কাইভ করা হলো।`,
+    restored: (name) => `${name} ফিরিয়ে আনা হলো।`,
   },
   adminOnly:
     "শুধু অ্যাডমিন সরবরাহকারী যোগ করতে পারেন। যেকোনো সরবরাহকারীর লেবেল থেকে আপনি রেটিং দিতে ও অর্ডারের খসড়া করতে পারেন।",

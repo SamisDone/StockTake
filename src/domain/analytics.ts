@@ -1,4 +1,5 @@
 import { type AnyColumn, type SQL, and, asc, eq, gte, lt, sql } from "drizzle-orm";
+import { countedKind } from "./counted-kind";
 import type { Database } from "@/db/database";
 import { products, purchaseOrders, stockMovements, suppliers } from "@/db/schema";
 import { BUSINESS_OFFSET_MS, DAY_MS, addDays, dayFromNumber, dayNumber } from "@/lib/business-time";
@@ -36,7 +37,7 @@ const total = (when: SQL) => sql<number>`coalesce(sum(CASE WHEN ${when} THEN ${s
 async function ledgerRows(db: Database, from: Date, to: Date) {
   const before = sql`${stockMovements.occurredAt} < ${from.getTime()}`;
   const inside = (kind: string, extra?: SQL) =>
-    sql`${stockMovements.occurredAt} >= ${from.getTime()} AND ${stockMovements.occurredAt} < ${to.getTime()} AND ${stockMovements.kind} = ${kind}${extra ? sql` AND ${extra}` : sql``}`;
+    sql`${stockMovements.occurredAt} >= ${from.getTime()} AND ${stockMovements.occurredAt} < ${to.getTime()} AND ${countedKind} = ${kind}${extra ? sql` AND ${extra}` : sql``}`;
 
   return db
     .select({
@@ -72,7 +73,7 @@ export type LedgerRow = Awaited<ReturnType<typeof ledgerRows>>[number];
 async function dayRows(db: Database, from: Date, to: Date) {
   // Movements are never before 1970, so integer division floors like `dayNumber`.
   const day = sql<number>`cast((${stockMovements.occurredAt} + ${BUSINESS_OFFSET_MS}) / ${DAY_MS} as integer)`;
-  const selling = sql`${stockMovements.kind} IN ('sale', 'return')`;
+  const selling = sql`${countedKind} IN ('sale', 'return')`;
   const sold = (per: SQL | AnyColumn) =>
     sql<number>`-coalesce(sum(CASE WHEN ${selling} THEN ${stockMovements.quantity} * ${per} END), 0)`.mapWith(Number);
   return db

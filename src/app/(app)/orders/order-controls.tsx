@@ -1,12 +1,12 @@
 "use client";
 
-import { Check } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 import type { PurchaseOrderStatus } from "@/db/schema";
 import { type OrderFormState, changeOrder } from "@/server/order-actions";
 import type { Language } from "@/lib/i18n";
 import { ORDERS_COPY } from "./copy";
 import { FaultLine } from "@/components/fault";
+import { notify } from "@/components/toasts";
 
 const initial: OrderFormState = {};
 
@@ -38,9 +38,13 @@ export function OrderControls({
   const [sent, setSent] = useState<"place" | "cancel" | "receive" | null>(null);
 
   // The control that was pressed is gone once the order moves on; the status sentence
-  // says where it moved to, so it takes focus.
+  // says where it moved to, so it takes focus, and a toast confirms what was done.
   useEffect(() => {
-    if (state.done) document.getElementById("order-status")?.focus();
+    if (!state.done) return;
+    document.getElementById("order-status")?.focus();
+    notify({ id: `order-${state.done.at}`, message: state.done.message, language });
+    // Only a new answer means anything here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.done]);
 
   // A cancelled confirmation shouldn't survive into the order's next state.
@@ -94,14 +98,7 @@ export function OrderControls({
           ) : (
             <>
               <p role="status" className="min-h-5 min-w-0 basis-full text-sm font-medium sm:flex-1 sm:basis-auto">
-                {pending && sent ? (
-                  busy[sent]
-                ) : state.done ? (
-                  <span key={state.done.at} className="print-in flex items-start gap-1.5">
-                    <Check aria-hidden size={16} strokeWidth={2.5} className="mt-0.5 shrink-0" />
-                    {state.done.message}
-                  </span>
-                ) : null}
+                {pending && sent ? busy[sent] : null}
               </p>
               {isAdmin ? (
                 <button

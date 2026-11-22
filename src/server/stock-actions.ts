@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { DomainError } from "@/domain/errors";
-import { recordCount, recordStockChange } from "@/domain/stock";
+import { recordCount, recordStockChange, undoMovement } from "@/domain/stock";
 import { parseUnits } from "@/lib/parse";
 import { type FormState, field, formError } from "./form-state";
 import { authorize } from "./dal";
@@ -15,8 +15,11 @@ const KINDS: StockKind[] = ["count", "sale", "return", "write_off"];
 
 /** What the record-stock form gets back: an error, or what was recorded. */
 export type StockFormState = FormState & {
-  /** Set after a successful write. `at` changes on every write, so the form can reset. */
-  done?: { message: string; at: number };
+  /**
+   * Set after a successful write. `at` changes on every write, so the form can reset.
+   * `movementId` is the line written, for Undo; null when a count matched and wrote none.
+   */
+  done?: { message: string; at: number; productId: number; movementId: number | null };
 };
 
 const MAX_UNITS = 1_000_000;
@@ -53,13 +56,19 @@ export async function recordStock(_previous: StockFormState, formData: FormData)
   }
 
   let message: string;
+  let movementId: number | null;
   try {
     if (kind === "count") {
-      const { difference } = await recordCount(db, user, { productId, counted: quantity, note });
-      message = difference === 0 ? t.countMatches(quantity) : t.countAdjusted(quantity, difference);
+      const count = await recordCount(db, user, { productId, counted: quantity, note });
+      movementId = count.movementId;
+      message =
+        count.difference === 0
+          ? t.countMatches(count.name, quantity)
+          : t.countAdjusted(count.name, quantity, count.difference);
     } else {
-      const { onHand } = await recordStockChange(db, user, { productId, kind, quantity, note });
-      message = t.recorded(kind, quantity, onHand);
+      const change = await recordStockChange(db, user, { productId, kind, quantity, note });
+      movementId = change.movementId;
+      message = t.recorded(change.name, kind, quantity, change.onHand);
     }
   } catch (error) {
     // Too few on hand is about the number typed, so it belongs next to that field.
@@ -70,7 +79,26 @@ export async function recordStock(_previous: StockFormState, formData: FormData)
   }
 
   refresh();
-  return { done: { message, at: Date.now() }, values: { kind } };
+  return { done: { message, at: Date.now(), productId, movementId }, values: { kind } };
+}
+
+/** What Undo gets back: what the ledger says now, or why the line can't be undone. */
+export type UndoResult = { ok: true; message: string } | { ok: false; message: string };
+
+/**
+ * Undoes a line the person just recorded (the toast's Undo): the ledger gains its exact
+ * reverse, so the history still shows both. Refused, it says why in the reader's words.
+ */
+export async function undoStock(movementId: number): Promise<UndoResult> {
+  const { db, user, language } = await authorize();
+  try {
+    const { name, onHand } = await undoMovement(db, user, movementId);
+    refresh();
+    return { ok: true, message: ACTION_COPY[language].undone(name, onHand) };
+  } catch (error) {
+    if (error instanceof DomainError) return { ok: false, message: error.in(language) };
+    throw error;
+  }
 }
 
 const cursorInput = z.object({

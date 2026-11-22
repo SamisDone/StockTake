@@ -1,5 +1,15 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  type AnySQLiteColumn,
+  check,
+  index,
+  integer,
+  primaryKey,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 // Timestamps are Unix milliseconds. The database fills them in by default; the demo
 // seed passes explicit values so the dataset is deterministic.
@@ -161,7 +171,9 @@ export type MovementKind = (typeof movementKinds)[number];
 /**
  * The stock ledger and the source of truth for stock levels. Rows are append-only;
  * a correction is a new adjustment. Quantities are signed: receipts and returns add,
- * sales and write-offs remove, adjustments go either way.
+ * sales and write-offs remove, adjustments go either way. An undo is an adjustment that
+ * reverses one earlier movement exactly (`reverses_id`), and it counts as that
+ * movement's kind wherever the ledger is summed by kind.
  */
 export const stockMovements = sqliteTable(
   "stock_movements",
@@ -179,6 +191,10 @@ export const stockMovements = sqliteTable(
       .references(() => purchaseOrderLines.id),
     userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
     occurredAt: timestamp("occurred_at").notNull().default(now),
+    /** Set on an undo: the movement it reverses. Unique, so a movement can be undone once. */
+    reversesId: integer("reverses_id")
+      .unique()
+      .references((): AnySQLiteColumn => stockMovements.id),
   },
   (t) => [
     index("stock_movements_product_occurred").on(t.productId, t.occurredAt),

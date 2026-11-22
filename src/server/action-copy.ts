@@ -18,11 +18,12 @@ const en = {
   chooseKind: "Choose what you're recording.",
   enterCount: "Enter the number you counted on the shelf, as a whole number.",
   enterUnits: (max: number) => `Enter how many units, as a whole number from 1 to ${formats("en").count(max)}.`,
-  countMatches: (counted: number) => `Counted ${formats("en").count(counted)}, which matches.`,
-  countAdjusted: (counted: number, difference: number) =>
-    `Counted ${formats("en").count(counted)}, so the ledger was adjusted by ${formats("en").change(difference)}.`,
-  recorded: (kind: "sale" | "return" | "write_off", quantity: number, onHand: number) =>
-    `Recorded ${{ sale: "a sale", return: "a return", write_off: "a write-off" }[kind]} of ${formats("en").count(quantity)}. ${formats("en").count(onHand)} on hand.`,
+  countMatches: (name: string, counted: number) => `Counted ${formats("en").count(counted)} × ${name}, which matches.`,
+  countAdjusted: (name: string, counted: number, difference: number) =>
+    `Counted ${formats("en").count(counted)} × ${name}, so the ledger was adjusted by ${formats("en").change(difference)}.`,
+  recorded: (name: string, kind: "sale" | "return" | "write_off", quantity: number, onHand: number) =>
+    `Recorded ${{ sale: "a sale", return: "a return", write_off: "a write-off" }[kind]} of ${formats("en").count(quantity)} × ${name}. ${formats("en").count(onHand)} on hand.`,
+  undone: (name: string, onHand: number) => `Undone. ${formats("en").count(onHand)} × ${name} on hand.`,
 
   // Orders
   chooseIntent: "Choose what to do with the order.",
@@ -66,11 +67,12 @@ const bn: typeof en = {
   chooseKind: "কী লিখে রাখছেন, বেছে নিন।",
   enterCount: "তাকে যত গুনেছেন, সেই সংখ্যাটি পূর্ণসংখ্যায় লিখুন।",
   enterUnits: (max) => `কত ইউনিট, ১ থেকে ${b.count(max)}-এর মধ্যে পূর্ণসংখ্যায় লিখুন।`,
-  countMatches: (counted) => `গোনা হলো ${b.count(counted)}, হিসাবের সাথে মিলে গেছে।`,
-  countAdjusted: (counted, difference) =>
-    `গোনা হলো ${b.count(counted)}, তাই খাতায় ${b.change(difference)} সমন্বয় করা হয়েছে।`,
-  recorded: (kind, quantity, onHand) =>
-    `${b.count(quantity)}টি ${{ sale: "বিক্রি", return: "ফেরত", write_off: "বাতিল" }[kind]} লেখা হলো। মজুত এখন ${b.count(onHand)}।`,
+  countMatches: (name, counted) => `${name} গোনা হলো ${b.count(counted)}, হিসাবের সাথে মিলে গেছে।`,
+  countAdjusted: (name, counted, difference) =>
+    `${name} গোনা হলো ${b.count(counted)}, তাই খাতায় ${b.change(difference)} সমন্বয় করা হয়েছে।`,
+  recorded: (name, kind, quantity, onHand) =>
+    `${b.count(quantity)} × ${name} ${{ sale: "বিক্রি", return: "ফেরত", write_off: "বাতিল" }[kind]} লেখা হলো। মজুত এখন ${b.count(onHand)}।`,
+  undone: (name, onHand) => `ফিরিয়ে নেওয়া হলো। ${name} মজুত এখন ${b.count(onHand)}।`,
 
   chooseIntent: "অর্ডারটি নিয়ে কী করবেন, বেছে নিন।",
   placed: (order, supplier) => `${supplier}-কে ${order} দেওয়া হলো।`,
