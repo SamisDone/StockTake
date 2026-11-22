@@ -15,7 +15,16 @@ import { setCurrency, setLanguage } from "@/server/preference-actions";
 import { ORDERS_COPY } from "./orders/copy";
 import { SHELL_COPY } from "./copy";
 
-const PAGES = ["/dashboard", "/ask", "/products", "/orders", "/suppliers", "/analytics", "/activity"] as const;
+const PAGES = [
+  "/dashboard",
+  "/ask",
+  "/products",
+  "/orders",
+  "/suppliers",
+  "/analytics",
+  "/activity",
+  "/people",
+] as const;
 
 /**
  * The command palette: Ctrl+K (⌘K on a Mac) anywhere, or Find in the rail. One search

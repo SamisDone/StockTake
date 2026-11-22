@@ -15,6 +15,7 @@ const SECTIONS: (keyof NavLabels & Route)[] = [
   "/suppliers",
   "/analytics",
   "/activity",
+  "/people",
 ];
 
 type Props = { layout: "rail" | "strip"; labels: NavLabels; name: string };

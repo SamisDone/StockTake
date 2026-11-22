@@ -24,6 +24,7 @@ const en = {
   enterName: () => "Enter a name.",
   enterEmail: () => "Enter a valid email address.",
   passwordLength: () => "Use at least 12 characters.",
+  enterPassword: () => "Enter your password.",
   notNegative: () => "Can't be negative.",
   moneyTooLarge: () => "Keep it to $1,000,000 or less.",
   quantityTooLarge: () => "Keep it to 1,000,000 or fewer.",
@@ -52,6 +53,12 @@ const en = {
   productArchivedStock: ({ product }: { product: string }) => `${product} is archived, so its stock can't change.`,
   notEnoughStock: ({ product, onHand }: { product: string; onHand: number }) => `Only ${onHand} × ${product} on hand.`,
   noMovement: () => "That ledger line doesn't exist.",
+  noPerson: () => "That person isn't on the team.",
+  notYourOwnRole: () => "You can't change your own role. Ask another admin.",
+  resetYourOwn: () => "To change your own password, use Your password below.",
+  demoAccountKept: () =>
+    "The demo accounts stay as they are, so every visitor can sign in with them. Add a person to try this.",
+  wrongCurrentPassword: () => "That isn't your current password.",
   undoNotYours: () => "Only the person who recorded a line can undo it.",
   undoTooLate: () => "It's too late to undo that line. Record a correction instead.",
   alreadyUndone: () => "That line has already been undone.",
@@ -104,6 +111,7 @@ const bn: typeof en = {
   enterName: () => "একটি নাম লিখুন।",
   enterEmail: () => "একটি সঠিক ইমেইল ঠিকানা লিখুন।",
   passwordLength: () => "অন্তত ১২টি অক্ষর ব্যবহার করুন।",
+  enterPassword: () => "আপনার পাসওয়ার্ড লিখুন।",
   notNegative: () => "ঋণাত্মক হতে পারবে না।",
   moneyTooLarge: () => "$১০,০০,০০০ বা তার কম রাখুন।",
   quantityTooLarge: () => "১০,০০,০০০ বা তার কম রাখুন।",
@@ -128,6 +136,12 @@ const bn: typeof en = {
   productArchivedStock: ({ product }) => `${product} আর্কাইভ করা, তাই এর স্টক বদলানো যাবে না।`,
   notEnoughStock: ({ product, onHand }) => `${product} মজুত আছে মাত্র ${n(onHand)}টি।`,
   noMovement: () => "খতিয়ানের এই লাইনটি নেই।",
+  noPerson: () => "এই মানুষটি দলে নেই।",
+  notYourOwnRole: () => "নিজের ভূমিকা নিজে বদলানো যায় না। অন্য একজন অ্যাডমিনকে বলুন।",
+  resetYourOwn: () => "নিজের পাসওয়ার্ড বদলাতে নিচের “আপনার পাসওয়ার্ড” ব্যবহার করুন।",
+  demoAccountKept: () =>
+    "ডেমো অ্যাকাউন্টগুলো যেমন আছে তেমনই থাকে, যাতে সবাই সেগুলো দিয়ে সাইন ইন করতে পারেন। চেষ্টা করে দেখতে একজন নতুন মানুষ যোগ করুন।",
+  wrongCurrentPassword: () => "এটি আপনার বর্তমান পাসওয়ার্ড নয়।",
   undoNotYours: () => "যিনি লাইনটি লিখেছেন, শুধু তিনিই এটি ফিরিয়ে নিতে পারেন।",
   undoTooLate: () => "এই লাইন ফিরিয়ে নেওয়ার সময় পেরিয়ে গেছে। বদলে একটি সংশোধন লিখুন।",
   alreadyUndone: () => "এই লাইনটি আগেই ফিরিয়ে নেওয়া হয়েছে।",
@@ -175,6 +189,7 @@ type Operation = "edit" | "place" | "cancel" | "receive";
 
 export type AdminAction =
   | "addPeople"
+  | "managePeople"
   | "addProducts"
   | "editProducts"
   | "archiveProducts"
@@ -188,6 +203,7 @@ export type AdminAction =
 
 const ADMIN_ACTIONS_EN: Record<AdminAction, string> = {
   addPeople: "add people",
+  managePeople: "change someone's role or password",
   addProducts: "add products",
   editProducts: "edit products",
   archiveProducts: "archive products",
@@ -202,6 +218,7 @@ const ADMIN_ACTIONS_EN: Record<AdminAction, string> = {
 
 const ADMIN_ACTIONS_BN: Record<AdminAction, string> = {
   addPeople: "নতুন মানুষ যোগ করতে পারেন",
+  managePeople: "কারও ভূমিকা বা পাসওয়ার্ড বদলাতে পারেন",
   addProducts: "পণ্য যোগ করতে পারেন",
   editProducts: "পণ্য সম্পাদনা করতে পারেন",
   archiveProducts: "পণ্য আর্কাইভ করতে পারেন",

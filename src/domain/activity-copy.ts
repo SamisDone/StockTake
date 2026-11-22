@@ -10,6 +10,8 @@ import { DOLLARS, moneyFormat } from "@/lib/money";
  */
 export type ActivityEvent =
   | { action: "user.created"; facts: { name: string; role: "admin" | "staff" } }
+  | { action: "user.role_changed"; facts: { name: string; role: "admin" | "staff" } }
+  | { action: "user.password_reset" | "user.password_changed"; facts: { name: string } }
   | { action: "product.created"; facts: { name: string; sku: string } }
   | { action: "product.updated" | "product.archived" | "product.restored"; facts: { name: string } }
   | {
@@ -41,6 +43,9 @@ const withNote = (text: string, note?: string) => (note ? `${text}: ${note}` : t
 const enDollars = moneyFormat(DOLLARS).money;
 const en: Sentences = {
   "user.created": ({ name, role }) => `Added ${name} as ${role}`,
+  "user.role_changed": ({ name, role }) => `Made ${name} ${role === "admin" ? "an admin" : "staff"}`,
+  "user.password_reset": ({ name }) => `Reset ${name}'s password`,
+  "user.password_changed": ({ name }) => `${name} changed their password`,
   "product.created": ({ name, sku }) => `Added ${name} (${sku})`,
   "product.updated": ({ name }) => `Updated ${name}`,
   "product.archived": ({ name }) => `Archived ${name}`,
@@ -79,6 +84,9 @@ const n = formats("bn").count;
 const bnDollars = moneyFormat(DOLLARS, "bn").money;
 const bn: Sentences = {
   "user.created": ({ name, role }) => `${name}-কে ${role === "admin" ? "অ্যাডমিন" : "কর্মী"} হিসেবে যোগ করা হলো`,
+  "user.role_changed": ({ name, role }) => `${name}-কে ${role === "admin" ? "অ্যাডমিন" : "কর্মী"} করা হলো`,
+  "user.password_reset": ({ name }) => `${name}-এর পাসওয়ার্ড নতুন করে দেওয়া হলো`,
+  "user.password_changed": ({ name }) => `${name} নিজের পাসওয়ার্ড বদলালেন`,
   "product.created": ({ name, sku }) => `${name} (${sku}) যোগ করা হলো`,
   "product.updated": ({ name }) => `${name} হালনাগাদ করা হলো`,
   "product.archived": ({ name }) => `${name} আর্কাইভ করা হলো`,

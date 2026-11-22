@@ -25,6 +25,10 @@ const en = {
     `Recorded ${{ sale: "a sale", return: "a return", write_off: "a write-off" }[kind]} of ${formats("en").count(quantity)} × ${name}. ${formats("en").count(onHand)} on hand.`,
   undone: (name: string, onHand: number) => `Undone. ${formats("en").count(onHand)} × ${name} on hand.`,
 
+  // People
+  roleChanged: (name: string, role: "admin" | "staff") => `${name} is ${role === "admin" ? "an admin" : "staff"} now.`,
+  passwordChanged: "Changed your password. You're still signed in here; anywhere else signs in again.",
+
   // Orders
   chooseIntent: "Choose what to do with the order.",
   placed: (order: string, supplier: string) => `Placed ${order} with ${supplier}.`,
@@ -73,6 +77,9 @@ const bn: typeof en = {
   recorded: (name, kind, quantity, onHand) =>
     `${b.count(quantity)} × ${name} ${{ sale: "বিক্রি", return: "ফেরত", write_off: "বাতিল" }[kind]} লেখা হলো। মজুত এখন ${b.count(onHand)}।`,
   undone: (name, onHand) => `ফিরিয়ে নেওয়া হলো। ${name} মজুত এখন ${b.count(onHand)}।`,
+
+  roleChanged: (name, role) => `${name} এখন ${role === "admin" ? "অ্যাডমিন" : "কর্মী"}।`,
+  passwordChanged: "পাসওয়ার্ড বদলানো হলো। এখানে সাইন ইন থাকছেন; অন্য কোথাও আবার সাইন ইন করতে হবে।",
 
   chooseIntent: "অর্ডারটি নিয়ে কী করবেন, বেছে নিন।",
   placed: (order, supplier) => `${supplier}-কে ${order} দেওয়া হলো।`,

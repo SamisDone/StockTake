@@ -12,6 +12,7 @@ const en = {
     "/suppliers": "Suppliers",
     "/analytics": "Analytics",
     "/activity": "Activity",
+    "/people": "People",
   },
   signOut: "Sign out",
 
@@ -57,6 +58,7 @@ const bn: typeof en = {
     "/suppliers": "সরবরাহকারী",
     "/analytics": "বিশ্লেষণ",
     "/activity": "কার্যক্রম",
+    "/people": "দল",
   },
   signOut: "সাইন আউট",
 

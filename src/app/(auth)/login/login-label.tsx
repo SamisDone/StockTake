@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useActionState, useState, type ReactNode } from "react";
 import { DemoStub } from "@/components/demo-doors";
 import { FaultLine } from "@/components/fault";
 import { LanguageSwitch } from "@/components/language-switch";
+import { PasswordInput } from "@/components/password-input";
 import { Mark } from "@/components/logo";
 import { DEMO_ROLES } from "@/lib/demo-roles";
 import { type Copy, LANGUAGE_TAGS, type Language } from "@/lib/i18n";
@@ -38,9 +40,14 @@ export function LoginLabel({ language }: { language: Language }) {
       </Suspense>
 
       <header className="border-b-2 border-ink px-6 pt-6 pb-4">
-        <h1 id="login-title" lang="en" className="print-display flex items-center gap-3 text-[2.75rem] uppercase">
-          <Mark size={48} />
-          Stocktake
+        {/* The wordmark is the way back to the home page. It doesn't prefetch: on Workers an
+            unrequested prefetch is a server render paid for nothing. */}
+        <h1 id="login-title" lang="en" className="print-display text-[2.75rem] uppercase">
+          <Link href="/" prefetch={false} className="inline-flex items-center gap-3 rounded-control">
+            <Mark size={48} />
+            Stocktake
+            <span className="sr-only"> {t.home}</span>
+          </Link>
         </h1>
         {/* The wordmark takes the label's width on a phone, so the language sits on the
             tagline's line; the negative margins keep its 44px target from growing the header. */}
@@ -92,16 +99,21 @@ export function LoginLabel({ language }: { language: Language }) {
         />
       </Field>
       <Field name="password" label={t.password} error={fieldError("password")} last>
-        <input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           required
+          show={t.show}
+          hide={t.hide}
+          label={t.showPassword}
           aria-invalid={fieldError("password") ? true : undefined}
-          aria-describedby={fieldError("password") ? "password-error" : undefined}
+          aria-describedby={fieldError("password") ? "password-error password-help" : "password-help"}
           className="field-input"
         />
+        <p id="password-help" className="pb-1 text-xs text-ink-3">
+          {t.forgot}
+        </p>
       </Field>
 
       <FaultLine
@@ -172,6 +184,11 @@ const COPY: Copy<{
   password: string;
   signIn: string;
   signingIn: string;
+  home: string;
+  show: string;
+  hide: string;
+  showPassword: string;
+  forgot: string;
 }> = {
   en: {
     title: "Sign in",
@@ -182,6 +199,11 @@ const COPY: Copy<{
     password: "Password",
     signIn: "Sign in",
     signingIn: "Signing in…",
+    home: "(home page)",
+    show: "Show",
+    hide: "Hide",
+    showPassword: "Show password",
+    forgot: "Forgot it? An admin can give you a new one on the People page.",
   },
   bn: {
     title: "সাইন ইন",
@@ -192,6 +214,11 @@ const COPY: Copy<{
     password: "পাসওয়ার্ড",
     signIn: "সাইন ইন",
     signingIn: "সাইন ইন হচ্ছে…",
+    home: "(প্রথম পাতা)",
+    show: "দেখান",
+    hide: "লুকান",
+    showPassword: "পাসওয়ার্ড দেখান",
+    forgot: "ভুলে গেছেন? “দল” পাতা থেকে একজন অ্যাডমিন আপনাকে নতুন পাসওয়ার্ড দিতে পারেন।",
   },
 };
 

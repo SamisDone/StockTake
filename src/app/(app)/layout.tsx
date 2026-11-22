@@ -70,7 +70,8 @@ async function Shell({ children, drawer }: { children: ReactNode; drawer: ReactN
         </div>
       </div>
 
-      <main className="lg:py-3 lg:pr-3">
+      {/* On a phone the page ends clear of the Record button floating at its foot. */}
+      <main className="pb-24 lg:py-3 lg:pr-3">
         <div className="sheet min-h-[calc(100dvh-8rem)] rounded-none lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-label">
           {children}
         </div>

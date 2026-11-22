@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { getDb } from "@/db/client";
 import type { Database } from "@/db/database";
-import { type SessionUser, validateSession } from "@/domain/auth";
+import { type SessionUser, hashToken, validateSession } from "@/domain/auth";
 import type { Language } from "@/lib/i18n";
 import { getLanguage } from "./preferences";
 import { LOGIN_PATH, SESSION_COOKIE, looksLikeSessionToken } from "./session-cookie";
@@ -42,4 +42,13 @@ export async function getCurrentUser(): Promise<SessionUser> {
 export async function authorize(): Promise<{ db: Database; user: SessionUser; language: Language }> {
   const user = await getCurrentUser();
   return { db: await getDb(), user, language: await getLanguage() };
+}
+
+/**
+ * The ID of the session this request is signed in with (the SHA-256 of its cookie), for
+ * actions that end every session but this one. Call after `authorize()`.
+ */
+export async function currentSessionId() {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value ?? "";
+  return hashToken(token);
 }
