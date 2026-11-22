@@ -11,7 +11,8 @@ import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { ORDERS_COPY, type OrdersCopy } from "./copy";
-import { IntentLink } from "@/components/intent-link";
+import { RememberLink } from "@/components/known-title";
+import { TitleMorph } from "@/components/title-morph";
 
 export type OrderRow = {
   id: number;
@@ -121,15 +122,28 @@ function Row({ row, m, f, t }: { row: OrderRow; m: MoneyFormat; f: Formats; t: O
           {row.late ? (
             <span className="shrink-0 rounded-mark bg-stock px-1.5 py-px text-xs font-bold">{t.late}</span>
           ) : null}
-          <IntentLink
+          <RememberLink
             href={`/orders/${row.id}`}
             transitionTypes={NAV_FORWARD}
+            remember={{
+              kind: "order",
+              id: row.id,
+              title: row.supplierName,
+              number: row.number,
+              status: t.status[row.status],
+            }}
             className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
           >
-            {row.supplierName}
-          </IntentLink>
+            <TitleMorph kind="order" id={row.id}>
+              <span className="inline-block">{row.supplierName}</span>
+            </TitleMorph>
+          </RememberLink>
         </div>
-        <p className="mt-0.5 font-mono text-xs text-ink-3">{row.number}</p>
+        <p className="mt-0.5 font-mono text-xs text-ink-3">
+          <TitleMorph kind="order" id={row.id} part="number">
+            <span className="inline-block">{row.number}</span>
+          </TitleMorph>
+        </p>
       </td>
       <td className="py-3 pr-4 max-md:p-0">
         <MobileName>{t.columns.status}</MobileName>

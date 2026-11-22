@@ -5,7 +5,6 @@ import { BackToOrders } from "../back-to-orders";
 import { getLanguage } from "@/server/preferences";
 import { ORDERS_COPY } from "../copy";
 import { OrderLabel, OrderLabelPlaceholder, orderId } from "../order-label";
-import { EitherLanguage } from "@/components/either-language";
 import { WithLanguage } from "@/components/with-language";
 
 export async function generateMetadata({ params }: PageProps<"/orders/[id]">): Promise<Metadata> {
@@ -17,13 +16,7 @@ export async function generateMetadata({ params }: PageProps<"/orders/[id]">): P
 export default function OrderPage({ params }: PageProps<"/orders/[id]">) {
   return (
     <PageTransition>
-      <Reveal
-        fallback={
-          <EitherLanguage>
-            {(language) => <OrderLabelPlaceholder language={language} action={<BackToOrders language={language} />} />}
-          </EitherLanguage>
-        }
-      >
+      <Reveal fallback={<OrderLabelPlaceholder action={(language) => <BackToOrders language={language} />} />}>
         <WithLanguage>{(language) => <Label params={params} language={language} />}</WithLanguage>
       </Reveal>
     </PageTransition>

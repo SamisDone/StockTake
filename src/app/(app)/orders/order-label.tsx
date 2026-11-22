@@ -18,6 +18,9 @@ import { dayInput } from "./draft-values";
 import { OrderControls } from "./order-controls";
 import { ORDERS_COPY, type OrdersCopy } from "./copy";
 import { ProductLink } from "@/components/product-link";
+import { EitherLanguage } from "@/components/either-language";
+import { KnownHeading } from "@/components/known-title";
+import { RECORD_HEADING, TitleMorph } from "@/components/title-morph";
 
 /** An order ID from the URL, or a 404 for anything that isn't one. */
 export function orderId(raw: string) {
@@ -58,11 +61,16 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
     <article aria-labelledby="order-title">
       <header className="flex items-start justify-between gap-4 border-b-2 border-ink px-5 pt-6 pb-4 sm:px-8 sm:pt-8">
         <div className="min-w-0">
-          <h1 id="order-title" className="print-display text-4xl text-balance sm:text-5xl">
-            {order.supplierName}
+          <h1 id="order-title" className={RECORD_HEADING}>
+            <TitleMorph kind="order" id={order.id}>
+              <span className="inline-block">{order.supplierName}</span>
+            </TitleMorph>
           </h1>
           <p className="mt-2 text-sm text-ink-2">
-            <span className="font-mono text-xs">{order.number}</span> · {t.status[order.status]}
+            <TitleMorph kind="order" id={order.id} part="number">
+              <span className="inline-block font-mono text-xs">{order.number}</span>
+            </TitleMorph>{" "}
+            · {t.status[order.status]}
           </p>
         </div>
         <div className="flex shrink-0 items-start gap-1">
@@ -281,18 +289,25 @@ function LineTh({
   );
 }
 
-/** The same label, unprinted, in the shape of what will print. */
-export function OrderLabelPlaceholder({ language, action }: { language: Language; action?: ReactNode }) {
+/**
+ * The same label, unprinted, in the shape of what will print. It prints before the
+ * request is read, so its words come in both languages; the heading prints once, as
+ * what the order's row showed when it was opened from the list, or as bars.
+ */
+export function OrderLabelPlaceholder({ action }: { action: (language: Language) => ReactNode }) {
   return (
     <div aria-hidden>
       <div className="flex items-start justify-between gap-4 border-b-2 border-ink px-5 pt-6 pb-4 sm:px-8 sm:pt-8">
         <div className="min-w-0 flex-1">
-          <div className="h-9 w-3/5 bg-liner sm:h-12" />
-          <div className="mt-3 h-4 w-32 bg-liner/70" />
+          <KnownHeading
+            kind="order"
+            titleBar={<div className="h-9 w-3/5 bg-liner sm:h-12" />}
+            detailBar={<div className="mt-3 h-4 w-32 bg-liner/70" />}
+          />
         </div>
-        {action}
+        <EitherLanguage>{action}</EitherLanguage>
       </div>
-      <TallyPlaceholder names={ORDERS_COPY[language].labelTallies} />
+      <EitherLanguage>{(language) => <TallyPlaceholder names={ORDERS_COPY[language].labelTallies} />}</EitherLanguage>
       <div className="border-b-2 border-ink px-5 py-3 sm:px-8">
         <div className="h-5 w-4/5 bg-liner/70" />
       </div>

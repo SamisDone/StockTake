@@ -34,6 +34,21 @@
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* a label pulled out from the edge */
 }
 
+/*
+ * How long things take. What leaves goes faster than what arrives, and nothing a person
+ * waits on runs past the drawer's 300ms.
+ */
+:root {
+  --dur-press: 150ms; /* a press, a hover tint, a quick swap */
+  --dur-fade: 150ms; /* content arriving where it already belongs */
+  --dur-tear: 110ms; /* what leaves, torn off so it never competes */
+  --dur-reveal: 160ms; /* a line opening by height (closing: --dur-tear) */
+  --dur-print: 260ms; /* a page or a line printing in */
+  --dur-move: 240ms; /* something travelling: a slide, a morph */
+  --dur-panel: 300ms; /* the drawer pulled out (pushed back: --dur-panel-out) */
+  --dur-panel-out: 200ms;
+}
+
 @layer base {
   html {
     background: var(--color-liner);
@@ -148,18 +163,18 @@
    * keyframes, so a close midway through opening turns around from where it is.
    */
   .drawer-scrim {
-    transition: opacity 300ms var(--ease-out);
+    transition: opacity var(--dur-panel) var(--ease-out);
   }
   .drawer-panel {
-    transition: translate 300ms var(--ease-drawer);
+    transition: translate var(--dur-panel) var(--ease-drawer);
   }
   .drawer[data-closing] .drawer-scrim {
     opacity: 0;
-    transition-duration: 200ms;
+    transition-duration: var(--dur-panel-out);
   }
   .drawer[data-closing] .drawer-panel {
     translate: calc(100% + 1rem) 0;
-    transition: translate 200ms var(--ease-out);
+    transition: translate var(--dur-panel-out) var(--ease-out);
   }
   @starting-style {
     .drawer[open] .drawer-scrim {
@@ -173,7 +188,7 @@
   /* Same place, different content (a filter changed): the new content fades in. No
      movement, so reduced motion keeps it as is. */
   .swap-in {
-    animation: 160ms var(--ease-out) both fade-in;
+    animation: var(--dur-fade) var(--ease-out) both fade-in;
   }
 
   /* A field at fault: a 2px rule of fault red down its leading edge, drawn over the
@@ -197,16 +212,33 @@
   .fault-reveal {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 120ms var(--ease-out);
+    transition: grid-template-rows var(--dur-tear) var(--ease-out);
   }
   .fault-reveal[data-open] {
     grid-template-rows: 1fr;
-    transition-duration: 160ms;
+    transition-duration: var(--dur-reveal);
   }
 
   /* A line that appears after an action prints in, the way loaded content does. */
   .print-in {
-    animation: 260ms var(--ease-out) both print-in;
+    animation: var(--dur-print) var(--ease-out) both print-in;
+  }
+
+  /*
+   * The line along the top that says a page is on its way, shown only once the wait is
+   * long enough to notice (nav-progress.tsx runs it). It grows from the left like the
+   * paper feeding out, never quite reaching the end until the page arrives.
+   */
+  .nav-progress {
+    position: fixed;
+    inset-inline: 0;
+    top: 0;
+    z-index: 60;
+    height: 2px;
+    background: var(--color-ink);
+    transform-origin: left;
+    transform: scaleX(0);
+    pointer-events: none;
   }
 }
 
@@ -233,7 +265,7 @@
    0.96 while held, the way reverse-print buttons scale their label. */
 @utility press-quiet {
   transition-property: color, background-color, scale;
-  transition-duration: 150ms;
+  transition-duration: var(--dur-press);
   transition-timing-function: var(--ease-out);
   &:not(:disabled):active {
     scale: 0.96;
@@ -241,16 +273,17 @@
 }
 
 /* A row that is one link (a stretched link makes the whole row its hit area): tinted
-   under the pointer, and darker the moment it's pressed, before the next page arrives,
-   so a click is answered at once. */
+   under the pointer, and darker the moment it's pressed, so a click is answered at
+   once. It stays pressed while its page is still on the way (IntentLink marks it). */
 @utility row-hit {
-  transition: background-color 150ms var(--ease-out);
+  transition: background-color var(--dur-press) var(--ease-out);
   @media (hover: hover) {
     &:hover {
       background-color: color-mix(in srgb, var(--color-liner) 60%, transparent);
     }
   }
-  &:active {
+  &:active,
+  &:has([data-link-pending]) {
     background-color: var(--color-liner);
     transition-duration: 0ms;
   }
@@ -309,39 +342,53 @@
 }
 
 ::view-transition-new(.print) {
-  animation: 260ms var(--ease-out) both print-in;
+  animation: var(--dur-print) var(--ease-out) both print-in;
 }
 ::view-transition-old(.tear) {
-  animation: 110ms var(--ease-out) both fade-out;
+  animation: var(--dur-tear) var(--ease-out) both fade-out;
 }
 /* Data landing in a page that already printed: a short fade, no second print. */
 ::view-transition-new(.arrive) {
-  animation: 150ms var(--ease-out) both fade-in;
+  animation: var(--dur-fade) var(--ease-out) both fade-in;
+}
+
+/* A record's name travelling from its list row into its label's heading (TitleMorph),
+   above the pages sliding past underneath. The two snapshots cross-fade on the way, so
+   the row's type becomes the heading's. */
+::view-transition-group(.morph) {
+  z-index: 5;
+  animation-duration: var(--dur-move);
+  animation-timing-function: var(--ease-in-out);
+}
+::view-transition-old(.morph),
+::view-transition-new(.morph) {
+  animation-duration: var(--dur-move);
+  animation-timing-function: var(--ease-in-out);
 }
 
 ::view-transition-old(.nav-forward) {
   --slide: -32px;
   animation:
-    110ms var(--ease-out) both fade-out,
-    240ms var(--ease-in-out) both slide-out;
+    var(--dur-tear) var(--ease-out) both fade-out,
+    var(--dur-move) var(--ease-in-out) both slide-out;
 }
 ::view-transition-new(.nav-forward) {
   --slide: 32px;
   animation:
     180ms var(--ease-out) 90ms both fade-in,
-    240ms var(--ease-in-out) both slide-in;
+    var(--dur-move) var(--ease-in-out) both slide-in;
 }
 ::view-transition-old(.nav-back) {
   --slide: 32px;
   animation:
-    110ms var(--ease-out) both fade-out,
-    240ms var(--ease-in-out) both slide-out;
+    var(--dur-tear) var(--ease-out) both fade-out,
+    var(--dur-move) var(--ease-in-out) both slide-out;
 }
 ::view-transition-new(.nav-back) {
   --slide: -32px;
   animation:
     180ms var(--ease-out) 90ms both fade-in,
-    240ms var(--ease-in-out) both slide-in;
+    var(--dur-move) var(--ease-in-out) both slide-in;
 }
 
 @keyframes print-in {
@@ -379,16 +426,22 @@
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-new(.print),
   ::view-transition-new(.nav-forward),
-  ::view-transition-new(.nav-back) {
-    animation: 150ms ease both fade-in;
+  ::view-transition-new(.nav-back),
+  ::view-transition-new(.morph) {
+    animation: var(--dur-fade) ease both fade-in;
   }
   ::view-transition-old(.tear),
   ::view-transition-old(.nav-forward),
-  ::view-transition-old(.nav-back) {
-    animation: 100ms ease both fade-out;
+  ::view-transition-old(.nav-back),
+  ::view-transition-old(.morph) {
+    animation: var(--dur-tear) ease both fade-out;
+  }
+  /* The name changes places without travelling. */
+  ::view-transition-group(.morph) {
+    animation: none;
   }
   .print-in {
-    animation: 150ms ease both fade-in;
+    animation: var(--dur-fade) ease both fade-in;
   }
   .fault-reveal {
     transition: none;
@@ -398,11 +451,11 @@
     translate: none;
   }
   .drawer-panel {
-    transition: opacity 150ms ease;
+    transition: opacity var(--dur-fade) ease;
   }
   .drawer[data-closing] .drawer-panel {
     opacity: 0;
-    transition: opacity 100ms ease;
+    transition: opacity var(--dur-tear) ease;
   }
   @starting-style {
     .drawer[open] .drawer-panel {

@@ -17,7 +17,8 @@ import { type MoneyFormat, moneyFormat } from "@/lib/money";
 import { getCurrentUser, getSessionUser } from "@/server/dal";
 import { getLanguage, getMoneyPrefs } from "@/server/preferences";
 import { SUPPLIERS_COPY, type SuppliersCopy } from "./copy";
-import { IntentLink } from "@/components/intent-link";
+import { RememberLink } from "@/components/known-title";
+import { TitleMorph } from "@/components/title-morph";
 import { EitherLanguage } from "@/components/either-language";
 import { WithLanguage } from "@/components/with-language";
 import { both } from "@/lib/i18n";
@@ -161,13 +162,16 @@ async function SupplierList({ language }: { language: Language }) {
           <ul className="mt-3">
             {archived.map((r) => (
               <li key={r.id} className="relative border-b border-hairline px-5 py-3 last:border-b-0 row-hit sm:px-8">
-                <IntentLink
+                <RememberLink
                   href={`/suppliers/${r.id}`}
                   transitionTypes={NAV_FORWARD}
+                  remember={{ kind: "supplier", id: r.id, title: r.name }}
                   className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
                 >
-                  {r.name}
-                </IntentLink>
+                  <TitleMorph kind="supplier" id={r.id}>
+                    <span className="inline-block">{r.name}</span>
+                  </TitleMorph>
+                </RememberLink>
                 <span className="text-sm text-ink-2"> · {t.archivedOn(f.date(r.archivedAt!, now))}</span>
               </li>
             ))}
@@ -220,13 +224,16 @@ function SupplierRow({ row, m, f, t }: { row: Row; m: MoneyFormat; f: Formats; t
   return (
     <tr className="relative border-b border-hairline align-top row-hit last:border-b-0 max-lg:grid max-lg:grid-cols-2 max-lg:gap-x-5 max-lg:gap-y-3 max-lg:px-5 max-lg:py-4 sm:max-lg:grid-cols-4 sm:max-lg:px-8">
       <td className="py-3 pr-4 max-lg:col-span-full max-lg:p-0 lg:pl-8">
-        <IntentLink
+        <RememberLink
           href={`/suppliers/${row.id}`}
           transitionTypes={NAV_FORWARD}
+          remember={{ kind: "supplier", id: row.id, title: row.name }}
           className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
         >
-          {row.name}
-        </IntentLink>
+          <TitleMorph kind="supplier" id={row.id}>
+            <span className="inline-block">{row.name}</span>
+          </TitleMorph>
+        </RememberLink>
         {row.contact ? <p className="mt-0.5 text-sm text-ink-3">{row.contact}</p> : null}
       </td>
       <td className="py-3 pr-4 whitespace-nowrap max-lg:p-0 lg:text-right">

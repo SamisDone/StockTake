@@ -6,6 +6,7 @@ import { getLanguage, getMoneyPrefs } from "@/server/preferences";
 import { CurrencySwitch } from "@/components/currency-switch";
 import { LanguageSwitch } from "@/components/language-switch";
 import { Mark } from "@/components/logo";
+import { NavProgress } from "@/components/nav-progress";
 import { ROLE_NAMES } from "@/lib/demo-roles";
 import { LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { SHELL_COPY } from "./copy";
@@ -68,6 +69,10 @@ async function Shell({ children, drawer }: { children: ReactNode; drawer: ReactN
         </div>
       </main>
       {drawer}
+      {/* It reads the address, which a layout can only do inside a boundary. */}
+      <Suspense fallback={null}>
+        <NavProgress />
+      </Suspense>
     </div>
   );
 }

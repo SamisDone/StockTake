@@ -26,6 +26,9 @@ import { ReviewForm } from "./review-form";
 import { SupplierForm } from "./supplier-form";
 import { IntentLink } from "@/components/intent-link";
 import { ProductLink } from "@/components/product-link";
+import { EitherLanguage } from "@/components/either-language";
+import { KnownHeading } from "@/components/known-title";
+import { RECORD_HEADING, TitleMorph } from "@/components/title-morph";
 
 /** The label lists this many of the supplier's newest orders. */
 const ORDER_LIMIT = 8;
@@ -81,8 +84,10 @@ export async function SupplierLabel({ id, action }: { id: number; action: ReactN
     <article aria-labelledby="supplier-title">
       <header className="flex items-start justify-between gap-4 border-b-2 border-ink px-5 pt-6 pb-4 sm:px-8 sm:pt-8">
         <div className="min-w-0">
-          <h1 id="supplier-title" className="print-display text-4xl text-balance sm:text-5xl">
-            {supplier.name}
+          <h1 id="supplier-title" className={RECORD_HEADING}>
+            <TitleMorph kind="supplier" id={supplier.id}>
+              <span className="inline-block">{supplier.name}</span>
+            </TitleMorph>
           </h1>
           {/* One line at the desk; on a phone each part takes its own line, so none breaks. */}
           <p className="mt-2 text-sm text-ink-2">
@@ -417,17 +422,24 @@ function Status({
 }
 
 /** The same label, unprinted, in the shape of what will print. */
-export function SupplierLabelPlaceholder({ language, action }: { language: Language; action?: ReactNode }) {
+export function SupplierLabelPlaceholder({ action }: { action: (language: Language) => ReactNode }) {
   return (
     <div aria-hidden>
       <div className="flex items-start justify-between gap-4 border-b-2 border-ink px-5 pt-6 pb-4 sm:px-8 sm:pt-8">
         <div className="min-w-0 flex-1">
-          <div className="h-9 w-3/5 bg-liner sm:h-12" />
-          <div className="mt-3 h-4 w-48 bg-liner/70" />
+          <KnownHeading
+            kind="supplier"
+            titleBar={<div className="h-9 w-3/5 bg-liner sm:h-12" />}
+            detailBar={<div className="mt-3 h-4 w-48 bg-liner/70" />}
+          />
         </div>
-        {action}
+        <EitherLanguage>{action}</EitherLanguage>
       </div>
-      <TallyPlaceholder names={SUPPLIERS_COPY[language].labelTallies} className={FOUR_TALLIES} notes />
+      <EitherLanguage>
+        {(language) => (
+          <TallyPlaceholder names={SUPPLIERS_COPY[language].labelTallies} className={FOUR_TALLIES} notes />
+        )}
+      </EitherLanguage>
       <div className="border-b-2 border-ink px-5 py-4 sm:px-8">
         <div className="h-5 w-4/5 bg-liner/70" />
       </div>

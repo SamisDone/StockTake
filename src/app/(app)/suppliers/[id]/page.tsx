@@ -5,7 +5,6 @@ import { getLanguage } from "@/server/preferences";
 import type { Language } from "@/lib/i18n";
 import { SUPPLIERS_COPY } from "../copy";
 import { SupplierLabel, SupplierLabelPlaceholder, supplierId } from "../supplier-label";
-import { EitherLanguage } from "@/components/either-language";
 import { WithLanguage } from "@/components/with-language";
 import { recordName } from "@/server/titles";
 
@@ -19,15 +18,7 @@ export async function generateMetadata({ params }: PageProps<"/suppliers/[id]">)
 export default function SupplierPage({ params }: PageProps<"/suppliers/[id]">) {
   return (
     <PageTransition>
-      <Reveal
-        fallback={
-          <EitherLanguage>
-            {(language) => (
-              <SupplierLabelPlaceholder language={language} action={<BackToSuppliers language={language} />} />
-            )}
-          </EitherLanguage>
-        }
-      >
+      <Reveal fallback={<SupplierLabelPlaceholder action={(language) => <BackToSuppliers language={language} />} />}>
         <WithLanguage>{(language) => <Label params={params} language={language} />}</WithLanguage>
       </Reveal>
     </PageTransition>

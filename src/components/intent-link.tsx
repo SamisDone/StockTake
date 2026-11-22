@@ -1,6 +1,6 @@
 "use client";
 
-import Link, { type LinkProps } from "next/link";
+import Link, { type LinkProps, useLinkStatus } from "next/link";
 import { useState } from "react";
 
 /**
@@ -11,7 +11,7 @@ import { useState } from "react";
  * nobody opens. The intent comes ~100ms or more before the click, which is most of a
  * round trip, so the page is usually ready when it's opened.
  */
-export function IntentLink<Route>({ onPointerEnter, onFocus, onTouchStart, ...props }: LinkProps<Route>) {
+export function IntentLink<Route>({ onPointerEnter, onFocus, onTouchStart, children, ...props }: LinkProps<Route>) {
   const [intent, setIntent] = useState(false);
   return (
     <Link
@@ -29,6 +29,20 @@ export function IntentLink<Route>({ onPointerEnter, onFocus, onTouchStart, ...pr
         setIntent(true);
         onTouchStart?.(event);
       }}
-    />
+    >
+      {children}
+      <Pending />
+    </Link>
   );
+}
+
+/**
+ * Marks the link while its page is on the way, when it wasn't ready at the click (a
+ * prefetched page arrives at once and never marks). A `row-hit` row holding the mark
+ * stays pressed, so the row answers the click until the page replaces it, rather than
+ * going quiet the moment the finger lifts.
+ */
+function Pending() {
+  const { pending } = useLinkStatus();
+  return pending ? <span hidden data-link-pending /> : null;
 }
