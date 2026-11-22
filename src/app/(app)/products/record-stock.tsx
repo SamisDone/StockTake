@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { Choice } from "@/components/choice";
 import { FaultLine } from "@/components/fault";
 import { Field } from "@/components/field";
+import { PillRow } from "@/components/pill-row";
 import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { parseUnits } from "@/lib/parse";
@@ -69,13 +70,13 @@ export function RecordStock({
         <fieldset disabled={pending}>
           <fieldset className="px-5 pb-3 sm:px-8">
             <legend className="sr-only">{t.whatHappened}</legend>
-            <div className="flex flex-wrap gap-1">
+            <PillRow className="flex flex-wrap gap-1">
               {KINDS.map((k) => (
                 <Choice key={k} name="kind" value={k} defaultChecked={defaultKind === k} onSelect={() => setKind(k)}>
                   {t.stockKinds[k].label}
                 </Choice>
               ))}
-            </div>
+            </PillRow>
           </fieldset>
 
           <div className="grid border-y border-ink sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">

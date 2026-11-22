@@ -47,6 +47,10 @@
   --dur-move: 240ms; /* something travelling: a slide, a morph */
   --dur-panel: 300ms; /* the drawer pulled out (pushed back: --dur-panel-out) */
   --dur-panel-out: 200ms;
+  --dur-shift: 180ms; /* the chosen mark sliding to its neighbour */
+  --dur-stamp: 180ms; /* a status pressed onto the label */
+  --dur-collapse: 200ms; /* a line taken off, closing its gap */
+  --dur-tick: 400ms; /* a figure counting over to its new value: the one long one */
 }
 
 @layer base {
@@ -223,6 +227,36 @@
   .print-in {
     animation: var(--dur-print) var(--ease-out) both print-in;
   }
+  /* A table row prints cell by cell, since a row itself can't be clipped everywhere. */
+  .print-row > td {
+    animation: var(--dur-print) var(--ease-out) both print-in;
+  }
+
+  /* A status the order just moved to, pressed onto the label: it lands from a touch
+     larger, the way a stamp settles, and never wobbles. */
+  .stamp-in {
+    animation:
+      var(--dur-stamp) var(--ease-out) both stamp,
+      var(--dur-fade) var(--ease-out) both fade-in;
+  }
+
+  /*
+   * The chosen option's reverse print, as one piece that slides between options
+   * (pill-row.tsx places it). Until it's placed, and without script, each chosen option
+   * prints its own. Its width moves rather than its scale, which would stretch its
+   * corners; it's out of flow, so only the pill itself is laid out again.
+   */
+  .pill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    border-radius: var(--radius-control);
+    background: var(--color-ink);
+    pointer-events: none;
+    transition:
+      translate var(--dur-shift) var(--ease-in-out),
+      width var(--dur-shift) var(--ease-in-out);
+  }
 
   /*
    * The line along the top that says a page is on its way, shown only once the wait is
@@ -259,6 +293,16 @@
     font-size: 0.8125rem;
     line-height: 1.125rem;
   }
+}
+
+/* Under a sliding pill, the chosen option prints no reverse of its own: its text turns
+   white as the pill arrives, in step with it. Unlayered, so it outranks the option's
+   own utilities. */
+[data-pill] > :is(label:has(:checked), [aria-current="true"]) {
+  background-color: transparent;
+}
+[data-pill] > :is(label, a) {
+  transition-duration: var(--dur-shift);
 }
 
 /* Press feedback for quiet buttons (no fill until hover): the whole control shrinks to
@@ -401,6 +445,11 @@
     translate: 0 0;
   }
 }
+@keyframes stamp {
+  from {
+    scale: 1.08;
+  }
+}
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -440,8 +489,13 @@
   ::view-transition-group(.morph) {
     animation: none;
   }
-  .print-in {
+  .print-in,
+  .print-row > td,
+  .stamp-in {
     animation: var(--dur-fade) ease both fade-in;
+  }
+  .pill {
+    transition: none;
   }
   .fault-reveal {
     transition: none;

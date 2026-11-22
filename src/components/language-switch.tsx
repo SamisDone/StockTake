@@ -4,6 +4,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useOptimistic, useTransition } from "react";
 import { Choice } from "@/components/choice";
+import { PillRow } from "@/components/pill-row";
 import { LANGUAGES, LANGUAGE_NAMES, LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { setLanguage } from "@/server/preference-actions";
 import { COMPONENT_COPY } from "./copy";
@@ -76,7 +77,7 @@ export function LanguageSwitch({
       <p aria-hidden className="field-name">
         {t.language}
       </p>
-      <div className="-mx-1 mt-1 flex gap-1">
+      <PillRow className="-mx-1 mt-1 flex gap-1">
         {LANGUAGES.map((option) => (
           <Choice
             key={option}
@@ -88,7 +89,7 @@ export function LanguageSwitch({
             <span lang={LANGUAGE_TAGS[option]}>{LANGUAGE_NAMES[option]}</span>
           </Choice>
         ))}
-      </div>
+      </PillRow>
     </fieldset>
   );
 }

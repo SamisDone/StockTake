@@ -7,7 +7,7 @@ import { IntentLink } from "./intent-link";
 import { RECORD_HEADING, type RecordKind, TitleMorph } from "./title-morph";
 
 /** What a list row showed of a record, kept so its label can print it before its data arrives. */
-type Known = { title: string; number?: string; status?: string };
+type Known = { title: string; number?: string; status?: { text: string; mark: string } };
 
 const known = new Map<string, Known>();
 
@@ -67,11 +67,11 @@ export function KnownHeading({
         </TitleMorph>
       </p>
       {shown.number ? (
-        <p className="mt-2 text-sm text-ink-2">
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-2">
           <TitleMorph kind={kind} id={id} part="number">
             <span className="inline-block font-mono text-xs">{shown.number}</span>
           </TitleMorph>
-          {shown.status ? ` · ${shown.status}` : null}
+          {shown.status ? <span className={shown.status.mark}>{shown.status.text}</span> : null}
         </p>
       ) : (
         detailBar

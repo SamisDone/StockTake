@@ -3,6 +3,7 @@ import type { StockStatus } from "@/domain/forecast";
 import { formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { COMPONENT_COPY } from "./copy";
+import { Count } from "./ticker";
 
 /**
  * The printed parts every stock screen shares: tallies, status marks, the cover bar,
@@ -19,7 +20,7 @@ export const COVER_SCALE_DAYS = 45;
 export const FOUR_TALLIES =
   "grid-cols-2 sm:grid-cols-4 max-sm:[&>div:nth-child(3)]:border-l-0 max-sm:[&>div:nth-child(n+3)]:border-t";
 
-/** One field of a label's tally zone: its name small, the value printed large. */
+/** One field of a label's tally zone: its name small, the value printed large. A count ticks over when it changes. */
 export function Tally({
   name,
   value,
@@ -41,7 +42,7 @@ export function Tally({
         style={{ "--fit": `calc(100cqi / ${(text.length * 0.46).toFixed(2)})` } as CSSProperties}
         className="print-display mt-1 text-[length:min(1.75rem,var(--fit))] whitespace-nowrap sm:text-[length:min(3rem,var(--fit))]"
       >
-        {text}
+        {typeof value === "number" ? <Count value={value} language={language} /> : text}
       </dd>
       {children}
     </div>
@@ -69,12 +70,20 @@ export function coverLabel(daysOfCover: number | null, language: Language) {
   return daysOfCover === null ? t.noSales : daysOfCover === 0 ? t.noneLeft : formats(language).days(daysOfCover);
 }
 
-/** The bar alone: its length is the exact cover on the shared scale; the tick is the lead time. */
+/**
+ * The bar alone: its length is the exact cover on the shared scale; the tick is the lead
+ * time. When the cover changes under it (stock recorded), the bar eases to its new
+ * length; it never grows in on load.
+ */
 export function CoverTrack({ daysOfCover, leadTimeDays }: { daysOfCover: number | null; leadTimeDays: number }) {
-  const position = (days: number) => `${(Math.min(days, COVER_SCALE_DAYS) / COVER_SCALE_DAYS) * 100}%`;
+  const share = (days: number) => Math.min(days, COVER_SCALE_DAYS) / COVER_SCALE_DAYS;
+  const position = (days: number) => `${share(days) * 100}%`;
   return (
     <div aria-hidden className="relative h-1.5 bg-liner">
-      {daysOfCover ? <div className="h-full bg-ink" style={{ width: position(daysOfCover) }} /> : null}
+      <div
+        className="h-full origin-left bg-ink transition-transform duration-(--dur-move) ease-in-out motion-reduce:transition-none"
+        style={{ transform: `scaleX(${share(daysOfCover ?? 0)})` }}
+      />
       <div className="absolute -top-1 h-3.5 w-0.5 bg-ink" style={{ left: position(leadTimeDays) }} />
     </div>
   );

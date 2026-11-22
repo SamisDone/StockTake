@@ -2,26 +2,16 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { duration, easing, reducedMotion } from "@/lib/motion";
 
 /** Waits shorter than this go unremarked: the page arrives before a line could mean anything. */
 const SHOW_AFTER = 150;
 /** The line's crawl towards the end while it waits; it never reaches it on its own. */
 const CRAWL = 8000;
 
-/** A CSS time in milliseconds: the built stylesheet minifies "150ms" to ".15s". */
-function milliseconds(time: string) {
-  const value = parseFloat(time);
-  return time.trim().endsWith("ms") ? value : value * 1000;
-}
-
 /** The motion tokens from globals.css, read where they're used, so the line moves like the rest of the app. */
 function motion() {
-  const root = getComputedStyle(document.documentElement);
-  return {
-    ease: root.getPropertyValue("--ease-out").trim() || "ease-out",
-    fade: milliseconds(root.getPropertyValue("--dur-fade")) || 150,
-    reduce: matchMedia("(prefers-reduced-motion: reduce)").matches,
-  };
+  return { ease: easing("--ease-out"), fade: duration("--dur-fade", 150), reduce: reducedMotion() };
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PillRow } from "./pill-row";
 
 /**
  * One option of a row of choices, printed like a nav item: the chosen one is reverse
@@ -62,9 +63,9 @@ export function Choices({
         {legend}
       </p>
       {/* On a phone the choices scroll sideways rather than wrap. */}
-      <div className="mt-1 flex gap-1 overflow-x-auto px-5 pb-0.5 [scrollbar-width:none] sm:px-8 lg:px-6">
+      <PillRow className="mt-1 flex gap-1 overflow-x-auto px-5 pb-0.5 [scrollbar-width:none] sm:px-8 lg:px-6">
         {children}
-      </div>
+      </PillRow>
     </fieldset>
   );
 }

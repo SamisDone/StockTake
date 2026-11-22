@@ -11,6 +11,7 @@ import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { ORDERS_COPY, type OrdersCopy } from "./copy";
+import { MARK_BASE, ORDER_MARK } from "./status";
 import { RememberLink } from "@/components/known-title";
 import { TitleMorph } from "@/components/title-morph";
 
@@ -130,7 +131,7 @@ function Row({ row, m, f, t }: { row: OrderRow; m: MoneyFormat; f: Formats; t: O
               id: row.id,
               title: row.supplierName,
               number: row.number,
-              status: t.status[row.status],
+              status: { text: t.status[row.status], mark: `${MARK_BASE} ${ORDER_MARK[row.status]}` },
             }}
             className="font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:shadow-[inset_0_0_0_2px_var(--color-ink)]"
           >

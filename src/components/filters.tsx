@@ -1,6 +1,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { PillRow } from "./pill-row";
 
 /**
  * Filters that live in the query string, for pages with no intercepting route under them
@@ -22,9 +23,9 @@ export function FilterRow({
         {legend}
       </p>
       {/* On a phone the choices scroll sideways rather than wrap. */}
-      <div className="mt-1 flex gap-1 overflow-x-auto px-5 pb-0.5 [scrollbar-width:none] sm:px-8 lg:px-6">
+      <PillRow className="mt-1 flex gap-1 overflow-x-auto px-5 pb-0.5 [scrollbar-width:none] sm:px-8 lg:px-6">
         {children}
-      </div>
+      </PillRow>
     </div>
   );
 }
@@ -37,7 +38,7 @@ export function FilterLink({ href, current, children }: { href: Route; current: 
       replace
       scroll={false}
       aria-current={current ? "true" : undefined}
-      className={`inline-flex min-h-9 shrink-0 items-center rounded-control px-3 text-sm font-semibold whitespace-nowrap transition-colors duration-150 select-none pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current ${
+      className={`relative inline-flex min-h-9 shrink-0 items-center rounded-control px-3 text-sm font-semibold whitespace-nowrap transition-colors duration-150 select-none pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current ${
         current ? "bg-ink text-label" : "text-ink-2 hover:bg-liner hover:text-ink"
       }`}
     >

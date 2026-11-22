@@ -9,6 +9,8 @@ import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { DOLLARS, type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
 import { centsToInput, parseCents, parseUnits } from "@/lib/parse";
+import { duration, easing, reducedMotion } from "@/lib/motion";
+import { useTicker } from "@/components/ticker";
 import { type DraftFormState, saveDraft } from "@/server/order-actions";
 import type { DraftLine, DraftValues, ProductChoice, SupplierChoice } from "./draft-values";
 import { ORDERS_COPY, type OrdersCopy } from "./copy";
@@ -70,6 +72,8 @@ export function DraftForm({
   const [expectedAt, setExpectedAt] = useState(defaults.expectedAt);
   const [notes, setNotes] = useState(defaults.notes);
   const [said, setSaid] = useState("");
+  // Lines on their way out: still on screen while they close, already off the order.
+  const [leaving, setLeaving] = useState<ReadonlySet<number>>(new Set());
 
   // Focus moves after the lines change: to a new line's quantity, or past a removed one.
   const focusNext = useRef<string | null>(null);
@@ -96,15 +100,18 @@ export function DraftForm({
   const supplier = suppliers.find((s) => String(s.id) === supplierId);
   const catalog = products.filter((p) => String(p.supplierId) === supplierId);
   const byId = new Map(products.map((p) => [p.id, p]));
-  const onOrder = new Set(lines.map((line) => line.productId));
+  const kept = lines.filter((line) => !leaving.has(line.productId));
+  const onOrder = new Set(kept.map((line) => line.productId));
   const available = catalog.filter((p) => !onOrder.has(p.id));
   const low = available.filter((p) => p.suggested > 0);
   const rest = available.filter((p) => p.suggested === 0).sort((a, b) => a.name.localeCompare(b.name));
 
   const read = lines.map(readLine);
-  const unread = read.filter((r) => r.total === null).length;
-  const totalCents = read.reduce((sum, r) => sum + (r.total ?? 0), 0);
-  const units = read.reduce((sum, r) => sum + (r.quantity ?? 0), 0);
+  const counted = kept.map(readLine);
+  const unread = counted.filter((r) => r.total === null).length;
+  const totalCents = counted.reduce((sum, r) => sum + (r.total ?? 0), 0);
+  const units = counted.reduce((sum, r) => sum + (r.quantity ?? 0), 0);
+  const { shown: shownTotal } = useTicker(totalCents);
   const errors = state.fields ?? {};
 
   const update = (productId: number, change: Partial<DraftLine>) =>
@@ -130,12 +137,44 @@ export function DraftForm({
     focusNext.current = `quantity-${product.id}`;
   };
 
-  const remove = (index: number) => {
-    const line = lines[index];
-    const neighbour = lines[index + 1] ?? lines[index - 1];
-    setLines((current) => current.filter((l) => l.productId !== line.productId));
+  // A removed line comes off the order at once (the totals drop, its fields stop being
+  // sent) and closes its gap on screen, so the lines below slide up rather than jump.
+  const remove = (productId: number) => {
+    const index = kept.findIndex((l) => l.productId === productId);
+    if (index === -1) return;
+    const line = kept[index];
+    const neighbour = kept[index + 1] ?? kept[index - 1];
+    setLeaving((current) => new Set(current).add(productId));
     setSaid(t.removed(line.name));
     focusNext.current = neighbour ? `remove-${neighbour.productId}` : "add-product";
+
+    const gone = () => {
+      setLines((current) => current.filter((l) => l.productId !== productId));
+      setLeaving((current) => {
+        const next = new Set(current);
+        next.delete(productId);
+        return next;
+      });
+    };
+    const row = document.getElementById(`line-${productId}`);
+    if (!row) return gone();
+    row.style.overflow = "hidden";
+    const reduce = reducedMotion();
+    row
+      .animate(
+        reduce
+          ? [{ opacity: 1 }, { opacity: 0 }]
+          : [
+              { height: `${row.offsetHeight}px`, opacity: 1 },
+              { height: "0px", paddingBlock: "0px", borderBottomWidth: "0px", opacity: 0 },
+            ],
+        {
+          duration: reduce ? duration("--dur-tear", 110) : duration("--dur-collapse", 200),
+          easing: easing("--ease-out"),
+          fill: "forwards",
+        },
+      )
+      .finished.then(gone, gone);
   };
 
   const chooseSupplier = (next: string) => {
@@ -253,8 +292,9 @@ export function DraftForm({
                     f={f}
                     t={copy}
                     fresh={line.productId === added}
+                    leaving={leaving.has(line.productId)}
                     onChange={(change) => update(line.productId, change)}
-                    onRemove={() => remove(index)}
+                    onRemove={() => remove(line.productId)}
                   />
                 ))}
               </ul>
@@ -327,11 +367,11 @@ export function DraftForm({
             <p className="min-w-0 font-semibold">
               {t.total}
               <span className="ml-2 text-sm font-normal">
-                {t.totals(lines.length, f.count(lines.length), units, f.count(units))}
+                {t.totals(kept.length, f.count(kept.length), units, f.count(units))}
                 {unread > 0 ? t.uncounted(unread, f.count(unread)) : null}
               </span>
             </p>
-            <p className="print-display tabular shrink-0 text-[1.75rem] sm:text-5xl">{m.money(totalCents)}</p>
+            <p className="print-display tabular shrink-0 text-[1.75rem] sm:text-5xl">{m.money(shownTotal)}</p>
           </div>
         </section>
 
@@ -418,6 +458,7 @@ function LineRow({
   f,
   t: copy,
   fresh,
+  leaving,
   onChange,
   onRemove,
 }: {
@@ -432,6 +473,8 @@ function LineRow({
   t: OrdersCopy;
   /** Just added: it prints in. */
   fresh: boolean;
+  /** Removed and closing: off the order already, so nothing in it is sent or reachable. */
+  leaving: boolean;
   onChange: (change: Partial<DraftLine>) => void;
   onRemove: () => void;
 }) {
@@ -443,9 +486,11 @@ function LineRow({
 
   return (
     <li
+      id={`line-${line.productId}`}
+      inert={leaving}
       className={`grid grid-cols-3 gap-x-3 gap-y-2 border-b border-hairline px-5 py-3 last:border-b-0 sm:px-8 md:grid-cols-[minmax(0,1fr)_7rem_8.5rem_7rem_2.75rem] md:items-start ${fresh ? "print-in" : ""}`}
     >
-      <input type="hidden" name="productId" value={line.productId} />
+      <input type="hidden" name="productId" value={line.productId} disabled={leaving} />
       <div className="min-w-0 max-md:col-span-2 md:pt-2.5">
         <p className="font-semibold">{line.name}</p>
         <p className="text-xs text-ink-3">
@@ -472,6 +517,7 @@ function LineRow({
           <input
             id={qtyKey}
             name="quantity"
+            disabled={leaving}
             value={line.quantity}
             onChange={(event) => onChange({ quantity: event.target.value })}
             inputMode="numeric"
@@ -497,6 +543,7 @@ function LineRow({
           <input
             id={costKey}
             name="unitCost"
+            disabled={leaving}
             value={line.unitCost}
             onChange={(event) => onChange({ unitCost: event.target.value })}
             inputMode="decimal"

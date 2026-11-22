@@ -5,13 +5,16 @@ import { formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import type { LedgerEntry } from "@/server/ledger";
 import { olderMovements } from "@/server/stock-actions";
+import { Arrival, ArrivalScope } from "@/components/arrival";
 import { PRODUCTS_COPY } from "./copy";
 
 /**
  * The ledger: one row per movement with the running balance after it, newest first. It
  * prints the newest page; "Show older" appends the page before the last row shown, so a
  * long history never weighs on the label until someone asks for it. A new movement
- * re-renders the label with a fresh first page (the parent keys this on it).
+ * refreshes the label with a fresh first page: the ledger starts over from it, and the
+ * new line prints in at the top while the lines already shown stay where they were
+ * printed.
  */
 export function Ledger({
   productId,
@@ -34,6 +37,23 @@ export function Ledger({
   const [loading, startLoading] = useTransition();
   const last = movements.at(-1);
 
+  // A new movement changes the newest entry and the total: start over from the new page.
+  const [printed, setPrinted] = useState({ top: initial[0]?.id, total });
+  if (printed.top !== initial[0]?.id || printed.total !== total) {
+    setPrinted({ top: initial[0]?.id, total });
+    setMovements(initial);
+    setFailed(false);
+  }
+
+  // One scope for the ledger's life, empty or not, so even a product's first movement prints in.
+  if (movements.length === 0) {
+    return (
+      <ArrivalScope>
+        <p className="mt-4 px-5 font-semibold sm:px-8">{t.noMovements}</p>
+      </ArrivalScope>
+    );
+  }
+
   const showOlder = () => {
     if (!last) return;
     setFailed(false);
@@ -48,7 +68,7 @@ export function Ledger({
   };
 
   return (
-    <>
+    <ArrivalScope>
       <table className="mt-4 w-full border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-ink">
@@ -63,7 +83,7 @@ export function Ledger({
         </thead>
         <tbody>
           {movements.map((move, index) => (
-            <tr key={move.id} className="border-b border-hairline align-top last:border-b-0">
+            <Arrival as="tr" key={move.id} className="border-b border-hairline align-top last:border-b-0">
               <td className="py-2.5 pr-4 pl-5 whitespace-nowrap text-ink-2 sm:pl-8">{f.date(move.occurredAt, now)}</td>
               <td className="py-2.5 pr-4">
                 <span className="font-semibold">{t.kinds[move.kind]}</span>
@@ -78,7 +98,7 @@ export function Ledger({
                 {f.count(move.balance)}
               </td>
               <td className="py-2.5 whitespace-nowrap text-ink-2 max-md:hidden md:pr-8">{move.userName ?? "–"}</td>
-            </tr>
+            </Arrival>
           ))}
         </tbody>
       </table>
@@ -105,7 +125,7 @@ export function Ledger({
           </p>
         </div>
       ) : null}
-    </>
+    </ArrivalScope>
   );
 }
 

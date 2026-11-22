@@ -16,6 +16,8 @@ import { getLanguage, getMoneyPrefs } from "@/server/preferences";
 import { DraftForm } from "./draft-form";
 import { dayInput } from "./draft-values";
 import { OrderControls } from "./order-controls";
+import { StatusStamp } from "./status-stamp";
+import { Arrival, ArrivalScope } from "@/components/arrival";
 import { ORDERS_COPY, type OrdersCopy } from "./copy";
 import { ProductLink } from "@/components/product-link";
 import { EitherLanguage } from "@/components/either-language";
@@ -66,11 +68,11 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
               <span className="inline-block">{order.supplierName}</span>
             </TitleMorph>
           </h1>
-          <p className="mt-2 text-sm text-ink-2">
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-2">
             <TitleMorph kind="order" id={order.id} part="number">
               <span className="inline-block font-mono text-xs">{order.number}</span>
-            </TitleMorph>{" "}
-            · {t.status[order.status]}
+            </TitleMorph>
+            <StatusStamp status={order.status} label={t.status[order.status]} />
           </p>
         </div>
         <div className="flex shrink-0 items-start gap-1">
@@ -146,24 +148,27 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
           {t.history}
         </h2>
         <ol className="mt-2 px-5 text-sm sm:px-8">
-          <HistoryLine date={order.createdAt} now={now} f={f}>
-            {t.draftedBy(order.createdByName)}
-          </HistoryLine>
-          {order.orderedAt ? (
-            <HistoryLine date={order.orderedAt} now={now} f={f}>
-              {t.placedWith(order.supplierName)}
+          {/* What happens to the order while it's open prints in as a new line. */}
+          <ArrivalScope>
+            <HistoryLine date={order.createdAt} now={now} f={f}>
+              {t.draftedBy(order.createdByName)}
             </HistoryLine>
-          ) : null}
-          {order.receivedAt ? (
-            <HistoryLine date={order.receivedAt} now={now} f={f}>
-              {t.receivedLine(order.lines.length, f.count(order.lines.length))}
-            </HistoryLine>
-          ) : null}
-          {order.cancelledAt ? (
-            <HistoryLine date={order.cancelledAt} now={now} f={f}>
-              {t.cancelledLine}
-            </HistoryLine>
-          ) : null}
+            {order.orderedAt ? (
+              <HistoryLine date={order.orderedAt} now={now} f={f}>
+                {t.placedWith(order.supplierName)}
+              </HistoryLine>
+            ) : null}
+            {order.receivedAt ? (
+              <HistoryLine date={order.receivedAt} now={now} f={f}>
+                {t.receivedLine(order.lines.length, f.count(order.lines.length))}
+              </HistoryLine>
+            ) : null}
+            {order.cancelledAt ? (
+              <HistoryLine date={order.cancelledAt} now={now} f={f}>
+                {t.cancelledLine}
+              </HistoryLine>
+            ) : null}
+          </ArrivalScope>
         </ol>
         {order.notes ? (
           <div className="mt-3 px-5 sm:px-8">
@@ -175,9 +180,13 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
     </article>
   );
 
-  if (!draft) return label;
+  // Every order sits in the editor, draft or not, so placing one refreshes the label in
+  // place rather than remounting it: its new status can stamp on and its figures tick.
   return (
-    <LabelEditor gone={t.gone} form={<DraftEditor order={order} now={now} action={action} language={language} />}>
+    <LabelEditor
+      gone={t.gone}
+      form={draft ? <DraftEditor order={order} now={now} action={action} language={language} /> : null}
+    >
       {label}
     </LabelEditor>
   );
@@ -252,7 +261,7 @@ function Status({ order, late, now, f, t }: { order: Order; late: boolean; now: 
       id="order-status"
       tabIndex={-1}
       aria-live="polite"
-      className={`border-b-2 border-ink px-5 py-3 outline-none sm:px-8 ${late ? "bg-stock" : ""}`}
+      className={`border-b-2 border-ink px-5 py-3 transition-colors duration-(--dur-collapse) ease-out outline-none sm:px-8 ${late ? "bg-stock" : ""}`}
     >
       <p className="max-w-prose text-sm">
         <strong className="font-bold">{lead}</strong> {text}
@@ -263,10 +272,10 @@ function Status({ order, late, now, f, t }: { order: Order; late: boolean; now: 
 
 function HistoryLine({ date, now, f, children }: { date: Date; now: Date; f: Formats; children: ReactNode }) {
   return (
-    <li className="flex gap-4 border-b border-hairline py-2 last:border-b-0">
+    <Arrival as="li" className="flex gap-4 border-b border-hairline py-2 last:border-b-0">
       <span className="w-16 shrink-0 text-ink-2 lang-bn:w-24">{f.date(date, now)}</span>
       <span>{children}</span>
-    </li>
+    </Arrival>
   );
 }
 

@@ -166,19 +166,8 @@ export async function ProductLabel({ id, heading, action }: { id: number; headin
           </Sub>
           <p className="mt-1 max-w-prose text-sm text-ink-2">{t.ledgerHelp}</p>
         </div>
-        {movements.length === 0 ? (
-          <p className="mt-4 px-5 font-semibold sm:px-8">{t.noMovements}</p>
-        ) : (
-          // A new movement changes the newest entry and the total, which starts the ledger over.
-          <Ledger
-            key={`${movements[0].id}-${total}`}
-            productId={product.id}
-            initial={movements}
-            total={total}
-            now={now}
-            language={language}
-          />
-        )}
+        {/* Not keyed: a new movement refreshes it in place, so its new line can print in. */}
+        <Ledger productId={product.id} initial={movements} total={total} now={now} language={language} />
       </section>
     </article>
   );

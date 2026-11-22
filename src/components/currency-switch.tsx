@@ -2,6 +2,7 @@
 
 import { useOptimistic, useTransition } from "react";
 import { Choice } from "@/components/choice";
+import { PillRow } from "@/components/pill-row";
 import { formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { type Currency, type MoneyPrefs } from "@/lib/money";
@@ -73,12 +74,12 @@ export function CurrencySwitch({
 
   if (compact) {
     return (
-      <fieldset aria-busy={pending} className="flex shrink-0 gap-1">
+      <fieldset aria-busy={pending} className="shrink-0">
         <legend className="sr-only">
           {t.currency}
           {shown === "BDT" ? `, ${t.takaAt(rateLine(money, language))}` : ""}
         </legend>
-        {choices}
+        <PillRow className="flex gap-1">{choices}</PillRow>
       </fieldset>
     );
   }
@@ -89,7 +90,7 @@ export function CurrencySwitch({
       <p aria-hidden className="field-name">
         {t.currency}
       </p>
-      <div className="-mx-1 mt-1 flex gap-1">{choices}</div>
+      <PillRow className="-mx-1 mt-1 flex gap-1">{choices}</PillRow>
       {/* Holds its line in dollars too, so the tag doesn't grow when taka is chosen. */}
       <p className="mt-1 min-h-5 text-xs text-ink-2">{shown === "BDT" ? rateLine(money, language) : null}</p>
     </fieldset>
