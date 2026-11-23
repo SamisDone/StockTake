@@ -8,10 +8,13 @@ import { DrawerFallback } from "../../../../products/drawer-fallback";
 import { recordName } from "@/server/titles";
 import type { Metadata } from "next";
 import { PRODUCTS_COPY } from "../../../../products/copy";
+import { IMPORT_COPY } from "../../../../products/import-copy";
+import { ProductImport, ProductImportPlaceholder } from "../../../../products/product-import";
 
 /**
  * What opens over the list: a product's label, sliding in and printing as its data
- * arrives, or, for /products/new, a blank label to fill in. Both live in this one
+ * arrives, for /products/new a blank label to fill in, and for /products/import the
+ * CSV import. All live in this one
  * intercept: a static `(.)new` beside it in a route group isn't matched (Next.js
  * 16.4), and the dynamic segment caught "new" instead.
  */
@@ -19,6 +22,7 @@ export async function generateMetadata({ params }: PageProps<"/products/[id]">):
   const { id } = await params;
   const t = PRODUCTS_COPY[await getLanguage()];
   if (id === "new") return { title: t.newTitle };
+  if (id === "import") return { title: IMPORT_COPY[await getLanguage()].title };
   return { title: (await recordName("product", id)) ?? t.productTitle };
 }
 
@@ -40,6 +44,11 @@ export default function ProductDrawer({ params }: PageProps<"/products/[id]">) {
               {(language) => <NewProductPlaceholder language={language} action={<CloseSpace />} />}
             </EitherLanguage>
           }
+          importing={
+            <EitherLanguage>
+              {(language) => <ProductImportPlaceholder language={language} action={<CloseSpace />} />}
+            </EitherLanguage>
+          }
         />
       }
     >
@@ -56,6 +65,13 @@ export default function ProductDrawer({ params }: PageProps<"/products/[id]">) {
 async function Opened({ params }: { params: PageProps<"/products/[id]">["params"] }) {
   const { id } = await params;
   const language = await getLanguage();
+  if (id === "import") {
+    return (
+      <Suspense fallback={<ProductImportPlaceholder language={language} action={<CloseSpace />} />}>
+        <ProductImport heading={2} action={<CloseSpace />} />
+      </Suspense>
+    );
+  }
   if (id === "new") {
     return (
       <Suspense fallback={<NewProductPlaceholder language={language} action={<CloseSpace />} />}>

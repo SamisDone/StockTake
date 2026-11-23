@@ -41,6 +41,10 @@ const en = {
   undoing: "Undoing…",
   open: "Open",
   dismiss: "Dismiss",
+
+  // Files
+  exportCsv: "Export CSV",
+  print: "Print",
 };
 
 const bn: typeof en = {
@@ -76,6 +80,9 @@ const bn: typeof en = {
   undoing: "ফিরিয়ে নেওয়া হচ্ছে…",
   open: "খুলুন",
   dismiss: "বন্ধ করুন",
+
+  exportCsv: "CSV নামান",
+  print: "প্রিন্ট",
 };
 
 export const COMPONENT_COPY: Copy<typeof en> = { en, bn };

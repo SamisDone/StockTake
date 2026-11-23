@@ -1,3 +1,5 @@
+import { Printer } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
@@ -5,6 +7,7 @@ import { getDb } from "@/db/client";
 import { DomainError } from "@/domain/errors";
 import { daysLate, getOrder, isLate } from "@/domain/purchase-orders";
 import { getOrderableProducts } from "@/domain/reorder";
+import { COMPONENT_COPY } from "@/components/copy";
 import { EditButton, LabelEditor } from "@/components/label-editor";
 import { Tally, TallyPlaceholder } from "@/components/stock";
 import { type Formats, formats } from "@/lib/format";
@@ -83,6 +86,15 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
           </p>
         </div>
         <div className="flex shrink-0 items-start gap-1">
+          {/* The order as a document for the supplier: its own page, printed or saved as a PDF. */}
+          <Link
+            href={`/orders/${order.id}/print`}
+            prefetch={false}
+            className="-mt-3 flex min-h-11 shrink-0 items-center gap-1.5 rounded-control px-3 text-sm font-semibold text-ink-2 press-quiet hover:bg-liner hover:text-ink"
+          >
+            <Printer aria-hidden size={18} strokeWidth={2.25} />
+            <span className="max-sm:sr-only">{COMPONENT_COPY[language].print}</span>
+          </Link>
           {draft ? <EditButton language={language} /> : null}
           {action}
         </div>

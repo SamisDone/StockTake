@@ -14,6 +14,7 @@ import {
   readPeriod,
 } from "@/domain/analytics";
 import { FilterLink, FilterRow, FilterRowPlaceholder } from "@/components/filters";
+import { ExportLink } from "@/components/export-link";
 import { PageHeader } from "@/components/page-header";
 import { FOUR_TALLIES, MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { PageTransition, Reveal } from "@/components/transitions";
@@ -207,6 +208,7 @@ function Statement({
     <Zone
       id="statement"
       title={t.statement}
+      action={<ExportLink href={`/api/export/ledger?period=${analytics.days}`} label={t.ledgerCsv} />}
       note={
         <>
           {t.statementNote(f.date(from, now), m.currency === "BDT")}

@@ -1,10 +1,11 @@
-import { Plus } from "lucide-react";
+import { FileUp, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { getDb } from "@/db/client";
 import { type StockForecast, getArchivedForecasts, getStockForecasts } from "@/domain/forecast";
+import { ExportLink } from "@/components/export-link";
 import { PageHeader } from "@/components/page-header";
 import { TallyPlaceholder } from "@/components/stock";
 import { PageTransition, Reveal } from "@/components/transitions";
@@ -30,7 +31,8 @@ export default function ProductsPage() {
         actions={
           // The header keeps the button's height whoever is signed in, so it never grows
           // when the session arrives.
-          <div className="flex h-12 items-end">
+          <div className="flex h-12 items-center gap-1">
+            <ExportLink href="/api/export/products" />
             <Suspense>
               <WithLanguage>{(language) => <AddProduct t={PRODUCTS_COPY[language]} />}</WithLanguage>
             </Suspense>
@@ -75,15 +77,31 @@ async function ProductList({ language }: { language: Language }) {
   return <ProductTable rows={rows} categories={categories} money={await getMoneyPrefs()} language={language} />;
 }
 
-/** Adding a product is an admin's job, so only an admin sees the way in. */
+/** Adding and importing products are an admin's job, so only an admin sees the ways in. */
 async function AddProduct({ t }: { t: ProductsCopy }) {
   const user = await getSessionUser();
   if (user?.role !== "admin") return null;
   return (
+    <>
+      <Link
+        href="/products/import"
+        scroll={false}
+        className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-control px-3 text-sm font-semibold text-ink-2 press-quiet hover:bg-liner hover:text-ink"
+      >
+        <FileUp aria-hidden size={18} strokeWidth={2.25} />
+        <span className="max-sm:sr-only">{t.importCsv}</span>
+      </Link>
+      <AddLink t={t} />
+    </>
+  );
+}
+
+function AddLink({ t }: { t: ProductsCopy }) {
+  return (
     <Link
       href="/products/new"
       scroll={false}
-      className="group flex h-12 items-center rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 hover:bg-ink-lift"
+      className="group flex h-12 items-center rounded-control bg-ink px-5 font-semibold whitespace-nowrap text-label transition-colors duration-150 hover:bg-ink-lift"
     >
       <span className="flex items-center gap-2 transition-transform duration-150 ease-out group-active:scale-[0.96]">
         <Plus aria-hidden size={18} strokeWidth={2.5} />

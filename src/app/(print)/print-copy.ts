@@ -1,0 +1,71 @@
+import type { Copy } from "@/lib/i18n";
+
+/** The printed purchase order's words, in both languages. Figures arrive already formatted. */
+
+const en = {
+  document: "Purchase order",
+  back: "Back to the order",
+  print: "Print or save as PDF",
+  printHelp: "Your browser's print dialog can save it as a PDF to send.",
+  to: "To",
+  status: "Status",
+  notPlaced: "Draft, not placed yet. Its lines can still change.",
+  cancelledNote: "Cancelled. Nothing on it is coming.",
+  placed: "Placed",
+  due: "Due",
+  expected: "Expected",
+  receivedOn: "Received",
+  cancelledOn: "Cancelled",
+  dueBasis: (days: string) => `Lead time ${days}`,
+  drafted: "Drafted by",
+  number: "No.",
+  sku: "SKU",
+  product: "Product",
+  quantity: "Quantity",
+  received: "Received",
+  unitCost: "Unit cost",
+  lineTotal: "Line total",
+  total: "Total",
+  notes: "Notes",
+  authorised: "Authorised by",
+  date: "Date",
+  printedAt: (when: string) => `Printed from Stocktake ${when}.`,
+  currency: { USD: "Money in US dollars.", BDT: "Money in taka" },
+  rate: (perDollar: string, day: string) => ` at ৳${perDollar} to the dollar (rate of ${day}).`,
+};
+
+export type PrintCopy = typeof en;
+
+const bn: PrintCopy = {
+  document: "ক্রয় অর্ডার",
+  back: "অর্ডারে ফিরে যান",
+  print: "প্রিন্ট বা PDF হিসেবে রাখুন",
+  printHelp: "ব্রাউজারের প্রিন্ট ডায়ালগ থেকে পাঠানোর জন্য PDF রাখা যায়।",
+  to: "প্রাপক",
+  status: "অবস্থা",
+  notPlaced: "খসড়া, এখনো দেওয়া হয়নি। লাইনগুলো এখনো বদলাতে পারে।",
+  cancelledNote: "বাতিল। এর কিছুই আসছে না।",
+  placed: "দেওয়া হয়েছে",
+  due: "আসার কথা",
+  expected: "প্রত্যাশিত",
+  receivedOn: "বুঝে নেওয়া",
+  cancelledOn: "বাতিল",
+  dueBasis: (days) => `সরবরাহের সময় ${days}`,
+  drafted: "খসড়া করেছেন",
+  number: "নং",
+  sku: "SKU",
+  product: "পণ্য",
+  quantity: "পরিমাণ",
+  received: "এসেছে",
+  unitCost: "একক দাম",
+  lineTotal: "লাইনের মোট",
+  total: "মোট",
+  notes: "নোট",
+  authorised: "অনুমোদন করেছেন",
+  date: "তারিখ",
+  printedAt: (when) => `Stocktake থেকে প্রিন্ট করা ${when}।`,
+  currency: { USD: "টাকার অঙ্ক মার্কিন ডলারে।", BDT: "টাকার অঙ্ক টাকায়" },
+  rate: (perDollar, day) => `, প্রতি ডলার ৳${perDollar} হারে (${day}-এর হার)।`,
+};
+
+export const PRINT_COPY: Copy<PrintCopy> = { en, bn };

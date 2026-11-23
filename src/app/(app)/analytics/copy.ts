@@ -17,6 +17,7 @@ const en = {
 
   // The statement
   statement: "Stock, from the ledger",
+  ledgerCsv: "Ledger CSV",
   statementNote: (from: string, taka: boolean) =>
     `What was on the shelves on ${from}, plus every movement the ledger recorded since, is what's on hand now. Money is at today's unit costs${taka ? " and today's taka rate" : ""}.`,
   startsInside: (day: string) => ` The ledger starts on ${day}, inside this period, so it opens at zero.`,
@@ -130,6 +131,7 @@ const bn: AnalyticsCopy = {
   lostNote: (writtenOff, net, over) => `${writtenOff}টি বাতিল, গণনায় নিট ${net}টি ${over ? "বেশি" : "কম"}`,
 
   statement: "খাতা থেকে মজুত",
+  ledgerCsv: "খাতার CSV",
   statementNote: (from, taka) =>
     `${from} তারিখে তাকে যা ছিল, তার সাথে খাতায় এরপর লেখা প্রতিটি লেনদেন মেলালে এখনকার মজুত পাওয়া যায়। টাকার হিসাব আজকের একক কেনা দামে${taka ? " ও আজকের টাকার হারে" : ""}।`,
   startsInside: (day) => ` খাতা শুরু হয়েছে ${day}, এই সময়কালের ভেতরে, তাই শুরু শূন্য থেকে।`,

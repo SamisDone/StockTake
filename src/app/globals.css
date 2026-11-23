@@ -48,35 +48,38 @@
 :root {
   color-scheme: light;
 }
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  /* The ground goes darker than the sheets, but a tint on a sheet goes a step lighter:
-     a dark tint would read as a hole cut in the label. */
-  --color-ground: #0c0c0b;
-  --color-liner: #262623;
-  --color-liner-deep: #33332f;
-  --color-label: #191917;
-  --color-ink: #ecece6;
-  --color-ink-lift: #d2d2cb;
-  --color-ink-2: #b3b3aa; /* 8.6:1 on label */
-  --color-ink-3: #8f8f86; /* 5.5:1 on label */
-  --color-hairline: #2e2e2a;
-  --color-fault: #ff6b66; /* 6.7:1 on label */
-  --shadow-label: 0 1px 1px rgb(0 0 0 / 0.4), 0 4px 16px -6px rgb(0 0 0 / 0.6);
-}
-/* Anything printed on yellow stock is printed in the light theme's inks. */
-:root[data-theme="dark"] .bg-stock {
-  --color-ink: #0e0e0e;
-  --color-ink-2: #474743;
-  --color-ink-3: #67675f;
-  color: var(--color-ink);
-}
-:root[data-theme="dark"] ::selection {
-  color: #0e0e0e;
-}
-/* Behind a dialog the page dims, in either theme. */
-:root[data-theme="dark"] ::backdrop {
-  background-color: rgb(0 0 0 / 0.55);
+/* Paper is white whatever the theme: the dark theme is for screens only. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    /* The ground goes darker than the sheets, but a tint on a sheet goes a step lighter:
+       a dark tint would read as a hole cut in the label. */
+    --color-ground: #0c0c0b;
+    --color-liner: #262623;
+    --color-liner-deep: #33332f;
+    --color-label: #191917;
+    --color-ink: #ecece6;
+    --color-ink-lift: #d2d2cb;
+    --color-ink-2: #b3b3aa; /* 8.6:1 on label */
+    --color-ink-3: #8f8f86; /* 5.5:1 on label */
+    --color-hairline: #2e2e2a;
+    --color-fault: #ff6b66; /* 6.7:1 on label */
+    --shadow-label: 0 1px 1px rgb(0 0 0 / 0.4), 0 4px 16px -6px rgb(0 0 0 / 0.6);
+  }
+  /* Anything printed on yellow stock is printed in the light theme's inks. */
+  :root[data-theme="dark"] .bg-stock {
+    --color-ink: #0e0e0e;
+    --color-ink-2: #474743;
+    --color-ink-3: #67675f;
+    color: var(--color-ink);
+  }
+  :root[data-theme="dark"] ::selection {
+    color: #0e0e0e;
+  }
+  /* Behind a dialog the page dims, in either theme. */
+  :root[data-theme="dark"] ::backdrop {
+    background-color: rgb(0 0 0 / 0.55);
+  }
 }
 
 /*
@@ -657,5 +660,21 @@ html [data-sonner-toast][data-removed="true"] {
       translate: none;
       opacity: 0;
     }
+  }
+}
+
+/*
+ * Paper. A page prints as black ink on white stock whatever theme it's read in (the
+ * dark theme applies to screens only). Reverse print and marks that must print as
+ * filled say so with print-color-adjust.
+ */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  html,
+  body {
+    background: var(--color-label);
   }
 }

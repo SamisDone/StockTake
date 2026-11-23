@@ -7,6 +7,7 @@ import { getDb } from "@/db/client";
 import { getStockForecasts } from "@/domain/forecast";
 import { deliveryRecord, listOrders } from "@/domain/purchase-orders";
 import { listSuppliers } from "@/domain/suppliers";
+import { ExportLink } from "@/components/export-link";
 import { PageHeader } from "@/components/page-header";
 import { FEW_REVIEWS, Stars, formatRating } from "@/components/stars";
 import { MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
@@ -35,7 +36,8 @@ export default function SuppliersPage() {
         actions={
           // The header keeps the button's height whoever is signed in, so it never grows
           // when the session arrives.
-          <div className="flex h-12 items-end">
+          <div className="flex h-12 items-center gap-1">
+            <ExportLink href="/api/export/suppliers" />
             <Suspense>
               <WithLanguage>{(language) => <AddSupplier t={SUPPLIERS_COPY[language]} />}</WithLanguage>
             </Suspense>
@@ -58,7 +60,7 @@ async function AddSupplier({ t }: { t: SuppliersCopy }) {
     <Link
       href="/suppliers/new"
       transitionTypes={NAV_FORWARD}
-      className="group flex h-12 items-center rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 hover:bg-ink-lift"
+      className="group flex h-12 items-center rounded-control bg-ink px-5 font-semibold whitespace-nowrap text-label transition-colors duration-150 hover:bg-ink-lift"
     >
       <span className="flex items-center gap-2 transition-transform duration-150 ease-out group-active:scale-[0.96]">
         <Plus aria-hidden size={18} strokeWidth={2.5} />

@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { getDb } from "@/db/client";
 import { isLate, listOrders, poNumber } from "@/domain/purchase-orders";
 import { type SupplierSuggestion, type SuggestedLine, getReorderSuggestions } from "@/domain/reorder";
+import { ExportLink } from "@/components/export-link";
 import { PageHeader } from "@/components/page-header";
 import { MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
@@ -34,16 +35,19 @@ export default function OrdersPage() {
         title={both(ORDERS_COPY, (t) => t.title)}
         actions={
           // Anyone can draft an order, so this needs no session and prints with the page.
-          <Link
-            href="/orders/new"
-            transitionTypes={NAV_FORWARD}
-            className="group flex h-12 items-center rounded-control bg-ink px-5 font-semibold text-label transition-colors duration-150 hover:bg-ink-lift"
-          >
-            <span className="flex items-center gap-2 transition-transform duration-150 ease-out group-active:scale-[0.96]">
-              <Plus aria-hidden size={18} strokeWidth={2.5} />
-              <EitherLanguage inline>{(language) => ORDERS_COPY[language].newOrder}</EitherLanguage>
-            </span>
-          </Link>
+          <div className="flex items-center gap-1">
+            <ExportLink href="/api/export/orders" />
+            <Link
+              href="/orders/new"
+              transitionTypes={NAV_FORWARD}
+              className="group flex h-12 items-center rounded-control bg-ink px-5 font-semibold whitespace-nowrap text-label transition-colors duration-150 hover:bg-ink-lift"
+            >
+              <span className="flex items-center gap-2 transition-transform duration-150 ease-out group-active:scale-[0.96]">
+                <Plus aria-hidden size={18} strokeWidth={2.5} />
+                <EitherLanguage inline>{(language) => ORDERS_COPY[language].newOrder}</EitherLanguage>
+              </span>
+            </Link>
+          </div>
         }
       />
       <Reveal

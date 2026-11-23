@@ -75,6 +75,21 @@ const en = {
     `${supplier} has ${englishList(orders)} open. Receive or cancel ${orders.length === 1 ? "it" : "them"} first.`,
   supplierArchivedEdit: ({ supplier }: { supplier: string }) => `${supplier} is archived. Restore it to edit it.`,
 
+  // Import
+  importEmpty: () => "That file has no rows to import under its header line.",
+  importTooLarge: () => "That file is over 500 KB. Split it into smaller files.",
+  importTooMany: ({ max }: { max: number }) =>
+    `Import up to ${max.toLocaleString("en-US")} products at a time. Split the file.`,
+  importNoSku: () => "The first line needs a SKU column, so each row can be matched to a product.",
+  importDuplicate: ({ sku, line }: { sku: string; line: number }) => `${sku} is on line ${line} too. Keep one of them.`,
+  importArchived: ({ product }: { product: string }) => `${product} is archived. Restore it before importing it.`,
+  importSupplierArchived: ({ supplier }: { supplier: string }) =>
+    `${supplier} is archived. Restore it, or name another supplier.`,
+  importMoney: () => "Write an amount in US dollars, like 12.50.",
+  importUnits: () => "Write a whole number, like 24.",
+  importChanged: () => "The catalog changed while you were checking. Choose the file again to see what's there now.",
+  importNothing: () => "Nothing in this file changes the catalog.",
+
   // Orders
   supplierArchivedOrders: ({ supplier }: { supplier: string }) =>
     `${supplier} is archived, so it can't take new orders.`,
@@ -170,6 +185,18 @@ const bn: typeof en = {
     `${supplier}-এর ${banglaList(orders)} এখনো খোলা। আগে ${orders.length === 1 ? "সেটি" : "সেগুলো"} বুঝে নিন বা বাতিল করুন।`,
   supplierArchivedEdit: ({ supplier }) => `${supplier} আর্কাইভ করা। সম্পাদনা করতে আগে ফিরিয়ে আনুন।`,
 
+  importEmpty: () => "ফাইলের প্রথম লাইনের নিচে আনার মতো কোনো সারি নেই।",
+  importTooLarge: () => "ফাইলটি ৫০০ KB-এর বেশি। কয়েকটি ছোট ফাইলে ভাগ করুন।",
+  importTooMany: ({ max }) => `একবারে সর্বোচ্চ ${n(max)}টি পণ্য আনা যায়। ফাইলটি ভাগ করুন।`,
+  importNoSku: () => "প্রথম লাইনে একটি SKU কলাম লাগবে, যাতে প্রতিটি সারি একটি পণ্যের সাথে মেলানো যায়।",
+  importDuplicate: ({ sku, line }) => `${sku} লাইন ${n(line)}-এও আছে। একটি রাখুন।`,
+  importArchived: ({ product }) => `${product} আর্কাইভ করা। আনার আগে ফিরিয়ে আনুন।`,
+  importSupplierArchived: ({ supplier }) => `${supplier} আর্কাইভ করা। ফিরিয়ে আনুন, অথবা অন্য সরবরাহকারীর নাম দিন।`,
+  importMoney: () => "মার্কিন ডলারে একটি অঙ্ক লিখুন, যেমন 12.50।",
+  importUnits: () => "একটি পূর্ণ সংখ্যা লিখুন, যেমন 24।",
+  importChanged: () => "দেখার মধ্যেই ক্যাটালগ বদলে গেছে। এখনকার অবস্থা দেখতে ফাইলটি আবার বেছে নিন।",
+  importNothing: () => "এই ফাইলে ক্যাটালগের কিছুই বদলায় না।",
+
   supplierArchivedOrders: ({ supplier }) => `${supplier} আর্কাইভ করা, তাই নতুন অর্ডার নিতে পারবে না।`,
   productArchived: ({ product }) => `${product} আর্কাইভ করা।`,
   notSupplied: ({ supplier, product }) => `${supplier} ${product} সরবরাহ করে না।`,
@@ -219,6 +246,7 @@ export type AdminAction =
   | "addPeople"
   | "managePeople"
   | "addProducts"
+  | "importProducts"
   | "editProducts"
   | "archiveProducts"
   | "restoreProducts"
@@ -234,6 +262,7 @@ const ADMIN_ACTIONS_EN: Record<AdminAction, string> = {
   addPeople: "add people",
   managePeople: "change someone's role or password",
   addProducts: "add products",
+  importProducts: "import products",
   editProducts: "edit products",
   archiveProducts: "archive products",
   restoreProducts: "restore products",
@@ -250,6 +279,7 @@ const ADMIN_ACTIONS_BN: Record<AdminAction, string> = {
   addPeople: "নতুন মানুষ যোগ করতে পারেন",
   managePeople: "কারও ভূমিকা বা পাসওয়ার্ড বদলাতে পারেন",
   addProducts: "পণ্য যোগ করতে পারেন",
+  importProducts: "পণ্য আনতে পারেন",
   editProducts: "পণ্য সম্পাদনা করতে পারেন",
   archiveProducts: "পণ্য আর্কাইভ করতে পারেন",
   restoreProducts: "পণ্য ফিরিয়ে আনতে পারেন",

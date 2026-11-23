@@ -517,6 +517,8 @@ export async function getOrder(db: Database, id: number) {
       notes: purchaseOrders.notes,
       supplierId: purchaseOrders.supplierId,
       supplierName: suppliers.name,
+      supplierEmail: suppliers.email,
+      supplierPhone: suppliers.phone,
       leadTimeDays: suppliers.leadTimeDays,
       createdByName: users.name,
       createdAt: purchaseOrders.createdAt,

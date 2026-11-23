@@ -5,21 +5,27 @@ export function Zone({
   id,
   title,
   note,
+  action,
   className = "border-b-2 border-ink",
   children,
 }: {
   id: string;
   title: string;
   note?: ReactNode;
+  /** Something to do with the zone's figures, at the end of its heading line. */
+  action?: ReactNode;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <section aria-labelledby={`${id}-title`} className={`pt-6 pb-8 ${className}`}>
       <div className="px-5 sm:px-8">
-        <h2 id={`${id}-title`} className="text-lg font-bold">
-          {title}
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-x-4">
+          <h2 id={`${id}-title`} className="text-lg font-bold">
+            {title}
+          </h2>
+          {action ? <div className="-my-2 -mr-3">{action}</div> : null}
+        </div>
         {note ? <p className="mt-1 max-w-prose text-sm text-ink-2">{note}</p> : null}
       </div>
       {children}
