@@ -11,7 +11,10 @@ name: CI
 on:
   push:
     branches: [main]
+    # The README and its images change nothing that runs: no checks, no deploy.
+    paths-ignore: ["**/*.md", "docs/**"]
   pull_request:
+    paths-ignore: ["**/*.md", "docs/**"]
 
 permissions:
   contents: read
