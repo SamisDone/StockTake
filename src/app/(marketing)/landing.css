@@ -350,3 +350,163 @@
     opacity: 1;
   }
 }
+
+/*
+ * The opening (intro.ts marks <html data-intro> on the first visit in a tab): the mark
+ * prints like a label feeding out, the name types itself letter by letter behind a
+ * caret, the entry number types, the headline rises a line at a time, and the hero
+ * card prints from the top. About two seconds, everything clickable throughout.
+ *
+ * Scroll reveals (reveals.tsx sets data-reveal): an entry number types out as its
+ * section comes into view, then the heading and lede rise.
+ *
+ * Typing is opacity flipped in one step (a letter is there or it isn't), so nothing
+ * slides. The entry numbers are monospace, so a clip stepped once per character uncovers
+ * exactly one character a step.
+ */
+.landing {
+  --type-start: 250ms; /* the first letter of the name, once the mark is half printed */
+  --type-step: 70ms; /* between letters of the name: a deliberate hand on the keys */
+  --marker-step: 32ms; /* between characters of an entry number: quicker, it's a label */
+  --intro-marker: 950ms; /* the name is done: the entry number starts */
+  --intro-headline: 1100ms;
+  --intro-lede: 1450ms;
+  --intro-card: 1500ms;
+  --intro-doors: 1600ms;
+  --dur-rise: 500ms;
+}
+
+@keyframes feed {
+  from {
+    clip-path: inset(0 0 100% 0);
+    translate: 0 -25%;
+  }
+}
+@keyframes type-on {
+  from {
+    opacity: 0;
+  }
+}
+/* The caret stands after the letter just typed, for as long as it's the newest. */
+@keyframes caret-here {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+@keyframes caret-blink {
+  0%,
+  49.9% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes type-out {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: 0 0.4em;
+  }
+}
+@keyframes print-down {
+  from {
+    clip-path: inset(0 0 100% 0);
+    translate: 0 -12px;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.type-char {
+  position: relative;
+}
+.type-char::after {
+  content: "";
+  position: absolute;
+  top: 0.12em;
+  bottom: 0.14em;
+  left: calc(100% + 0.04em);
+  width: 0.09em;
+  background: currentColor;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-intro] .landing {
+    .intro-mark {
+      animation: feed var(--dur-stage) var(--ease-out) both;
+    }
+    .type-char {
+      --at: calc(var(--type-start) + var(--i) * var(--type-step));
+      animation: type-on 1ms var(--at) step-end both;
+    }
+    .type-char::after {
+      animation: caret-here var(--type-step) var(--at) linear;
+    }
+    /* After the last letter the caret blinks a few times, then the name is left alone. */
+    .type-char:last-child::after {
+      animation: caret-blink 530ms var(--at) step-end 3;
+    }
+    .intro-marker {
+      width: fit-content;
+      animation: type-out calc(var(--chars) * var(--marker-step)) var(--intro-marker) steps(var(--chars), end) both;
+    }
+    .intro-line {
+      animation: rise var(--dur-stage) calc(var(--intro-headline) + var(--i) * var(--stagger-line)) var(--ease-out) both;
+    }
+    .intro-lede {
+      animation: rise var(--dur-rise) var(--intro-lede) var(--ease-out) both;
+    }
+    .intro-doors {
+      animation: rise var(--dur-rise) var(--intro-doors) var(--ease-out) both;
+    }
+    .intro-card {
+      animation: print-down var(--dur-stage-long) var(--intro-card) var(--ease-out) both;
+    }
+    /* Bangla entry numbers aren't monospace: they fade in rather than type. */
+    .intro-marker:lang(bn) {
+      animation: fade-in var(--dur-rise) var(--intro-marker) var(--ease-out) both;
+    }
+  }
+
+  .landing {
+    .reveal-type {
+      width: fit-content;
+    }
+    .reveal-type[data-reveal="waiting"] {
+      clip-path: inset(0 100% 0 0);
+    }
+    .reveal-type[data-reveal="shown"] {
+      animation: type-out calc(var(--chars) * var(--marker-step)) steps(var(--chars), end) both;
+    }
+    .reveal-type:lang(bn)[data-reveal="waiting"] {
+      clip-path: none;
+      opacity: 0;
+    }
+    .reveal-type:lang(bn)[data-reveal="shown"] {
+      animation: fade-in var(--dur-rise) var(--ease-out) both;
+    }
+    .reveal-rise[data-reveal="waiting"] {
+      opacity: 0;
+    }
+    .reveal-rise[data-reveal="shown"] {
+      animation: rise var(--dur-rise) var(--reveal-delay, 0ms) var(--ease-out) both;
+    }
+  }
+}

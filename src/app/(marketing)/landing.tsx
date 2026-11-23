@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import { CornerLeftUp } from "lucide-react";
 import Link from "next/link";
 import { DemoDoors } from "@/components/demo-doors";
@@ -9,10 +10,12 @@ import { LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { parseDayKey } from "@/lib/business-time";
 import { COPY, type LandingCopy, type MovementKind } from "./copy";
 import { AccessRow } from "./access-row";
+import { INTRO_SCRIPT } from "./intro";
 import { LiveRefusal } from "./live-refusal";
 import { Odometer } from "./odometer";
 import { RefusalRows } from "./refusal-rows";
 import { ResetCountdown } from "./reset-countdown";
+import { Reveals } from "./reveals";
 import "./landing.css";
 
 /**
@@ -21,6 +24,8 @@ import "./landing.css";
  * request and both stay static.
  *
  * It acts out what it says: writes are refused and stamped, the ledger prints and tallies.
+ * The first time it's opened in a tab, the name types itself out and the hero prints in
+ * (intro.ts); further down, each section's entry number types out as it scrolls into view.
  * Everything that moves is a simulation over the verified answers in `src/lib/refusals.ts`;
  * the page never touches the database.
  */
@@ -34,11 +39,28 @@ export function Landing({ language }: { language: Language }) {
   const t = COPY[language];
   return (
     <div lang={LANGUAGE_TAGS[language]} className="landing mx-auto max-w-6xl px-4 sm:px-8">
+      {/* Before anything paints: whether this visit plays the opening. */}
+      <script dangerouslySetInnerHTML={{ __html: INTRO_SCRIPT }} />
+      <Reveals />
       <div aria-hidden className="landing-grain" />
       <header className="flex items-center justify-between gap-4 py-5">
-        <Link href="/" lang="en" className="print-display flex items-center gap-2.5 text-2xl uppercase">
-          <Mark size={32} />
-          Stocktake
+        <Link
+          href="/"
+          lang="en"
+          aria-label="Stocktake"
+          className="print-display flex items-center gap-2.5 text-2xl uppercase"
+        >
+          <span className="intro-mark flex">
+            <Mark size={32} />
+          </span>
+          {/* One span a letter, so the opening can type the name out. */}
+          <span aria-hidden className="flex">
+            {[...NAME].map((letter, index) => (
+              <span key={index} className="type-char" style={{ "--i": index } as CSSProperties}>
+                {letter}
+              </span>
+            ))}
+          </span>
         </Link>
         <div className="flex items-center gap-2">
           <LanguageSwitch language={language} variant="toggle" prerendered />
@@ -79,23 +101,43 @@ export function Landing({ language }: { language: Language }) {
 
 type Props = { t: LandingCopy; language: Language };
 
-/** A section's ledger entry number, above its heading. */
-function Marker({ children }: { children: string }) {
+const NAME = "Stocktake";
+
+/** A custom property for an inline style. */
+const vars = (values: Record<`--${string}`, string | number>) => values as CSSProperties;
+
+/**
+ * A section's ledger entry number, above its heading. It types itself out: in the
+ * opening for the hero's, as it scrolls into view for the rest.
+ */
+function Marker({ children, intro = false }: { children: string; intro?: boolean }) {
   return (
-    <p aria-hidden className="ledger-marker">
+    <p
+      aria-hidden
+      data-reveal={intro ? undefined : ""}
+      className={`ledger-marker ${intro ? "intro-marker" : "reveal-type"}`}
+      style={vars({ "--chars": [...children].length })}
+    >
       {children}
     </p>
   );
 }
 
+/** A heading or lede that rises into place after its entry number has typed out. */
+const rise = (delay: number) => ({
+  "data-reveal": "",
+  className: "reveal-rise",
+  style: vars({ "--reveal-delay": `${delay}ms` }),
+});
+
 /** The claim, the way in, and the proof under it: a write the database turned down. */
 function Hero({ t, language }: Props) {
   return (
     <section className="pt-6 pb-20 lg:pt-10">
-      <Marker>{t.markers.receipt}</Marker>
+      <Marker intro>{t.markers.receipt}</Marker>
       <h1 className="print-display mt-4 text-[clamp(4rem,10vw,10rem)]">
         {t.headline.map((line, index) => (
-          <span key={line} className="block">
+          <span key={line} className="intro-line block" style={vars({ "--i": index })}>
             {line}
             {index < t.headline.length - 1 ? " " : null}
           </span>
@@ -103,13 +145,15 @@ function Hero({ t, language }: Props) {
       </h1>
       <div className="mt-8 grid grid-cols-[minmax(0,1fr)] items-start gap-8 lg:mt-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12">
         <div>
-          <p className="max-w-[34rem] text-lg leading-relaxed text-ink-2">{t.lede}</p>
-          <div className="mt-8 max-w-md">
+          <p className="intro-lede max-w-[34rem] text-lg leading-relaxed text-ink-2">{t.lede}</p>
+          <div className="intro-doors mt-8 max-w-md">
             <DemoDoors language={language} />
           </div>
         </div>
 
-        <LiveRefusal language={language} />
+        <div className="intro-card">
+          <LiveRefusal language={language} />
+        </div>
       </div>
     </section>
   );
@@ -120,10 +164,14 @@ function Refusals({ t, language }: Props) {
   return (
     <section aria-labelledby="refusals-title" className="py-12">
       <Marker>{t.markers.refusals}</Marker>
-      <h2 id="refusals-title" className="print-display mt-3 text-4xl sm:text-5xl">
-        {t.breakIt}
-      </h2>
-      <p className="mt-4 max-w-2xl text-lg leading-relaxed text-ink-2">{t.breakItLede}</p>
+      <div {...rise(250)}>
+        <h2 id="refusals-title" className="print-display mt-3 text-4xl sm:text-5xl">
+          {t.breakIt}
+        </h2>
+      </div>
+      <div {...rise(350)}>
+        <p className="mt-4 max-w-2xl text-lg leading-relaxed text-ink-2">{t.breakItLede}</p>
+      </div>
 
       <RefusalRows language={language} />
     </section>
@@ -162,10 +210,14 @@ function Ledger({ t, language }: Props) {
     >
       <div>
         <Marker>{t.markers.balance}</Marker>
-        <h2 id="ledger-title" className="print-display mt-3 text-4xl sm:text-5xl">
-          {t.sum}
-        </h2>
-        <p className="mt-4 max-w-md text-lg leading-relaxed text-ink-2">{t.sumLede}</p>
+        <div {...rise(250)}>
+          <h2 id="ledger-title" className="print-display mt-3 text-4xl sm:text-5xl">
+            {t.sum}
+          </h2>
+        </div>
+        <div {...rise(350)}>
+          <p className="mt-4 max-w-md text-lg leading-relaxed text-ink-2">{t.sumLede}</p>
+        </div>
       </div>
 
       <figure className="receipt torn-top ledger">
@@ -243,9 +295,11 @@ function TwoWaysIn({ t, language }: Props) {
   return (
     <section aria-labelledby="ways-title" className="py-12">
       <Marker>{t.markers.access}</Marker>
-      <h2 id="ways-title" className="print-display mt-3 text-4xl sm:text-5xl">
-        {t.twoWays}
-      </h2>
+      <div {...rise(250)}>
+        <h2 id="ways-title" className="print-display mt-3 text-4xl sm:text-5xl">
+          {t.twoWays}
+        </h2>
+      </div>
       <AccessRow language={language} />
       <p className="mt-6 max-w-2xl text-sm text-ink-2">{t.demoNote}</p>
       <ResetCountdown language={language} />
