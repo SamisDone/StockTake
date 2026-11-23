@@ -18,6 +18,8 @@ on:
 
 permissions:
   contents: read
+  # The deploy job looks up the last successful run, to see whether migrations changed.
+  actions: read
 
 jobs:
   check:
@@ -54,6 +56,9 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          # The whole history, to compare drizzle/ with the last successful deploy.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
@@ -70,7 +75,25 @@ jobs:
       # confirmation prompt with yes outside a terminal. The previous Worker keeps serving
       # until the next step finishes, so a migration must not break the code before it:
       # add, never rename or drop in the same deploy.
+      # Only ask D1 about migrations when drizzle/ changed since the last deploy that went
+      # through: a code-only deploy then never depends on the database being reachable
+      # (on 2026-11-23 the free plan's daily read allowance ran out and blocked deploys
+      # that had nothing to migrate). With no earlier successful run, it always migrates.
+      - name: Look for new migrations since the last successful deploy
+        id: migrations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          last=$(gh run list --workflow ci.yml --branch main --event push --status success --limit 1 --json headSha --jq '.[0].headSha // ""')
+          if [ -n "$last" ] && git cat-file -e "$last^{commit}" 2>/dev/null && git diff --quiet "$last" HEAD -- drizzle/; then
+            echo "pending=false" >> "$GITHUB_OUTPUT"
+            echo "drizzle/ is unchanged since $last, the last successful deploy: nothing to migrate."
+          else
+            echo "pending=true" >> "$GITHUB_OUTPUT"
+            echo "drizzle/ changed since ${last:-the start}: applying migrations."
+          fi
       - name: Apply D1 migrations
+        if: steps.migrations.outputs.pending == 'true'
         run: pnpm db:migrate:remote
       - name: Build and deploy the Worker
         run: pnpm run deploy
