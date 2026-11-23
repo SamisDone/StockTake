@@ -183,3 +183,108 @@
     transition: none;
   }
 }
+
+/*
+ * The ledger. Each line prints in as it scrolls into view (the app's print-in, tied to
+ * the scroll), its balance a beat after it, and the correction's margin note after
+ * that. Only where scroll-driven animations exist and motion is allowed: everywhere
+ * else every line is simply printed.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .ledger-row > td {
+      animation: print-in linear both;
+      animation-timeline: view();
+      animation-range: entry 10% cover 30%;
+    }
+    .ledger-row > td.ledger-balance {
+      animation-range: cover 18% cover 32%;
+    }
+    .ledger-note {
+      animation: print-in linear both;
+      animation-timeline: view();
+      animation-range: cover 22% cover 36%;
+    }
+  }
+}
+
+/*
+ * Pointing at a line (or focusing it) shows what it did to the total: its units are
+ * lit, a rule runs from them to the balance they made, and the other lines step back.
+ */
+.ledger-row {
+  transition: opacity var(--dur-press) ease;
+  outline-offset: -2px;
+}
+.ledger-units {
+  transition: background-color var(--dur-press) ease;
+}
+.ledger-connector {
+  position: relative;
+  flex: 1;
+  height: 1px;
+  background: var(--color-ink);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--dur-move) var(--ease-out);
+}
+.ledger-connector::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: -3px;
+  border-left: 5px solid var(--color-ink);
+  border-block: 3.5px solid transparent;
+}
+.ledger-row:focus-visible .ledger-units {
+  background: var(--color-liner);
+}
+.ledger-row:focus-visible .ledger-connector {
+  transform: scaleX(1);
+}
+.ledger-body:has(.ledger-row:focus-visible) .ledger-row:not(:focus-visible) {
+  opacity: 0.5;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ledger-row:hover .ledger-units {
+    background: var(--color-liner);
+  }
+  .ledger-row:hover .ledger-connector {
+    transform: scaleX(1);
+  }
+  .ledger-body:has(.ledger-row:hover) .ledger-row:not(:hover) {
+    opacity: 0.5;
+  }
+}
+
+/* The On hand odometer: each place a window one digit tall over a strip of 0–9. */
+.odometer {
+  --cell: 1em;
+  display: inline-flex;
+  line-height: var(--cell);
+}
+.odometer:lang(bn) {
+  --cell: 1.2em;
+}
+.odometer-window {
+  display: inline-block;
+  height: var(--cell);
+  overflow: hidden;
+}
+.odometer-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  transition: translate var(--dur-stage) var(--ease-out);
+}
+.odometer-strip > span {
+  height: var(--cell);
+  white-space: pre;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ledger-connector,
+  .odometer-strip {
+    transition: none;
+  }
+}

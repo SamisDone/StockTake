@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CornerLeftUp } from "lucide-react";
 import Link from "next/link";
 import { DemoDoors } from "@/components/demo-doors";
 import { LanguageSwitch } from "@/components/language-switch";
@@ -9,6 +10,7 @@ import { LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { parseDayKey } from "@/lib/business-time";
 import { COPY, type LandingCopy, type MovementKind } from "./copy";
 import { LiveRefusal } from "./live-refusal";
+import { Odometer } from "./odometer";
 import { RefusalRows } from "./refusal-rows";
 import "./landing.css";
 
@@ -147,7 +149,6 @@ const LEDGER_ROWS = EXAMPLE_MOVEMENTS.map((movement, index) => ({
   ...movement,
   balance: EXAMPLE_MOVEMENTS.slice(0, index + 1).reduce((sum, m) => sum + m.quantity, 0),
 }));
-const ON_HAND = LEDGER_ROWS[LEDGER_ROWS.length - 1].balance;
 
 /** How a count is made: the ledger, with its running balance, ending in the number on hand. */
 function Ledger({ t, language }: Props) {
@@ -166,7 +167,7 @@ function Ledger({ t, language }: Props) {
         <p className="mt-4 max-w-md text-lg leading-relaxed text-ink-2">{t.sumLede}</p>
       </div>
 
-      <figure className="receipt torn-top">
+      <figure className="receipt torn-top ledger">
         <div className="flex items-end justify-between gap-4 border-b-2 border-ink px-5 pt-3 pb-3 sm:px-6">
           <div>
             <p className="field-name">{t.product}</p>
@@ -193,9 +194,11 @@ function Ledger({ t, language }: Props) {
               </th>
             </tr>
           </thead>
-          <tbody>
+          {/* Each line prints as it scrolls into view, its balance a beat after it. Pointing
+              at a line (or focusing it) shows what it did to the total. */}
+          <tbody className="ledger-body">
             {LEDGER_ROWS.map((row) => (
-              <tr key={row.day} className="border-b border-hairline">
+              <tr key={row.day} data-ledger-row tabIndex={0} className="ledger-row border-b border-hairline">
                 <td className="tabular py-2.5 pl-5 whitespace-nowrap text-ink-2 sm:pl-6">
                   {f.date(october(row.day), october(1))}
                 </td>
@@ -207,16 +210,27 @@ function Ledger({ t, language }: Props) {
                       · {t.details[row.detail]}
                     </span>
                   ) : null}
+                  {row.kind === "count" ? (
+                    <span className="ledger-note mt-1 flex items-start gap-1 text-xs leading-snug font-semibold text-fault lang-bn:text-[0.8125rem]">
+                      <CornerLeftUp aria-hidden size={13} strokeWidth={2.5} className="mt-px shrink-0" />
+                      {t.correctionNote}
+                    </span>
+                  ) : null}
                 </td>
-                <td className="tabular py-2.5 pl-3 text-right">{f.change(row.quantity)}</td>
-                <td className="tabular py-2.5 pr-5 pl-3 text-right font-semibold sm:pr-6">{f.count(row.balance)}</td>
+                <td className="ledger-units tabular py-2.5 pl-3 text-right">{f.change(row.quantity)}</td>
+                <td className="ledger-balance py-2.5 pr-5 pl-3 sm:pr-6">
+                  <span className="flex items-center justify-end gap-1.5">
+                    <span aria-hidden className="ledger-connector" />
+                    <span className="tabular font-semibold">{f.count(row.balance)}</span>
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
         <div className="flex items-end justify-between gap-4 bg-ink px-5 pt-3 pb-4 text-label sm:px-6">
           <p className="text-sm font-semibold">{t.onHand}</p>
-          <p className="print-display tabular text-5xl">{f.count(ON_HAND)}</p>
+          <Odometer balances={LEDGER_ROWS.map((row) => row.balance)} language={language} />
         </div>
       </figure>
     </section>
