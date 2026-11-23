@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { StockStatus } from "@/domain/forecast";
 import { Choice, Choices } from "@/components/choice";
 import { useArrivalHash, writeHash } from "@/components/hash-state";
+import { type Sort, SortTh, parseSort, sortParam, sortRows } from "@/components/sort";
 import { CoverBar, MobileName, StatusMark, Tally, Th } from "@/components/stock";
 import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
@@ -31,6 +32,21 @@ export type ProductRow = {
 };
 
 type Show = "all" | "attention" | "archived";
+
+const SORTS = ["onHand", "onOrder", "reorderAt", "cover", "value"] as const;
+type SortKey = (typeof SORTS)[number];
+
+/** The figure a column sorts by. No sales means the stock never runs out: the most cover. */
+const sortValue = (row: ProductRow, key: SortKey) =>
+  key === "onHand"
+    ? row.onHand
+    : key === "onOrder"
+      ? row.onOrder
+      : key === "reorderAt"
+        ? row.reorderPoint
+        : key === "cover"
+          ? (row.daysOfCover ?? Number.POSITIVE_INFINITY)
+          : row.valueCents;
 const SHOWS: Show[] = ["all", "attention", "archived"];
 
 /**
@@ -61,6 +77,7 @@ export function ProductTable({
   const [query, setQuery] = useState(() => params.get("q") ?? "");
   const [category, setCategory] = useState(() => knownCategory(params.get("category")));
   const [show, setShow] = useState<Show>(() => knownShow(params.get("show")));
+  const [sort, setSort] = useState<Sort<SortKey>>(null);
 
   // The server never sees the hash, so the filters in it apply once this is in the
   // browser (null until then), and only once: after that, the filters write the hash.
@@ -72,6 +89,7 @@ export function ProductTable({
       setQuery(hash.get("q") ?? "");
       setCategory(knownCategory(hash.get("category")));
       setShow(knownShow(hash.get("show")));
+      setSort(parseSort(hash.get("sort"), SORTS));
     }
   }
 
@@ -79,8 +97,8 @@ export function ProductTable({
   // a product open over it, the URL is the product's.
   useEffect(() => {
     if (pathname !== "/products" || !arrived) return;
-    writeHash(pathname, { q: query.trim(), category, show: show === "all" ? "" : show });
-  }, [pathname, arrived, query, category, show]);
+    writeHash(pathname, { q: query.trim(), category, show: show === "all" ? "" : show, sort: sortParam(sort) });
+  }, [pathname, arrived, query, category, show, sort]);
 
   const needle = query.trim().toLowerCase();
   const inCategory = category ? rows.filter((row) => row.category === category) : rows;
@@ -94,6 +112,7 @@ export function ProductTable({
       (show !== "attention" || row.status !== "ok") &&
       (!needle || row.name.toLowerCase().includes(needle) || row.sku.toLowerCase().includes(needle)),
   );
+  const sorted = sortRows(shown, sort, sortValue);
   const units = shown.reduce((sum, row) => sum + row.onHand, 0);
   const value = shown.reduce((sum, row) => sum + row.valueCents, 0);
 
@@ -176,18 +195,28 @@ export function ProductTable({
           ) : (
             <table className="w-full border-collapse text-left max-md:block">
               <caption className="sr-only">{t.caption(f.count(shown.length))}</caption>
-              <thead className="max-md:hidden">
+              <thead className="sticky-head max-md:hidden">
                 <tr className="border-b border-ink">
                   <Th>{t.product}</Th>
-                  <Th align="right">{t.onHand}</Th>
-                  <Th align="right">{t.onOrderColumn}</Th>
-                  <Th align="right">{t.reorderAt}</Th>
-                  <Th className="w-[28%]">{t.cover}</Th>
-                  <Th align="right">{t.valueAtCost}</Th>
+                  <SortTh sortKey="onHand" sort={sort} onSort={setSort} align="right">
+                    {t.onHand}
+                  </SortTh>
+                  <SortTh sortKey="onOrder" sort={sort} onSort={setSort} align="right">
+                    {t.onOrderColumn}
+                  </SortTh>
+                  <SortTh sortKey="reorderAt" sort={sort} onSort={setSort} align="right">
+                    {t.reorderAt}
+                  </SortTh>
+                  <SortTh sortKey="cover" sort={sort} onSort={setSort} className="w-[28%]">
+                    {t.cover}
+                  </SortTh>
+                  <SortTh sortKey="value" sort={sort} onSort={setSort} align="right">
+                    {t.valueAtCost}
+                  </SortTh>
                 </tr>
               </thead>
               <tbody className="max-md:block">
-                {shown.map((row) => (
+                {sorted.map((row) => (
                   <Row key={row.id} row={row} m={m} f={f} t={t} selected={pathname === `/products/${row.id}`} />
                 ))}
               </tbody>

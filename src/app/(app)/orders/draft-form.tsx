@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { startTransition, useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { FaultLine, FaultText } from "@/components/fault";
 import { Field, fieldProps } from "@/components/field";
@@ -14,6 +14,8 @@ import { useTicker } from "@/components/ticker";
 import { type DraftFormState, saveDraft } from "@/server/order-actions";
 import type { DraftLine, DraftValues, ProductChoice, SupplierChoice } from "./draft-values";
 import { ORDERS_COPY, type OrdersCopy } from "./copy";
+import { DateField } from "./date-field";
+import { ProductPicker } from "./product-picker";
 
 const initial: DraftFormState = {};
 
@@ -68,7 +70,6 @@ export function DraftForm({
   const [supplierId, setSupplierId] = useState(defaults.supplierId);
   const [lines, setLines] = useState(defaults.lines);
   const [added, setAdded] = useState<number | null>(null);
-  const [picked, setPicked] = useState("");
   const [expectedAt, setExpectedAt] = useState(defaults.expectedAt);
   const [notes, setNotes] = useState(defaults.notes);
   const [said, setSaid] = useState("");
@@ -117,9 +118,7 @@ export function DraftForm({
   const update = (productId: number, change: Partial<DraftLine>) =>
     setLines((current) => current.map((line) => (line.productId === productId ? { ...line, ...change } : line)));
 
-  const add = () => {
-    const product = byId.get(Number(picked));
-    if (!product) return;
+  const add = (product: ProductChoice) => {
     setLines((current) => [
       ...current,
       {
@@ -132,7 +131,6 @@ export function DraftForm({
       },
     ]);
     setAdded(product.id);
-    setPicked("");
     setSaid(t.added(product.name, f.count(product.quantity)));
     focusNext.current = `quantity-${product.id}`;
   };
@@ -179,7 +177,6 @@ export function DraftForm({
 
   const chooseSupplier = (next: string) => {
     setSupplierId(next);
-    setPicked("");
     if (lines.length > 0) {
       setLines([]);
       setSaid(t.cleared);
@@ -301,64 +298,29 @@ export function DraftForm({
             </div>
           )}
 
-          <div className="flex items-end gap-2 border-t border-hairline px-5 pt-3 pb-4 sm:px-8">
-            <div className="min-w-0 flex-1">
-              <label htmlFor="add-product" className="field-name block">
-                {t.addProduct}
-              </label>
-              <div className="relative mt-1">
-                <select
-                  id="add-product"
-                  value={picked}
-                  onChange={(event) => setPicked(event.target.value)}
-                  disabled={!supplier || available.length === 0}
-                  className="h-11 w-full cursor-pointer appearance-none rounded-none border border-ink bg-label pr-9 pl-2.5 text-base font-medium outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--color-ink)] disabled:cursor-default disabled:border-hairline disabled:text-ink-3"
-                >
-                  <option value="">
-                    {!supplier
-                      ? t.supplierFirst
-                      : catalog.length === 0
-                        ? t.nothingElse(supplier.name)
-                        : available.length === 0
-                          ? t.allOn(supplier.name)
-                          : t.chooseProduct}
-                  </option>
-                  {low.length > 0 ? (
-                    <optgroup label={t.runningLow}>
-                      {low.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {t.orderSuggested(p.name, f.count(p.suggested))}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                  {rest.length > 0 ? (
-                    <optgroup label={low.length > 0 ? t.everythingElse : t.from(supplier?.name ?? "")}>
-                      {rest.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                </select>
-                <ChevronDown
-                  aria-hidden
-                  size={18}
-                  strokeWidth={2}
-                  className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2"
-                />
-              </div>
+          <div className="border-t border-hairline px-5 pt-3 pb-4 sm:px-8">
+            <label htmlFor="add-product" className="field-name block">
+              {t.addProduct}
+            </label>
+            <div className="mt-1">
+              <ProductPicker
+                low={low}
+                rest={rest}
+                placeholder={
+                  !supplier
+                    ? t.supplierFirst
+                    : catalog.length === 0
+                      ? t.nothingElse(supplier.name)
+                      : available.length === 0
+                        ? t.allOn(supplier.name)
+                        : t.chooseProduct
+                }
+                disabled={!supplier || available.length === 0}
+                onPick={add}
+                money={money}
+                language={language}
+              />
             </div>
-            <button
-              type="button"
-              onClick={add}
-              disabled={!picked}
-              className="press-quiet flex h-11 shrink-0 items-center gap-1.5 rounded-control px-3.5 font-semibold text-ink enabled:hover:bg-liner disabled:text-ink-3"
-            >
-              <Plus aria-hidden size={18} strokeWidth={2.25} />
-              {t.add}
-            </button>
           </div>
 
           {/* The total, reverse-printed as on the label, following every figure typed. A line
@@ -386,13 +348,12 @@ export function DraftForm({
               supplier && leadTime !== undefined ? t.expectedHint(supplier.name, f.count(leadTime)) : t.expectedNone
             }
           >
-            <input
+            <DateField
               {...fieldProps("expectedAt", { error: errors.expectedAt, hint: true })}
-              type="date"
               min={today}
               value={expectedAt}
-              onChange={(event) => setExpectedAt(event.target.value)}
-              className="field-input"
+              onChange={setExpectedAt}
+              language={language}
             />
           </Field>
           <Field name="notes" label={t.notes} language={language} optional error={errors.notes}>

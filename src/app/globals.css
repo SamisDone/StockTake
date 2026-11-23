@@ -128,6 +128,43 @@
     color: var(--color-ink-3);
   }
 
+  /*
+   * A long table's column names stay at the top of the screen while its rows scroll
+   * under them, with the heading rule drawn by the head itself (a collapsed table's
+   * row border stays behind when the head sticks).
+   */
+  .sticky-head {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--color-label);
+    box-shadow: 0 1px 0 var(--color-ink);
+  }
+
+  /*
+   * A <details> that opens and closes by height (closing faster, like a torn line).
+   * Where ::details-content or interpolate-size isn't supported it just snaps.
+   */
+  .fold {
+    interpolate-size: allow-keywords;
+  }
+  .fold::details-content {
+    block-size: 0;
+    overflow-y: clip;
+    transition:
+      block-size var(--dur-tear) var(--ease-out),
+      content-visibility var(--dur-tear) allow-discrete;
+  }
+  .fold[open]::details-content {
+    block-size: auto;
+    transition-duration: var(--dur-reveal);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fold::details-content {
+      transition: none;
+    }
+  }
+
   /* The name under a tab's icon in the phone's tab bar. */
   .tab-name {
     font-size: 0.75rem;

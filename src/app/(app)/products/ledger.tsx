@@ -70,7 +70,7 @@ export function Ledger({
   return (
     <ArrivalScope>
       <table className="mt-4 w-full border-collapse text-left text-sm">
-        <thead>
+        <thead className="sticky-head">
           <tr className="border-b border-ink">
             <LedgerTh className="pl-5 sm:pl-8">{c.date}</LedgerTh>
             <LedgerTh className="w-full">{c.movement}</LedgerTh>

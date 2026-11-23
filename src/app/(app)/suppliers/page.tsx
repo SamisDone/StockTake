@@ -199,7 +199,7 @@ function SupplierTable({
   return (
     <table className="w-full border-collapse text-left max-lg:block">
       <caption className="sr-only">{caption}</caption>
-      <thead className="max-lg:hidden">
+      <thead className="sticky-head max-lg:hidden">
         <tr className="border-b border-ink">
           <Th className="w-full">{c.supplier}</Th>
           <Th align="right">{c.leadTime}</Th>

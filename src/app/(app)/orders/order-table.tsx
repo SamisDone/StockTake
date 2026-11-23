@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { PurchaseOrderStatus } from "@/db/schema";
 import { Choice, Choices } from "@/components/choice";
 import { useArrivalHash, writeHash } from "@/components/hash-state";
+import { type Sort, SortTh, parseSort, sortParam, sortRows } from "@/components/sort";
 import { MobileName, Th } from "@/components/stock";
 import { NAV_FORWARD } from "@/components/transitions";
 import { type Formats, formats } from "@/lib/format";
@@ -24,9 +25,16 @@ export type OrderRow = {
   totalCents: number;
   /** The date that matters for the order's state, in words: "Due Nov 28", "Received Nov 12". */
   when: string;
+  /** That date as a number, for sorting; null when the order has none (placed, no due date). */
+  sortAt: number | null;
   /** Placed and past its due date. */
   late: boolean;
 };
+
+const SORTS = ["lines", "total", "date"] as const;
+type SortKey = (typeof SORTS)[number];
+const sortValue = (row: OrderRow, key: SortKey) =>
+  key === "lines" ? row.lineCount : key === "total" ? row.totalCents : row.sortAt;
 
 type Show = "open" | PurchaseOrderStatus | "all";
 const SHOWS: Show[] = ["open", "draft", "ordered", "received", "cancelled", "all"];
@@ -35,9 +43,10 @@ const matches = (show: Show, row: OrderRow) =>
   show === "all" || (show === "open" ? row.status === "draft" || row.status === "ordered" : row.status === show);
 
 /**
- * Every order, newest first, filtered by state in the browser (the list is tens of
- * orders). Open, drafts and placed orders, is where work is, so it's the default. The
- * filter lives in the URL's hash, like the products list's.
+ * Every order, late ones pinned to the top and the rest newest first, filtered by state
+ * in the browser (the list is tens of orders). Open, drafts and placed orders, is where
+ * work is, so it's the default. Lines, total and date sort on a click. The filter and
+ * the sort live in the URL's hash, like the products list's.
  */
 export function OrderTable({ rows, money, language }: { rows: OrderRow[]; money: MoneyPrefs; language: Language }) {
   const t = ORDERS_COPY[language];
@@ -46,6 +55,7 @@ export function OrderTable({ rows, money, language }: { rows: OrderRow[]; money:
   const pathname = usePathname();
   const [show, setShow] = useState<Show>("open");
   const [switches, setSwitches] = useState(0);
+  const [sort, setSort] = useState<Sort<SortKey>>(null);
 
   const hash = useArrivalHash();
   const [arrived, setArrived] = useState(false);
@@ -53,14 +63,18 @@ export function OrderTable({ rows, money, language }: { rows: OrderRow[]; money:
     setArrived(true);
     const wanted = SHOWS.find((s) => s === hash.get("show"));
     if (wanted) setShow(wanted);
+    setSort(parseSort(hash.get("sort"), SORTS));
   }
 
   useEffect(() => {
     if (pathname !== "/orders" || !arrived) return;
-    writeHash(pathname, { show: show === "open" ? "" : show });
-  }, [pathname, arrived, show]);
+    writeHash(pathname, { show: show === "open" ? "" : show, sort: sortParam(sort) });
+  }, [pathname, arrived, show, sort]);
 
-  const shown = rows.filter((row) => matches(show, row));
+  const filtered = rows.filter((row) => matches(show, row));
+  const shown = sort
+    ? sortRows(filtered, sort, sortValue)
+    : [...filtered].sort((a, b) => Number(b.late) - Number(a.late));
 
   return (
     <section aria-labelledby="orders-title" className="pb-8">
@@ -93,13 +107,19 @@ export function OrderTable({ rows, money, language }: { rows: OrderRow[]; money:
         ) : (
           <table className="w-full border-collapse text-left max-md:block">
             <caption className="sr-only">{t.caption(f.count(shown.length))}</caption>
-            <thead className="max-md:hidden">
+            <thead className="sticky-head max-md:hidden">
               <tr className="border-b border-ink">
                 <Th>{t.columns.order}</Th>
                 <Th>{t.columns.status}</Th>
-                <Th align="right">{t.columns.lines}</Th>
-                <Th align="right">{t.columns.total}</Th>
-                <Th>{t.columns.date}</Th>
+                <SortTh sortKey="lines" sort={sort} onSort={setSort} align="right">
+                  {t.columns.lines}
+                </SortTh>
+                <SortTh sortKey="total" sort={sort} onSort={setSort} align="right">
+                  {t.columns.total}
+                </SortTh>
+                <SortTh sortKey="date" sort={sort} onSort={setSort}>
+                  {t.columns.date}
+                </SortTh>
               </tr>
             </thead>
             <tbody className="max-md:block">
@@ -120,9 +140,6 @@ function Row({ row, m, f, t }: { row: OrderRow; m: MoneyFormat; f: Formats; t: O
     <tr className="relative border-b border-hairline align-top row-hit last:border-b-0 max-md:grid max-md:grid-cols-3 max-md:gap-x-5 max-md:gap-y-3 max-md:px-5 max-md:py-4 sm:max-md:px-8">
       <td className="py-3 pr-4 max-md:col-span-3 max-md:p-0 md:pl-8">
         <div className="flex items-baseline gap-2">
-          {row.late ? (
-            <span className="shrink-0 rounded-mark bg-stock px-1.5 py-px text-xs font-bold">{t.late}</span>
-          ) : null}
           <RememberLink
             href={`/orders/${row.id}`}
             transitionTypes={NAV_FORWARD}
@@ -148,7 +165,15 @@ function Row({ row, m, f, t }: { row: OrderRow; m: MoneyFormat; f: Formats; t: O
       </td>
       <td className="py-3 pr-4 max-md:p-0">
         <MobileName>{t.columns.status}</MobileName>
-        {t.status[row.status]}
+        <span className="flex flex-wrap items-baseline gap-1.5">
+          <span className={`${MARK_BASE} ${ORDER_MARK[row.status]}`}>{t.status[row.status]}</span>
+          {/* Late is attention, so it's printed on the stock yellow, beside the state it qualifies. */}
+          {row.late ? (
+            <span className="inline-block rounded-mark border border-stock bg-stock px-1.5 py-px text-xs font-bold">
+              {t.late}
+            </span>
+          ) : null}
+        </span>
       </td>
       <td className="tabular py-3 pr-4 text-right max-md:hidden">{f.count(row.lineCount)}</td>
       <td className="tabular py-3 pr-4 text-right font-semibold max-md:p-0 max-md:text-left">

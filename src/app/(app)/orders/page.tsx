@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -79,6 +79,15 @@ async function Orders({ language }: { language: Language }) {
       lineCount: o.lineCount,
       totalCents: o.totalCents,
       when,
+      sortAt:
+        (o.status === "draft"
+          ? o.createdAt
+          : o.status === "ordered"
+            ? o.dueAt
+            : o.status === "received"
+              ? o.receivedAt
+              : o.cancelledAt
+        )?.getTime() ?? null,
       late,
     };
   });
@@ -118,55 +127,81 @@ function Suggestions({
   f: Formats;
   t: OrdersCopy;
 }) {
-  return (
-    <section aria-labelledby="suggested-title" className="border-b-2 border-ink pt-6 pb-6">
-      <div className="px-5 sm:px-8">
-        <h2 id="suggested-title" className="text-lg font-bold">
+  // Nothing to suggest: one line, nothing to open.
+  if (suppliers.length === 0 && unsupplied.length === 0)
+    return (
+      <section aria-labelledby="suggested-title" className="border-b-2 border-ink px-5 py-4 sm:px-8">
+        <h2 id="suggested-title" className="inline text-lg font-bold">
           {t.suggested}
         </h2>
-        <p className="mt-1 max-w-prose text-sm text-ink-2">{t.suggestedHelp}</p>
-      </div>
+        <span className="text-ink-2"> · {t.nothingToReorder}</span>
+      </section>
+    );
+  const cost = suppliers.reduce((sum, s) => sum + s.totalCents, 0);
+  // Folded to one line, so the orders themselves are on the first screen.
+  return (
+    <details className="fold group border-b-2 border-ink">
+      <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 row-hit focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink sm:px-8 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">
+          <h2 id="suggested-title" className="inline text-lg font-bold">
+            {t.suggested}
+          </h2>
+          <span className="text-ink-2">
+            {" "}
+            · {t.suggestedSummary(suppliers.length, f.count(suppliers.length), m.money(cost))}
+          </span>
+        </span>
+        <ChevronDown
+          aria-hidden
+          size={20}
+          strokeWidth={2.25}
+          className="shrink-0 text-ink-2 transition-transform duration-150 ease-out group-open:rotate-180"
+        />
+      </summary>
+      <div className="pb-6">
+        <p className="max-w-prose px-5 text-sm text-ink-2 sm:px-8">{t.suggestedHelp}</p>
 
-      {suppliers.length === 0 ? (
-        <p className="mt-4 px-5 font-semibold sm:px-8">{t.nothingToReorder}</p>
-      ) : (
-        <table className="mt-4 w-full border-collapse text-left max-md:block">
-          <thead className="max-md:hidden">
-            <tr className="border-b border-ink">
-              <Th>{t.supplier}</Th>
-              <Th className="w-full">{t.products}</Th>
-              <Th align="right">{t.cost}</Th>
-              <Th>
-                <span className="sr-only">{t.action}</span>
-              </Th>
-            </tr>
-          </thead>
-          <tbody className="max-md:block">
-            {suppliers.map((s) => (
-              <SuggestionRow key={s.supplierId} suggestion={s} m={m} f={f} t={t} />
+        {suppliers.length === 0 ? (
+          <p className="mt-4 px-5 font-semibold sm:px-8">{t.nothingToReorder}</p>
+        ) : (
+          <table className="mt-4 w-full border-collapse text-left max-md:block">
+            <thead className="max-md:hidden">
+              <tr className="border-b border-ink">
+                <Th>{t.supplier}</Th>
+                <Th className="w-full">{t.products}</Th>
+                <Th align="right">{t.cost}</Th>
+                <Th>
+                  <span className="sr-only">{t.action}</span>
+                </Th>
+              </tr>
+            </thead>
+            <tbody className="max-md:block">
+              {suppliers.map((s) => (
+                <SuggestionRow key={s.supplierId} suggestion={s} m={m} f={f} t={t} />
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {unsupplied.length > 0 ? (
+          <p className="mt-4 max-w-prose px-5 text-sm text-ink-2 sm:px-8">
+            {t.unsupplied[0]}
+            {unsupplied.map((line, i) => (
+              <span key={line.productId}>
+                {i > 0 ? ", " : null}
+                <ProductLink
+                  id={line.productId}
+                  className="font-semibold text-ink underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
+                >
+                  {line.name}
+                </ProductLink>
+              </span>
             ))}
-          </tbody>
-        </table>
-      )}
-
-      {unsupplied.length > 0 ? (
-        <p className="mt-4 max-w-prose px-5 text-sm text-ink-2 sm:px-8">
-          {t.unsupplied[0]}
-          {unsupplied.map((line, i) => (
-            <span key={line.productId}>
-              {i > 0 ? ", " : null}
-              <ProductLink
-                id={line.productId}
-                className="font-semibold text-ink underline decoration-ink-3 underline-offset-4 transition-colors duration-150 hover:decoration-ink"
-              >
-                {line.name}
-              </ProductLink>
-            </span>
-          ))}
-          {t.unsupplied[1]}
-        </p>
-      ) : null}
-    </section>
+            {t.unsupplied[1]}
+          </p>
+        ) : null}
+      </div>
+    </details>
   );
 }
 
@@ -237,14 +272,8 @@ function OrdersPlaceholder({ t }: { t: OrdersCopy }) {
   return (
     <div aria-hidden>
       <TallyPlaceholder names={t.tallies} />
-      <div className="border-b-2 border-ink px-5 pt-6 pb-6 sm:px-8">
+      <div className="flex min-h-14 items-center border-b-2 border-ink px-5 py-4 sm:px-8">
         <p className="text-lg font-bold">{t.suggested}</p>
-        <div className="mt-2 h-4 w-4/5 bg-liner/70" />
-        <div className="mt-6 space-y-4">
-          {Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="h-12 bg-liner/70" />
-          ))}
-        </div>
       </div>
       <div className="space-y-5 px-5 pt-6 sm:px-8">
         {Array.from({ length: 6 }, (_, i) => (
