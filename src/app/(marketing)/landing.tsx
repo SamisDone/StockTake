@@ -6,10 +6,10 @@ import { Mark } from "@/components/logo";
 import { DEMO_ROLES } from "@/lib/demo-roles";
 import { formats } from "@/lib/format";
 import { LANGUAGE_TAGS, type Language } from "@/lib/i18n";
-import { REFUSALS } from "@/lib/refusals";
 import { parseDayKey } from "@/lib/business-time";
 import { COPY, type LandingCopy, type MovementKind } from "./copy";
 import { LiveRefusal } from "./live-refusal";
+import { RefusalRows } from "./refusal-rows";
 import "./landing.css";
 
 /**
@@ -114,7 +114,6 @@ function Hero({ t, language }: Props) {
 
 /** Six writes someone might try, each with the database's own answer. */
 function Refusals({ t, language }: Props) {
-  const f = formats(language);
   return (
     <section aria-labelledby="refusals-title" className="py-12">
       <Marker>{t.markers.refusals}</Marker>
@@ -123,24 +122,7 @@ function Refusals({ t, language }: Props) {
       </h2>
       <p className="mt-4 max-w-2xl text-lg leading-relaxed text-ink-2">{t.breakItLede}</p>
 
-      <ol className="receipt torn mt-8">
-        {REFUSALS.map(({ attempt, sql, refusal }, index) => (
-          <li
-            key={sql}
-            className="grid gap-x-6 gap-y-2 border-b border-hairline px-5 py-4 last:border-b-0 sm:px-6 md:grid-cols-[2.5rem_minmax(0,13rem)_minmax(0,1fr)_minmax(0,16rem)] md:items-baseline"
-          >
-            <span aria-hidden className="font-mono text-xs text-ink-3">
-              #{f.count(index + 1)}
-            </span>
-            <p className="font-semibold">{attempt[language]}</p>
-            <code className="font-mono text-xs leading-relaxed break-words text-ink-2">{sql}</code>
-            <p className="refusal-stamp justify-self-start px-2 py-1 font-mono text-xs leading-relaxed font-semibold">
-              {refusal}
-            </p>
-          </li>
-        ))}
-      </ol>
-      <p className="mt-3 max-w-2xl text-sm text-ink-2">{t.breakItNote}</p>
+      <RefusalRows language={language} />
     </section>
   );
 }

@@ -44,6 +44,7 @@ const FALLBACK = {
   "--dur-reveal": 160,
   "--dur-impact": 220,
   "--dur-execute": 500,
+  "--dur-execute-short": 350,
   "--dur-shake": 250,
   "--stagger": 50,
 } as const;

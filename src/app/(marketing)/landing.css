@@ -13,6 +13,7 @@
   --stagger-line: 80ms; /* between the lines of a headline */
   --dur-impact: 220ms; /* a stamp landing on the paper */
   --dur-execute: 500ms; /* the statement on its way to the database */
+  --dur-execute-short: 350ms; /* the same, for a row of the refusal list */
   --dur-shake: 250ms; /* the field refusing its number */
   --dur-wipe: 300ms; /* a door's fill wiping in under the pointer */
 }
@@ -155,6 +156,21 @@
   }
 }
 
+/* A row that hasn't run yet is closed at once when the page goes live, not animated shut. */
+.fault-reveal[data-quiet] {
+  transition: none;
+}
+
+/* Run again: its arrow turns back a little under the pointer. */
+.run-again-icon {
+  transition: rotate var(--dur-press) var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  button:hover > .run-again-icon {
+    rotate: -60deg;
+  }
+}
+
 /* Reduced motion: the answer fades in where it lands; nothing drains, shakes or scales. */
 @media (prefers-reduced-motion: reduce) {
   .stamp-hit {
@@ -162,5 +178,8 @@
   }
   .execute-bar[data-run] {
     animation: none;
+  }
+  .run-again-icon {
+    transition: none;
   }
 }
