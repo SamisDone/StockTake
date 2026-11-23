@@ -71,8 +71,7 @@ const en = {
   openAs: "Open the demo as",
   demoNote:
     "The demo is a small distributor with six suppliers and four months of trading. Changes you make are real, and everyone sees them until the demo starts over at midnight, Dhaka time.",
-  resetsIn: "Demo resets in",
-  dhaka: "Dhaka",
+  resetsIn: "Starts over in",
 };
 
 export type LandingCopy = typeof en;
@@ -131,10 +130,10 @@ export const COPY: Copy<LandingCopy> = {
       admin: "পণ্যতালিকা ও সরবরাহকারী সামলান, মজুত কত দিন চলবে আর পুনঃঅর্ডারের প্রস্তাব দেখেন, আর ক্রয় অর্ডার দেন।",
       staff: "তাকের মাল গোনেন, বিক্রি, ফেরত ও বাতিল লেখেন, আর দেওয়া অর্ডারের ডেলিভারি বুঝে নেন।",
     },
-    openAs: "ডেমো খুলুন যে হিসেবে",
+    // A no-break space keeps "যে হিসেবে" (as) together when the line wraps.
+    openAs: "ডেমো খুলুন যে\u00a0হিসেবে",
     demoNote:
       "ডেমোটি ছয় সরবরাহকারী আর চার মাসের কেনাবেচার একটি ছোট পরিবেশক। আপনি যা বদলাবেন, তা সত্যিই বদলাবে, আর ঢাকার সময় রাত ১২টায় ডেমো নতুন করে শুরু হওয়া পর্যন্ত সবাই তা দেখবে।",
     resetsIn: "ডেমো আবার শুরু হতে বাকি",
-    dhaka: "ঢাকা",
   },
 };

@@ -288,3 +288,65 @@
     transition: none;
   }
 }
+
+/*
+ * A demo door under the pointer: its fill wipes in from the left like paper feeding
+ * out, and its arrow steps forward. It retracts faster than it arrives. The hero's stubs
+ * fill with the liner; the doors at the foot, which sit on the liner, fill with paper.
+ */
+.wipe {
+  position: relative;
+  isolation: isolate;
+}
+.wipe::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--color-liner);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--dur-tear) var(--ease-out);
+  pointer-events: none;
+}
+.wipe-paper::before {
+  background: var(--color-label);
+}
+.wipe-arrow {
+  transition: translate var(--dur-tear) var(--ease-out);
+}
+.wipe:focus-visible::before {
+  transform: scaleX(1);
+  transition-duration: var(--dur-wipe);
+}
+@media (hover: hover) and (pointer: fine) {
+  .wipe:enabled:hover::before {
+    transform: scaleX(1);
+    transition-duration: var(--dur-wipe);
+  }
+  .wipe:enabled:hover .wipe-arrow {
+    translate: 4px 0;
+    transition-duration: var(--dur-wipe);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The fill fades in place; the arrow stays put. */
+  .wipe::before {
+    transform: none;
+    opacity: 0;
+    transition: opacity var(--dur-fade) ease;
+  }
+  .wipe:focus-visible::before {
+    opacity: 1;
+  }
+  .wipe-arrow,
+  .wipe:enabled:hover .wipe-arrow {
+    translate: none;
+    transition: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) and (hover: hover) and (pointer: fine) {
+  .wipe:enabled:hover::before {
+    opacity: 1;
+  }
+}

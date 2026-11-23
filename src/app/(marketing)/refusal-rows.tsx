@@ -187,8 +187,8 @@ export function RefusalRows({ language }: { language: Language }) {
           );
         })}
       </ol>
-      <p className="mt-3 flex max-w-2xl items-start gap-2 font-mono text-xs leading-relaxed text-ink-2 lang-bn:font-sans lang-bn:text-sm">
-        <Check aria-hidden size={14} strokeWidth={2.5} className="mt-0.5 shrink-0 text-ink" />
+      <p className="mt-3 flex max-w-2xl items-start gap-2 text-sm leading-relaxed text-ink-2">
+        <Check aria-hidden size={16} strokeWidth={2.5} className="mt-0.5 shrink-0 text-ink" />
         <span>{t.breakItNote}</span>
       </p>
       <p aria-live="polite" className="sr-only">

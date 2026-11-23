@@ -26,22 +26,27 @@ export function Odometer({ balances, language }: { balances: number[]; language:
     const ledger = figure.current?.closest("figure");
     if (!ledger || reduced || !CSS.supports("animation-timeline: view()")) return;
     const rows = [...ledger.querySelectorAll("[data-ledger-row]")];
-    const done = rows.map(() => false);
     // A line has printed once its top passes 70% of the way up the screen, where its
     // print animation ends (`cover 30%` in landing.css), or once it has scrolled past.
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          done[rows.indexOf(entry.target)] =
-            entry.isIntersecting || entry.boundingClientRect.bottom < (entry.rootBounds?.top ?? 0);
-        }
-        setPrinted(done.filter(Boolean).length);
-      },
-      { rootMargin: "0px 0px -30% 0px" },
-    );
-    rows.forEach((row) => observer.observe(row));
+    // Measured on scroll rather than by an IntersectionObserver: a jump straight past the
+    // ledger (End, a dragged scrollbar) never crosses a threshold, and the total would
+    // be left on a balance from the middle of the month.
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const line = window.innerHeight * 0.7;
+      setPrinted(rows.filter((row) => row.getBoundingClientRect().top < line).length);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
+    schedule();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
     return () => {
-      observer.disconnect();
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
       setPrinted(null);
     };
   }, [reduced]);

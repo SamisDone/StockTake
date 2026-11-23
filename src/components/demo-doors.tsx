@@ -30,7 +30,8 @@ export function DemoStub({
   language: Language;
   onPress: () => void;
   divided?: boolean;
-  /** On the landing's receipt paper: a perforated divider between the stubs. */
+  /** On the landing's receipt paper: a perforated divider between the stubs, and a fill
+   *  that wipes in under the pointer (landing.css). */
   receipt?: boolean;
 }) {
   return (
@@ -40,11 +41,9 @@ export function DemoStub({
       value={role}
       formNoValidate
       onClick={onPress}
-      className={`group focus-inset flex min-h-28 min-w-0 flex-col items-start gap-1 pt-2 pb-5 text-left transition-[background-color] duration-150 ${
-        receipt ? "px-4 sm:px-6" : "px-6"
-      } ${
-        divided ? `border-l border-ink ${receipt ? "border-dashed" : ""}` : ""
-      } enabled:hover:bg-liner disabled:cursor-progress`}
+      className={`group focus-inset flex min-h-28 min-w-0 flex-col items-start gap-1 pt-2 pb-5 text-left ${
+        receipt ? "wipe px-4 sm:px-6" : "px-6 transition-[background-color] duration-150 enabled:hover:bg-liner"
+      } ${divided ? `border-l border-ink ${receipt ? "border-dashed" : ""}` : ""} disabled:cursor-progress`}
     >
       <span className="flex w-full items-center justify-between gap-2">
         <span
@@ -58,7 +57,11 @@ export function DemoStub({
           aria-hidden
           size={22}
           strokeWidth={3.5}
-          className="shrink-0 transition-transform duration-150 ease-out group-enabled:group-hover:translate-x-0.5"
+          className={`shrink-0 ${
+            receipt
+              ? "wipe-arrow"
+              : "transition-transform duration-150 ease-out group-enabled:group-hover:translate-x-0.5"
+          }`}
         />
       </span>
       {/* Both lines hold the same cell, so swapping them never changes the stub's height. */}
@@ -75,24 +78,18 @@ export function DemoStub({
   );
 }
 
-/** The two demo accounts as a small label of their own: one click opens the app. */
-export function DemoDoors({
-  language,
-  name,
-  receipt = false,
-}: {
-  language: Language;
-  name?: string;
-  /** Printed on the landing's receipt paper (landing.css) instead of a label sheet. */
-  receipt?: boolean;
-}) {
+/**
+ * The two demo accounts as a stub of the landing's receipt paper (landing.css): one click
+ * opens the app. The sign-in label prints its own stubs (`DemoStub`).
+ */
+export function DemoDoors({ language }: { language: Language }) {
   const [state, formAction, pending] = useActionState(signIn, initialFormState);
   const [via, setVia] = useState<string | null>(null);
 
   return (
-    <form action={formAction} className={receipt ? "receipt torn" : "sheet overflow-hidden"} aria-busy={pending}>
+    <form action={formAction} className="receipt torn" aria-busy={pending}>
       <fieldset disabled={pending}>
-        <legend className="field-name px-6 pt-3">{name ?? COMPONENT_COPY[language].openDemo}</legend>
+        <legend className="field-name px-6 pt-3">{COMPONENT_COPY[language].openDemo}</legend>
         <div className="grid grid-cols-2">
           {DEMO_ROLES[language].map(({ role, label, duty }, index) => (
             <DemoStub
@@ -104,7 +101,7 @@ export function DemoDoors({
               onPress={() => setVia(role)}
               language={language}
               divided={index > 0}
-              receipt={receipt}
+              receipt
             />
           ))}
         </div>

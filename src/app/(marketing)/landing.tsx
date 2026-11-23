@@ -4,14 +4,15 @@ import Link from "next/link";
 import { DemoDoors } from "@/components/demo-doors";
 import { LanguageSwitch } from "@/components/language-switch";
 import { Mark } from "@/components/logo";
-import { DEMO_ROLES } from "@/lib/demo-roles";
 import { formats } from "@/lib/format";
 import { LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { parseDayKey } from "@/lib/business-time";
 import { COPY, type LandingCopy, type MovementKind } from "./copy";
+import { AccessRow } from "./access-row";
 import { LiveRefusal } from "./live-refusal";
 import { Odometer } from "./odometer";
 import { RefusalRows } from "./refusal-rows";
+import { ResetCountdown } from "./reset-countdown";
 import "./landing.css";
 
 /**
@@ -104,7 +105,7 @@ function Hero({ t, language }: Props) {
         <div>
           <p className="max-w-[34rem] text-lg leading-relaxed text-ink-2">{t.lede}</p>
           <div className="mt-8 max-w-md">
-            <DemoDoors language={language} receipt />
+            <DemoDoors language={language} />
           </div>
         </div>
 
@@ -237,7 +238,7 @@ function Ledger({ t, language }: Props) {
   );
 }
 
-/** The two seats in the demo, and the door to each. */
+/** The two seats in the demo, and the door to each: one ledger line across the page. */
 function TwoWaysIn({ t, language }: Props) {
   return (
     <section aria-labelledby="ways-title" className="py-12">
@@ -245,18 +246,9 @@ function TwoWaysIn({ t, language }: Props) {
       <h2 id="ways-title" className="print-display mt-3 text-4xl sm:text-5xl">
         {t.twoWays}
       </h2>
-      <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:items-start">
-        <dl className="grid gap-6 sm:grid-cols-2">
-          {DEMO_ROLES[language].map(({ role, label }) => (
-            <div key={role} className="border-t-2 border-ink pt-3">
-              <dt className="text-lg font-bold">{label}</dt>
-              <dd className="mt-1 leading-relaxed text-ink-2">{t.work[role]}</dd>
-            </div>
-          ))}
-        </dl>
-        <DemoDoors language={language} name={t.openAs} receipt />
-      </div>
+      <AccessRow language={language} />
       <p className="mt-6 max-w-2xl text-sm text-ink-2">{t.demoNote}</p>
+      <ResetCountdown language={language} />
     </section>
   );
 }
