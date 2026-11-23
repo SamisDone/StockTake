@@ -126,18 +126,18 @@ describe("signIn as a demo role", () => {
 });
 
 describe("signOut", () => {
-  it("deletes the session and the cookie, then goes to the login page", async () => {
+  it("deletes the session and the cookie, then goes to the front page", async () => {
     await redirectOf(signIn({}, form({ email: "ada@example.com", password: PASSWORD })));
     const token = request.current.jar.get(SESSION_COOKIE)!.value;
 
-    expect(await redirectOf(signOut())).toBe("/login");
+    expect(await redirectOf(signOut())).toBe("/");
     expect(request.current.jar.has(SESSION_COOKIE)).toBe(false);
     expect(await validateSession(db, token)).toBeNull();
   });
 
   it("still clears a junk cookie", async () => {
     request.current.cookies.set({ name: SESSION_COOKIE, value: "junk" });
-    expect(await redirectOf(signOut())).toBe("/login");
+    expect(await redirectOf(signOut())).toBe("/");
     expect(request.current.jar.has(SESSION_COOKIE)).toBe(false);
   });
 });

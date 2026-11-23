@@ -7,7 +7,7 @@ import { getDb } from "@/db/client";
 import { authenticate, createSession, findUserByEmail, invalidateSession } from "@/domain/auth";
 import { DEMO_USERS } from "@/seed/accounts";
 import { type FormState, field } from "./form-state";
-import { LOGIN_PATH, SESSION_COOKIE, looksLikeSessionToken, safeNextPath, sessionCookie } from "./session-cookie";
+import { LANDING_PATH, SESSION_COOKIE, looksLikeSessionToken, safeNextPath, sessionCookie } from "./session-cookie";
 import { ACTION_COPY } from "./action-copy";
 import { getLanguage } from "./preferences";
 
@@ -69,5 +69,5 @@ export async function signOut(): Promise<void> {
   const token = jar.get(SESSION_COOKIE)?.value;
   if (looksLikeSessionToken(token)) await invalidateSession(await getDb(), token);
   jar.delete(SESSION_COOKIE);
-  redirect(LOGIN_PATH);
+  redirect(LANDING_PATH);
 }

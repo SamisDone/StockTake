@@ -44,6 +44,8 @@ export function isPublicPath(pathname: string) {
 
 export const LOGIN_PATH = "/login" satisfies Route;
 export const HOME_PATH = "/dashboard" satisfies Route;
+/** Where signing out lands: the public front page (its Bangla twin when that's the reader's language). */
+export const LANDING_PATH = "/" satisfies Route;
 
 /**
  * Where to go after signing in. Only a path on this site is accepted, and the login page
