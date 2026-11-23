@@ -6,7 +6,9 @@ import { DomainError } from "@/domain/errors";
 import { type StockForecast, getProductForecast, getStockForecasts } from "@/domain/forecast";
 import { daysLate, deliveryRecord, getOrder, isLate, listOrders } from "@/domain/purchase-orders";
 import { getReorderSuggestions } from "@/domain/reorder";
+import { saleNumber } from "@/domain/sales";
 import { listMovements } from "@/domain/stock";
+import { listCustomers } from "@/domain/customers";
 import { getSupplier, listSuppliers } from "@/domain/suppliers";
 import { formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
@@ -28,7 +30,7 @@ import { DOLLARS, type MoneyFormat, moneyFormat } from "@/lib/money";
 /** A tool refusing its arguments. Said to the model, in English, so it can correct itself. */
 class ToolRefusal extends Error {}
 
-export type Ref = { kind: "product" | "supplier" | "order"; id: number; label: string; code?: string };
+export type Ref = { kind: "product" | "supplier" | "order" | "customer"; id: number; label: string; code?: string };
 
 export type ProposalLine = {
   productId: number;
@@ -175,8 +177,13 @@ const getProductTool = tool({
         latestMovements: movements.map((m) => ({
           day: day(m.occurredAt, now),
           // An undo reads as what it undid, so the model never mistakes it for a count.
-          kind: m.reversedKind ? `undo of ${m.reversedKind.replace("_", "-")}` : m.kind.replace("_", "-"),
+          kind: m.reversedKind
+            ? m.saleId !== null
+              ? "sale voided"
+              : `undo of ${m.reversedKind.replace("_", "-")}`
+            : m.kind.replace("_", "-"),
           ...(m.undone ? { undone: true } : {}),
+          ...(m.saleId !== null ? { sale: saleNumber(Number(m.saleId)) } : {}),
           quantity: m.quantity,
           balanceAfter: m.balance,
           by: m.userName,
@@ -364,8 +371,9 @@ const getOrderTool = tool({
 const salesSummary = tool({
   name: "sales_summary",
   description:
-    "Sales over the last 28 or 90 days, ending today: units, sales value and margin (valued at today's prices, " +
-    "since the ledger records units), the best sellers by value, the slowest-moving stock, and sales by category.",
+    "Sales over the last 28 or 90 days, ending today: units, sales value and margin (a sale recorded with prices " +
+    "counts at what it sold for after discounts; a quick sale without prices, at today's list price), the best " +
+    "sellers by value, the slowest-moving stock, and sales by category.",
   input: z.object({
     days: z
       .union(PERIODS.map((n) => z.literal(n)))
@@ -405,6 +413,42 @@ const salesSummary = tool({
         language,
         `Summed sales for the last ${days} days: ${plural(a.sales.units, "unit")}`,
         `গত ${formats("bn").count(days)} দিনের বিক্রি যোগ করা হলো: ${formats("bn").count(a.sales.units)} ইউনিট`,
+      ),
+    };
+  },
+});
+
+const listCustomersTool = tool({
+  name: "list_customers",
+  description:
+    "The business's customers with what each has bought (voided sales left out), paid and still owes, their phone " +
+    "and their last sale, those who owe the most first. A sale's unpaid part is a due on the customer's account.",
+  input: z.object({ owingOnly: z.boolean().optional().describe("Only customers who owe something.") }),
+  async run({ db, now, money, language }, { owingOnly }) {
+    const all = await listCustomers(db);
+    const chosen = all
+      .filter((c) => !owingOnly || c.dueCents > 0)
+      .sort((a, b) => b.dueCents - a.dueCents || a.name.localeCompare(b.name));
+    const owing = all.filter((c) => c.dueCents > 0);
+    return {
+      data: {
+        customers: chosen.map((c) => ({
+          customerId: c.id,
+          name: c.name,
+          phone: c.phone,
+          sales: c.saleCount,
+          bought: money.money(c.boughtCents),
+          paid: money.money(c.paidCents),
+          owes: c.dueCents > 0 ? money.money(c.dueCents) : null,
+          lastSale: day(c.lastSaleAt, now),
+        })),
+        owedInAll: money.money(owing.reduce((sum, c) => sum + c.dueCents, 0)),
+      },
+      refs: chosen.map((c): Ref => ({ kind: "customer", id: c.id, label: c.name })),
+      summary: say(
+        language,
+        `Listed customers: ${chosen.length}, ${owing.length} owing`,
+        `ক্রেতার তালিকা: ${bn(chosen.length)}, বাকি আছে ${formats("bn").count(owing.length)} জনের`,
       ),
     };
   },
@@ -501,6 +545,7 @@ export const TOOLS = [
   listOrdersTool,
   getOrderTool,
   salesSummary,
+  listCustomersTool,
   draftPurchaseOrder,
 ];
 

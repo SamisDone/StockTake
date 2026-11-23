@@ -2,7 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
 import type { Database } from "@/db/database";
-import { type MovementKind, products, purchaseOrderLines, stockMovements, users } from "@/db/schema";
+import { type MovementKind, products, purchaseOrderLines, saleLines, stockMovements, users } from "@/db/schema";
 import type { Actor } from "./actor";
 import { logActivity } from "./activity";
 import { said } from "./error-copy";
@@ -175,6 +175,7 @@ export async function undoMovement(db: Database, actor: Actor, movementId: numbe
       userId: stockMovements.userId,
       occurredAt: stockMovements.occurredAt,
       reversesId: stockMovements.reversesId,
+      saleLineId: stockMovements.saleLineId,
       productId: products.id,
       name: products.name,
       archivedAt: products.archivedAt,
@@ -186,6 +187,7 @@ export async function undoMovement(db: Database, actor: Actor, movementId: numbe
   if (!line) throw new DomainError("not_found", said("noMovement"));
   if (line.kind === "receipt" || line.kind === "supplier_return" || line.reversesId !== null)
     throw new DomainError("invalid_state", said("cantUndo"));
+  if (line.saleLineId !== null) throw new DomainError("invalid_state", said("saleLineUndo"));
   if (line.undone) throw new DomainError("invalid_state", said("alreadyUndone"));
   if (line.userId !== actor.id) throw new DomainError("forbidden", said("undoNotYours"));
   if (now.getTime() - line.occurredAt.getTime() > UNDO_WINDOW_MS) {
@@ -263,6 +265,10 @@ export async function listMovements(
         sql<boolean>`EXISTS (SELECT 1 FROM ${stockMovements} r WHERE r.reverses_id = ${outer(stockMovements, "id")})`.mapWith(
           Boolean,
         ),
+      /** The priced sale this line took stock for, or, on the line that voided it, gave back. */
+      saleId: sql<
+        number | null
+      >`(SELECT l.sale_id FROM ${saleLines} l WHERE l.id = coalesce(${outer(stockMovements, "saleLineId")}, (SELECT o.sale_line_id FROM ${stockMovements} o WHERE o.id = ${outer(stockMovements, "reversesId")})))`,
     })
     .from(stockMovements)
     .leftJoin(users, eq(users.id, stockMovements.userId))

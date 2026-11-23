@@ -176,7 +176,9 @@ export type MovementKind = (typeof movementKinds)[number];
  * received in several parts, never past what was ordered, and sent back only up to what
  * it received. An undo is an adjustment that
  * reverses one earlier movement exactly (`reverses_id`), and it counts as that
- * movement's kind wherever the ledger is summed by kind.
+ * movement's kind wherever the ledger is summed by kind. A sale made with prices (a
+ * `sales` record) takes its stock as one sale movement per line (`sale_line_id`); voiding
+ * the sale reverses each one.
  */
 export const stockMovements = sqliteTable(
   "stock_movements",
@@ -196,6 +198,10 @@ export const stockMovements = sqliteTable(
     reversesId: integer("reverses_id")
       .unique()
       .references((): AnySQLiteColumn => stockMovements.id),
+    /** Set on a sale made through a priced sale: the line it took stock for. One movement per line. */
+    saleLineId: integer("sale_line_id")
+      .unique()
+      .references((): AnySQLiteColumn => saleLines.id),
   },
   (t) => [
     index("stock_movements_product_occurred").on(t.productId, t.occurredAt),
@@ -219,6 +225,107 @@ export const stockMovements = sqliteTable(
       "stock_movements_receipt_line",
       sql`(${t.kind} IN ('receipt', 'supplier_return')) = (${t.purchaseOrderLineId} IS NOT NULL)`,
     ),
+  ],
+);
+
+/** The people and businesses that buy, so a sale can be on credit and its due followed up. */
+export const customers = sqliteTable("customers", {
+  id: integer("id").primaryKey(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  note: text("note"),
+  createdAt: createdAt(),
+});
+
+/**
+ * A sale with prices: who bought (or nobody, a walk-in), when, and a discount on the
+ * whole sale. Its lines carry the products and what each brought in; its total is the
+ * sum of their `net_cents`. Sales are never edited or deleted: a mistake is voided,
+ * which puts the stock back and takes the sale out of what's owed.
+ */
+export const sales = sqliteTable(
+  "sales",
+  {
+    id: integer("id").primaryKey(),
+    customerId: integer("customer_id").references(() => customers.id),
+    /** Off the whole sale, spread over its lines' `net_cents`. */
+    discountCents: integer("discount_cents").notNull().default(0),
+    note: text("note"),
+    soldAt: timestamp("sold_at").notNull(),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id),
+    voidedAt: timestamp("voided_at"),
+    voidedBy: integer("voided_by").references(() => users.id),
+  },
+  (t) => [
+    index("sales_customer_id").on(t.customerId),
+    index("sales_sold_at").on(t.soldAt),
+    check("sales_discount_nonnegative", sql`${t.discountCents} >= 0`),
+    check("sales_voided_together", sql`(${t.voidedAt} IS NULL) = (${t.voidedBy} IS NULL)`),
+  ],
+);
+
+export const saleLines = sqliteTable(
+  "sale_lines",
+  {
+    id: integer("id").primaryKey(),
+    saleId: integer("sale_id")
+      .notNull()
+      .references(() => sales.id),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id),
+    quantity: integer("quantity").notNull(),
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    /** Off this line. */
+    discountCents: integer("discount_cents").notNull().default(0),
+    /** What the line brought in: quantity × price, less its discount and its share of the sale's. */
+    netCents: integer("net_cents").notNull(),
+  },
+  (t) => [
+    uniqueIndex("sale_lines_one_per_product").on(t.saleId, t.productId),
+    index("sale_lines_product_id").on(t.productId),
+    check("sale_lines_quantity_positive", sql`${t.quantity} > 0`),
+    check("sale_lines_price_nonnegative", sql`${t.unitPriceCents} >= 0`),
+    check(
+      "sale_lines_discount_within_line",
+      sql`${t.discountCents} >= 0 AND ${t.discountCents} <= ${t.quantity} * ${t.unitPriceCents}`,
+    ),
+    check(
+      "sale_lines_net_within_line",
+      sql`${t.netCents} >= 0 AND ${t.netCents} <= ${t.quantity} * ${t.unitPriceCents} - ${t.discountCents}`,
+    ),
+  ],
+);
+
+export const paymentMethods = ["cash", "mobile", "card", "bank"] as const;
+export type PaymentMethod = (typeof paymentMethods)[number];
+
+/**
+ * Money received: at the sale, or later against what a customer owes. A walk-in sale's
+ * payment belongs to the sale alone; a customer's counts against everything they owe.
+ * Append-only, and never more than what's owed.
+ */
+export const payments = sqliteTable(
+  "payments",
+  {
+    id: integer("id").primaryKey(),
+    customerId: integer("customer_id").references(() => customers.id),
+    saleId: integer("sale_id").references(() => sales.id),
+    amountCents: integer("amount_cents").notNull(),
+    method: text("method", { enum: paymentMethods }).notNull(),
+    note: text("note"),
+    receivedAt: timestamp("received_at").notNull(),
+    userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    index("payments_customer_id").on(t.customerId),
+    index("payments_sale_id").on(t.saleId),
+    check("payments_amount_positive", sql`${t.amountCents} > 0`),
+    check("payments_method", sql`${t.method} IN ('cash', 'mobile', 'card', 'bank')`),
+    check("payments_belong", sql`${t.customerId} IS NOT NULL OR ${t.saleId} IS NOT NULL`),
   ],
 );
 

@@ -465,3 +465,101 @@ describe("activity log", () => {
     await expect(run("DELETE FROM activity_log")).rejects.toThrow(/append-only/);
   });
 });
+
+describe("sales with prices", () => {
+  /** Stock on hand, a customer, and sale 1 to them: 3 widgets at $9 (net $27) on line 1. */
+  async function saleToCustomer() {
+    await move(1, "adjustment", 10);
+    await run("INSERT INTO customers (id, name) VALUES (1, 'Rahman Traders')");
+    await run("INSERT INTO sales (id, customer_id, sold_at, created_by) VALUES (1, 1, ?, 1)", [T0]);
+    await run(
+      "INSERT INTO sale_lines (id, sale_id, product_id, quantity, unit_price_cents, net_cents) VALUES (1, 1, 1, 3, 900, 2700)",
+    );
+  }
+  const sell = (lineId: number, productId: number, quantity: number) =>
+    run(
+      "INSERT INTO stock_movements (product_id, kind, quantity, sale_line_id, user_id, occurred_at) VALUES (?, 'sale', ?, ?, 1, ?)",
+      [productId, quantity, lineId, T0],
+    );
+  const pay = (customerId: number | null, saleId: number | null, cents: number) =>
+    run(
+      "INSERT INTO payments (customer_id, sale_id, amount_cents, method, received_at, user_id) VALUES (?, ?, ?, 'cash', ?, 1)",
+      [customerId, saleId, cents, T0],
+    );
+
+  it("takes a line's stock as one sale movement of exactly its product and quantity", async () => {
+    await saleToCustomer();
+    await expect(sell(1, 1, -2)).rejects.toThrow(/must match its sale line/);
+    await expect(sell(1, 2, -3)).rejects.toThrow(/must match its sale line/);
+    await sell(1, 1, -3);
+    expect(await onHand(1)).toBe(7);
+    await expect(sell(1, 1, -3)).rejects.toThrow(/UNIQUE constraint failed: stock_movements.sale_line_id/);
+  });
+
+  it("keeps sales, their lines and payments as records", async () => {
+    await saleToCustomer();
+    await pay(1, 1, 1000);
+    await expect(run("UPDATE sales SET discount_cents = 100")).rejects.toThrow(/append-only/);
+    await expect(run("DELETE FROM sales")).rejects.toThrow(/append-only/);
+    await expect(run("UPDATE sale_lines SET net_cents = 1")).rejects.toThrow(/append-only/);
+    await expect(run("DELETE FROM payments")).rejects.toThrow(/append-only/);
+  });
+
+  it("holds a line's discount and net within what the line comes to", async () => {
+    await saleToCustomer();
+    await expect(
+      run(
+        "INSERT INTO sale_lines (sale_id, product_id, quantity, unit_price_cents, discount_cents, net_cents) VALUES (1, 2, 1, 500, 600, 0)",
+      ),
+    ).rejects.toThrow(/sale_lines_discount_within_line/);
+    await expect(
+      run(
+        "INSERT INTO sale_lines (sale_id, product_id, quantity, unit_price_cents, net_cents) VALUES (1, 2, 1, 500, 501)",
+      ),
+    ).rejects.toThrow(/sale_lines_net_within_line/);
+  });
+
+  it("never takes more from a customer than they owe", async () => {
+    await saleToCustomer();
+    await pay(1, 1, 2000);
+    await expect(pay(1, null, 701)).rejects.toThrow(/more than the customer owes/);
+    await pay(1, null, 700);
+  });
+
+  it("takes a walk-in's payment for its sale only, up to its total", async () => {
+    await move(2, "adjustment", 5);
+    await run("INSERT INTO sales (id, sold_at, created_by) VALUES (2, ?, 1)", [T0]);
+    await run(
+      "INSERT INTO sale_lines (sale_id, product_id, quantity, unit_price_cents, net_cents) VALUES (2, 2, 1, 1500, 1500)",
+    );
+    await expect(pay(null, 2, 1501)).rejects.toThrow(/more than the sale's total/);
+    await run("INSERT INTO customers (id, name) VALUES (9, 'Someone')");
+    // Refused by whichever rule fires first: not this sale's customer, and owes nothing.
+    await expect(pay(9, 2, 100)).rejects.toThrow(/must match its sale|more than the customer owes/);
+    await pay(null, 2, 1500);
+  });
+
+  it("gives a sale's stock back only by voiding it, once", async () => {
+    await saleToCustomer();
+    await sell(1, 1, -3);
+    const reverse = () =>
+      run(
+        "INSERT INTO stock_movements (product_id, kind, quantity, reverses_id, user_id, occurred_at) VALUES (1, 'adjustment', 3, 2, 1, ?)",
+        [T0],
+      );
+    await expect(reverse()).rejects.toThrow(/only when the sale is voided/);
+    await run("UPDATE sales SET voided_at = ?, voided_by = 1 WHERE id = 1", [T0]);
+    await reverse();
+    expect(await onHand(1)).toBe(10);
+    await expect(run("UPDATE sales SET voided_at = ?, voided_by = 1 WHERE id = 1", [T0 + 1])).rejects.toThrow(
+      /voided already/,
+    );
+    await expect(pay(1, 1, 100)).rejects.toThrow(/must match its sale|more than the customer owes/);
+  });
+
+  it("keeps the sale line a movement belongs to", async () => {
+    await saleToCustomer();
+    await sell(1, 1, -3);
+    await expect(run("UPDATE stock_movements SET sale_line_id = NULL WHERE id = 2")).rejects.toThrow(/append-only/);
+  });
+});

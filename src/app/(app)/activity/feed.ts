@@ -28,6 +28,7 @@ export type FeedDay = { day: string; items: FeedItem[] };
 export const KINDS = {
   all: { actions: [] as string[] },
   stock: { actions: ["stock."] },
+  sales: { actions: ["sale.", "payment.", "customer."] },
   orders: { actions: ["purchase_order."] },
   catalog: { actions: ["product.", "supplier.", "user."] },
 } as const;

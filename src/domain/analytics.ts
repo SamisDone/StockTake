@@ -1,7 +1,8 @@
 import { type AnyColumn, type SQL, and, asc, eq, gte, lt, sql } from "drizzle-orm";
 import { countedKind } from "./counted-kind";
 import type { Database } from "@/db/database";
-import { products, purchaseOrders, stockMovements, suppliers } from "@/db/schema";
+import { products, purchaseOrders, saleLines, stockMovements, suppliers } from "@/db/schema";
+import { outer } from "./input";
 import { BUSINESS_OFFSET_MS, DAY_MS, addDays, dayFromNumber, dayNumber } from "@/lib/business-time";
 import { arrivedOnTime, daysTaken, poNumber } from "./purchase-orders";
 
@@ -25,6 +26,19 @@ export function readPeriod(raw: string | undefined): PeriodDays {
 export function periodRange(days: number, now: Date) {
   return { from: addDays(now, -(days - 1)), to: now };
 }
+
+/**
+ * The priced sale line a movement belongs to: its own, or for the reversal that voided
+ * a sale, the line of the movement it reverses.
+ */
+const lineOfMovement = sql`coalesce(${outer(stockMovements, "saleLineId")}, (SELECT o.sale_line_id FROM ${stockMovements} o WHERE o.id = ${outer(stockMovements, "reversesId")}))`;
+
+/**
+ * What a selling movement brought in, signed like a sale: a priced sale line's net (what
+ * the customer actually paid for those units, after discounts), or for a quick sale or a
+ * return recorded without a price, today's list price.
+ */
+const soldValue = sql`(CASE WHEN ${lineOfMovement} IS NULL THEN -${outer(stockMovements, "quantity")} * ${products.unitPriceCents} ELSE -${outer(stockMovements, "quantity")} * (SELECT l.net_cents * 1.0 / l.quantity FROM ${saleLines} l WHERE l.id = ${lineOfMovement}) END)`;
 
 /** Sums a movement column over the rows that match `when`, or 0. */
 const total = (when: SQL) => sql<number>`coalesce(sum(CASE WHEN ${when} THEN ${stockMovements.quantity} END), 0)`;
@@ -57,6 +71,11 @@ async function ledgerRows(db: Database, from: Date, to: Date) {
       sentBack: total(inside("supplier_return")).mapWith(Number),
       countFound: total(inside("adjustment", sql`${stockMovements.quantity} > 0`)).mapWith(Number),
       countShort: total(inside("adjustment", sql`${stockMovements.quantity} < 0`)).mapWith(Number),
+      /** What the period's sales less returns brought in (see `soldValue`). */
+      salesValue:
+        sql<number>`round(coalesce(sum(CASE WHEN ${stockMovements.occurredAt} >= ${from.getTime()} AND ${stockMovements.occurredAt} < ${to.getTime()} AND ${countedKind} IN ('sale', 'return') THEN ${soldValue} END), 0))`.mapWith(
+          Number,
+        ),
       after: total(sql`${stockMovements.occurredAt} >= ${to.getTime()}`).mapWith(Number),
     })
     .from(products)
@@ -81,7 +100,7 @@ async function dayRows(db: Database, from: Date, to: Date) {
     .select({
       day: day.mapWith(Number),
       units: sold(sql`1`),
-      valueCents: sold(products.unitPriceCents),
+      valueCents: sql<number>`round(coalesce(sum(CASE WHEN ${selling} THEN ${soldValue} END), 0))`.mapWith(Number),
       costCents: sold(products.unitCostCents),
       stockChangeCents: sql<number>`sum(${stockMovements.quantity} * ${products.unitCostCents})`.mapWith(Number),
     })
@@ -167,7 +186,7 @@ export function byCategory(rows: LedgerRow[], days: number) {
   }
   return [...groups]
     .map(([name, members]) => {
-      const sales = members.reduce((sum, r) => sum + netSold(r) * r.unitPriceCents, 0);
+      const sales = members.reduce((sum, r) => sum + r.salesValue, 0);
       const cost = members.reduce((sum, r) => sum + netSold(r) * r.unitCostCents, 0);
       const stockCents = members.reduce((sum, r) => sum + r.onHand * r.unitCostCents, 0);
       return {
@@ -200,7 +219,7 @@ function productFigures(r: LedgerRow, days: number) {
     sku: r.sku,
     name: r.name,
     netSold: units,
-    salesCents: units * r.unitPriceCents,
+    salesCents: r.salesValue,
     onHand: r.onHand,
     stockCents: r.onHand * r.unitCostCents,
     lastsDays: lasts(r.onHand, units / days),

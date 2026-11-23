@@ -3,9 +3,12 @@ import { alias } from "drizzle-orm/sqlite-core";
 import type { Database } from "@/db/database";
 import {
   type MovementKind,
+  customers,
   products,
   purchaseOrderLines,
   purchaseOrders,
+  saleLines,
+  sales,
   stockMovements,
   supplierReviews,
   suppliers,
@@ -16,6 +19,7 @@ import type { Cell } from "@/lib/csv";
 import { outer } from "./input";
 import { PRODUCT_COLUMNS } from "./product-import";
 import { poNumber } from "./purchase-orders";
+import { saleNumber } from "./sales";
 
 /**
  * The tables people take out of Stocktake, as rows for a CSV file. Headers are English
@@ -243,6 +247,56 @@ export async function ledgerRows(db: Database, from: Date, to: Date): Promise<Ce
       m.person,
       m.note,
       m.reversesId,
+    ]),
+  ];
+}
+
+/** Every sale with prices, one row per line, oldest first: what went for how much, to whom. */
+export async function saleRows(db: Database): Promise<Cell[][]> {
+  const rows = await db
+    .select({
+      id: sales.id,
+      soldAt: sales.soldAt,
+      customer: customers.name,
+      voidedAt: sales.voidedAt,
+      sku: products.sku,
+      product: products.name,
+      quantity: saleLines.quantity,
+      unitPrice: saleLines.unitPriceCents,
+      discount: saleLines.discountCents,
+      net: saleLines.netCents,
+    })
+    .from(saleLines)
+    .innerJoin(sales, eq(sales.id, saleLines.saleId))
+    .innerJoin(products, eq(products.id, saleLines.productId))
+    .leftJoin(customers, eq(customers.id, sales.customerId))
+    .orderBy(asc(sales.soldAt), asc(sales.id), asc(saleLines.id));
+  return [
+    [
+      "Sale",
+      "Date",
+      "Time",
+      "Customer",
+      "SKU",
+      "Product",
+      "Quantity",
+      "Unit price (USD)",
+      "Line discount (USD)",
+      "Net (USD)",
+      "Voided on",
+    ],
+    ...rows.map((r) => [
+      saleNumber(r.id),
+      dayKey(r.soldAt),
+      time(r.soldAt),
+      r.customer ?? "Walk-in",
+      r.sku,
+      r.product,
+      r.quantity,
+      dollars(r.unitPrice),
+      dollars(r.discount),
+      dollars(r.net),
+      day(r.voidedAt),
     ]),
   ];
 }

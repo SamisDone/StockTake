@@ -37,6 +37,7 @@ describe("tool definitions", () => {
       "list_orders",
       "get_order",
       "sales_summary",
+      "list_customers",
       "draft_purchase_order",
     ]);
     for (const t of TOOL_DEFINITIONS) {
@@ -168,6 +169,19 @@ describe("sales_summary", () => {
     expect(data.unitsSold).toBeGreaterThan(0);
     expect((data.bestSellers as unknown[]).length).toBe(5);
     expect(await refused("sales_summary", '{"days":7}')).toMatch(/^Invalid arguments: days/);
+  });
+});
+
+describe("list_customers", () => {
+  it("lists those who owe the most first, linked, and only those owing when asked", async () => {
+    const { data, refs } = await ok("list_customers");
+    const customers = data.customers as { owes: string | null; customerId: number }[];
+    expect(customers.length).toBeGreaterThan(0);
+    expect(customers[0].owes).toMatch(/^\$/);
+    expect(refs[0]).toMatchObject({ kind: "customer", id: customers[0].customerId });
+    const owing = (await ok("list_customers", { owingOnly: true })).data.customers as { owes: string | null }[];
+    expect(owing.every((c) => c.owes !== null)).toBe(true);
+    expect(data.owedInAll).toMatch(/^\$/);
   });
 });
 

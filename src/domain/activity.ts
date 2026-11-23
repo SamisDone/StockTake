@@ -5,7 +5,7 @@ import type { Actor } from "./actor";
 import { type ActivityEvent, describeActivity } from "./activity-copy";
 
 export type ActivityEntry = ActivityEvent & {
-  entityType: "product" | "supplier" | "purchase_order" | "user";
+  entityType: "product" | "supplier" | "purchase_order" | "user" | "sale" | "customer";
   /** A number, or SQL that resolves to the new row's ID inside a batch. */
   entityId: number | SQL<number>;
 };

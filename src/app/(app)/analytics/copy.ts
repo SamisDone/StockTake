@@ -8,7 +8,7 @@ const en = {
   lastDays: (n: string) => `Last ${n} days`,
   toToday: (day: string) => `${day} to today · days end at midnight, Dhaka time`,
   tallies: ["Sales", "Gross margin", "Stock at cost", "Lost stock"],
-  atList: (units: string) => `${units} units at list price`,
+  atList: (units: string) => `${units} units sold`,
   ofSales: (percent: string) => `${percent}% of sales`,
   noSales: "No sales",
   unitsOnHand: (units: string) => `${units} units on hand`,
@@ -44,7 +44,7 @@ const en = {
   // Sales by day
   sales: "Sales by day",
   salesNote:
-    "Units sold less returns, at today's list prices: the ledger records units, not the price a sale was made at.",
+    "Units sold less returns. A sale recorded with prices counts at what it sold for, after discounts; a quick sale from Record stock, at today's list price.",
   table: "Every day as a table",
   day: "Day",
   salesColumn: "Sales",
@@ -92,7 +92,7 @@ const en = {
 
   // Product lists
   best: "Best sellers",
-  bestNote: "By sales at list price, net of returns.",
+  bestNote: "By sales value, net of returns.",
   bestEmpty: "Nothing sold in this period.",
   unitsSold: (n: string) => `${n} units`,
   slowest: "Slowest to sell",
@@ -124,7 +124,7 @@ const bn: AnalyticsCopy = {
   lastDays: (n) => `গত ${n} দিন`,
   toToday: (day) => `${day} থেকে আজ · দিন শেষ হয় ঢাকার রাত ১২টায়`,
   tallies: ["বিক্রি", "মোট লাভ", "কেনা দামে মজুত", "হারানো মজুত"],
-  atList: (units) => `তালিকা দামে ${units} ইউনিট`,
+  atList: (units) => `${units} ইউনিট বিক্রি`,
   ofSales: (percent) => `বিক্রির ${percent}%`,
   noSales: "বিক্রি নেই",
   unitsOnHand: (units) => `মজুত ${units} ইউনিট`,
@@ -155,7 +155,8 @@ const bn: AnalyticsCopy = {
   disagrees: (ledger, products) => `খাতার যোগফল ${ledger} ইউনিট, কিন্তু পণ্যগুলোর মজুত মিলিয়ে ${products}।`,
 
   sales: "দিনভিত্তিক বিক্রি",
-  salesNote: "বিক্রি থেকে ফেরত বাদ দিয়ে, আজকের তালিকা দামে: খাতায় ইউনিট লেখা থাকে, কোন দামে বিক্রি হয়েছিল তা নয়।",
+  salesNote:
+    "বিক্রি থেকে ফেরত বাদ দিয়ে। দাম দিয়ে লেখা বিক্রি ধরা হয় যে দামে বিক্রি হয়েছে, ছাড় বাদে; স্টক লিখুন থেকে দ্রুত বিক্রি, আজকের তালিকা দামে।",
   table: "প্রতিদিনের হিসাব সারণিতে",
   day: "দিন",
   salesColumn: "বিক্রি",
@@ -198,7 +199,7 @@ const bn: AnalyticsCopy = {
   uncategorised: "শ্রেণিহীন",
 
   best: "সবচেয়ে বেশি বিক্রি",
-  bestNote: "তালিকা দামে বিক্রি অনুযায়ী, ফেরত বাদে।",
+  bestNote: "বিক্রির মূল্য অনুযায়ী, ফেরত বাদে।",
   bestEmpty: "এই সময়কালে কিছু বিক্রি হয়নি।",
   unitsSold: (n) => `${n} ইউনিট`,
   slowest: "সবচেয়ে ধীরে বিক্রি",

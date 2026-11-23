@@ -16,6 +16,7 @@ export type Block = { type: "paragraph"; content: Inline[] } | { type: "list"; o
 export function refHref(ref: Ref) {
   if (ref.kind === "product") return `/products/${ref.id}` as const;
   if (ref.kind === "supplier") return `/suppliers/${ref.id}` as const;
+  if (ref.kind === "customer") return `/customers/${ref.id}` as const;
   return `/orders/${ref.id}` as const;
 }
 

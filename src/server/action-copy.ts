@@ -60,6 +60,16 @@ const en = {
   chooseStars: "Choose 1 to 5 stars.",
   reviewSaved: "Saved your review.",
   reviewRemoved: "Removed your review.",
+
+  // Sales and customers
+  noSale: "That sale doesn't exist.",
+  noCustomer: "That customer doesn't exist.",
+  sellAtLeastOne: "Sell 1 unit or more.",
+  enterPrice: "Enter the price in dollars and cents, like 4.50.",
+  enterDiscount: "Enter the discount in dollars and cents, or leave it empty.",
+  enterPaid: "Enter what was paid in dollars and cents, 0 or more.",
+  enterAmount: "Enter the amount in dollars and cents, like 20.00.",
+  choosePayment: "Choose how it was paid.",
 };
 
 const b = formats("bn");
@@ -114,6 +124,15 @@ const bn: typeof en = {
   chooseStars: "১ থেকে ৫ তারা বেছে নিন।",
   reviewSaved: "আপনার রিভিউ সংরক্ষণ হলো।",
   reviewRemoved: "আপনার রিভিউ সরানো হলো।",
+
+  noSale: "এই বিক্রি নেই।",
+  noCustomer: "এই ক্রেতা নেই।",
+  sellAtLeastOne: "১ ইউনিট বা বেশি বিক্রি করুন।",
+  enterPrice: "দাম ডলার ও সেন্টে লিখুন, যেমন ৪.৫০।",
+  enterDiscount: "ছাড় ডলার ও সেন্টে লিখুন, অথবা খালি রাখুন।",
+  enterPaid: "কত দেওয়া হলো ডলার ও সেন্টে লিখুন, ০ বা বেশি।",
+  enterAmount: "অঙ্কটি ডলার ও সেন্টে লিখুন, যেমন ২০.০০।",
+  choosePayment: "কীভাবে দেওয়া হলো বাছুন।",
 };
 
 export const ACTION_COPY: Copy<typeof en> = { en, bn };

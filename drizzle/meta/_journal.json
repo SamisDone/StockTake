@@ -64,6 +64,20 @@
       "when": 1795416432302,
       "tag": "0008_partial_receiving",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795444815707,
+      "tag": "0009_sales",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1795444828274,
+      "tag": "0010_sales_rules",
+      "breakpoints": true
     }
   ]
 }

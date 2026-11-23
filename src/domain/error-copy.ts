@@ -1,4 +1,5 @@
 import { formats } from "@/lib/format";
+import { DOLLARS, moneyFormat } from "@/lib/money";
 import type { Copy, Language } from "@/lib/i18n";
 
 /**
@@ -74,6 +75,25 @@ const en = {
   supplierHasOpenOrders: ({ supplier, orders }: { supplier: string } & Orders) =>
     `${supplier} has ${englishList(orders)} open. Receive or cancel ${orders.length === 1 ? "it" : "them"} first.`,
   supplierArchivedEdit: ({ supplier }: { supplier: string }) => `${supplier} is archived. Restore it to edit it.`,
+
+  // Sales and customers
+  quantityPositive: () => "Sell at least 1.",
+  discountTooLarge: () => "The discount can't be more than what it comes off.",
+  paidTooMuch: () => "Paid can't be more than the total.",
+  walkInPays: () => "A walk-in pays the whole total. Choose a customer to leave some of it due.",
+  noCustomer: () => "That customer doesn't exist.",
+  noSale: () => "That sale doesn't exist.",
+  saleVoided: ({ sale }: { sale: string }) => `${sale} was voided already.`,
+  voidArchived: ({ sale }: { sale: string }) =>
+    `A product on ${sale} has been archived since, so its stock can't come back. Restore the product first.`,
+  saleLineUndo: () => "That line belongs to a sale with prices. Void the sale instead.",
+  enterAmount: () => "Enter an amount above zero.",
+  payMoreThanDue: ({ dueCents }: { dueCents: number }) =>
+    dueCents === 0
+      ? "Nothing is due from this customer."
+      : `Only ${moneyFormat(DOLLARS).money(dueCents)} is due from this customer.`,
+  paidMeanwhile: ({ name }: { name: string }) =>
+    `Someone took a payment from ${name} just now. Check what's still due and try again.`,
 
   // Import
   importEmpty: () => "That file has no rows to import under its header line.",
@@ -185,6 +205,23 @@ const bn: typeof en = {
     `${supplier}-এর ${banglaList(orders)} এখনো খোলা। আগে ${orders.length === 1 ? "সেটি" : "সেগুলো"} বুঝে নিন বা বাতিল করুন।`,
   supplierArchivedEdit: ({ supplier }) => `${supplier} আর্কাইভ করা। সম্পাদনা করতে আগে ফিরিয়ে আনুন।`,
 
+  quantityPositive: () => "অন্তত ১টি বিক্রি করুন।",
+  discountTooLarge: () => "ছাড় যার ওপর, তার চেয়ে বেশি হতে পারে না।",
+  paidTooMuch: () => "পরিশোধ মোটের চেয়ে বেশি হতে পারে না।",
+  walkInPays: () => "সরাসরি ক্রেতা পুরো মোট দেন। কিছু বাকি রাখতে একজন ক্রেতা বাছুন।",
+  noCustomer: () => "এই ক্রেতা নেই।",
+  noSale: () => "এই বিক্রি নেই।",
+  saleVoided: ({ sale }) => `${sale} আগেই বাতিল হয়েছে।`,
+  voidArchived: ({ sale }) =>
+    `${sale}-এর একটি পণ্য পরে আর্কাইভ হয়েছে, তাই মজুত ফেরানো যাবে না। আগে পণ্যটি ফিরিয়ে আনুন।`,
+  saleLineUndo: () => "এই লাইনটি দামসহ একটি বিক্রির অংশ। বরং বিক্রিটি বাতিল করুন।",
+  enterAmount: () => "শূন্যের বেশি একটি অঙ্ক লিখুন।",
+  payMoreThanDue: ({ dueCents }) =>
+    dueCents === 0
+      ? "এই ক্রেতার কাছে কিছু বাকি নেই।"
+      : `এই ক্রেতার কাছে বাকি মাত্র ${moneyFormat(DOLLARS, "bn").money(dueCents)}।`,
+  paidMeanwhile: ({ name }) => `এইমাত্র কেউ ${name}-এর কাছ থেকে টাকা নিয়েছেন। কত বাকি দেখে আবার চেষ্টা করুন।`,
+
   importEmpty: () => "ফাইলের প্রথম লাইনের নিচে আনার মতো কোনো সারি নেই।",
   importTooLarge: () => "ফাইলটি ৫০০ KB-এর বেশি। কয়েকটি ছোট ফাইলে ভাগ করুন।",
   importTooMany: ({ max }) => `একবারে সর্বোচ্চ ${n(max)}টি পণ্য আনা যায়। ফাইলটি ভাগ করুন।`,
@@ -247,6 +284,7 @@ export type AdminAction =
   | "managePeople"
   | "addProducts"
   | "importProducts"
+  | "voidSales"
   | "editProducts"
   | "archiveProducts"
   | "restoreProducts"
@@ -263,6 +301,7 @@ const ADMIN_ACTIONS_EN: Record<AdminAction, string> = {
   managePeople: "change someone's role or password",
   addProducts: "add products",
   importProducts: "import products",
+  voidSales: "void a sale",
   editProducts: "edit products",
   archiveProducts: "archive products",
   restoreProducts: "restore products",
@@ -280,6 +319,7 @@ const ADMIN_ACTIONS_BN: Record<AdminAction, string> = {
   managePeople: "কারও ভূমিকা বা পাসওয়ার্ড বদলাতে পারেন",
   addProducts: "পণ্য যোগ করতে পারেন",
   importProducts: "পণ্য আনতে পারেন",
+  voidSales: "বিক্রি বাতিল করতে পারেন",
   editProducts: "পণ্য সম্পাদনা করতে পারেন",
   archiveProducts: "পণ্য আর্কাইভ করতে পারেন",
   restoreProducts: "পণ্য ফিরিয়ে আনতে পারেন",

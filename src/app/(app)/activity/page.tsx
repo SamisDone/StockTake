@@ -193,6 +193,8 @@ function entityHref(entry: FeedEntry): Route | null {
   if (entry.entityType === "product") return `/products/${entry.entityId}` as Route;
   if (entry.entityType === "purchase_order") return `/orders/${entry.entityId}` as Route;
   if (entry.entityType === "supplier") return `/suppliers/${entry.entityId}` as Route;
+  if (entry.entityType === "sale") return `/sales/${entry.entityId}` as Route;
+  if (entry.entityType === "customer") return `/customers/${entry.entityId}` as Route;
   return null;
 }
 
@@ -336,12 +338,15 @@ const en = {
   who: "Who",
   everyone: "Everyone",
   someone: "Someone",
-  kinds: { all: "Everything", stock: "Stock", orders: "Orders", catalog: "Catalog" } as Record<Kind, string>,
+  kinds: { all: "Everything", stock: "Stock", sales: "Sales", orders: "Orders", catalog: "Catalog" } as Record<
+    Kind,
+    string
+  >,
   thisWeek: "This week",
   weekTo: (day: string) => `Week to ${day}`,
   entries: (n: number, text: string) => `${text} ${n === 1 ? "entry" : "entries"} · Dhaka time`,
   nothing: (kind: Exclude<Kind, "all"> | null, person: string | null | undefined) =>
-    `Nothing ${kind ? `in ${{ stock: "stock", orders: "orders", catalog: "catalog" }[kind]} ` : ""}${
+    `Nothing ${kind ? `in ${{ stock: "stock", sales: "sales", orders: "orders", catalog: "catalog" }[kind]} ` : ""}${
       person === undefined ? "" : `by ${person ?? "them"} `
     }this week.`,
   sales: (n: string) => `${n} sales`,
@@ -362,13 +367,13 @@ const COPY: Copy<ActivityCopy> = {
     who: "কে",
     everyone: "সবাই",
     someone: "কেউ একজন",
-    kinds: { all: "সব", stock: "স্টক", orders: "অর্ডার", catalog: "পণ্যতালিকা" },
+    kinds: { all: "সব", stock: "স্টক", sales: "বিক্রি", orders: "অর্ডার", catalog: "পণ্যতালিকা" },
     thisWeek: "এই সপ্তাহ",
     weekTo: (day) => `${day} পর্যন্ত সপ্তাহ`,
     entries: (_n, text) => `${text}টি এন্ট্রি · ঢাকার সময়`,
     nothing: (kind, person) =>
       `এই সপ্তাহে ${person === undefined ? "" : `${person ?? "তাঁর"} `}${
-        kind ? `${{ stock: "স্টকে", orders: "অর্ডারে", catalog: "পণ্যতালিকায়" }[kind]} ` : ""
+        kind ? `${{ stock: "স্টকে", sales: "বিক্রিতে", orders: "অর্ডারে", catalog: "পণ্যতালিকায়" }[kind]} ` : ""
       }কিছু হয়নি।`,
     sales: (n) => `${n}টি বিক্রি`,
     ofProducts: (_n, text) => `, ${text}টি পণ্যের`,

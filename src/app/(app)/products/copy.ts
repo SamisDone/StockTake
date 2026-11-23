@@ -98,6 +98,8 @@ const en = {
   ledgerColumns: { date: "Date", movement: "Movement", change: "Change", balance: "Balance", by: "By" },
   undoOf: (kind: string) => `Undo of a ${kind.toLowerCase()}`,
   undoneMark: "Undone",
+  saleVoided: "Sale voided",
+  voidedMark: "Voided",
   kinds: {
     receipt: "Receipt",
     sale: "Sale",
@@ -273,6 +275,8 @@ const bn: ProductsCopy = {
   ledgerColumns: { date: "তারিখ", movement: "লেনদেন", change: "পরিবর্তন", balance: "ব্যালান্স", by: "যিনি" },
   undoOf: (kind) => `${kind} ফিরিয়ে নেওয়া`,
   undoneMark: "ফিরিয়ে নেওয়া",
+  saleVoided: "বিক্রি বাতিল",
+  voidedMark: "বাতিল",
   kinds: {
     receipt: "প্রাপ্তি",
     sale: "বিক্রি",

@@ -144,6 +144,18 @@ const REVIEWS: [supplier: number, user: number, rating: number, comment: string 
   [6, ADMIN, 3, "Lovely stock, very long lead times."],
 ];
 
+/** Shops and people who buy on account: sales with prices, some paid later. */
+const CUSTOMERS: [id: number, name: string, phone: string][] = [
+  [1, "Rahman Traders", "01711-482019"],
+  [2, "Lakeside Print Shop", "01819-330145"],
+  [3, "Nadia Akter", "01552-907713"],
+  [4, "Corner Hardware", "01913-645280"],
+  [5, "Green Leaf Café", "01675-218846"],
+  [6, "Hasan Electricals", "01784-552301"],
+];
+/** Sales with prices start this many days before the end of the history. */
+const PRICED_SALES_DAYS = 45;
+
 const sqlString = (value: string | null) => (value === null ? "NULL" : `'${value.replace(/'/g, "''")}'`);
 const poNumber = (id: number) => `PO-${String(id).padStart(4, "0")}`;
 const money = (cents: number) => `$${(cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
@@ -213,8 +225,8 @@ function sqlWriter() {
 }
 
 /**
- * The triggers that forbid emptying the tables: the append-only ledger and log, and
- * placed orders' locked lines. A reset drops them, empties the tables and recreates
+ * The triggers that forbid emptying the tables: the append-only ledger and log, placed
+ * orders' locked lines, and sales with their lines and payments. A reset drops them, empties the tables and recreates
  * each one from its definition.
  */
 export const BLOCKING_TRIGGERS = [
@@ -223,6 +235,9 @@ export const BLOCKING_TRIGGERS = [
   "purchase_order_lines_locked_delete",
   "stock_movements_no_update",
   "activity_log_no_update",
+  "sales_no_delete",
+  "sale_lines_no_delete",
+  "payments_no_delete",
 ] as const;
 
 /**
@@ -258,6 +273,10 @@ export function resetStatements(definitions: readonly string[]) {
     "DELETE FROM assistant_usage;",
     "DELETE FROM activity_log;",
     "DELETE FROM stock_movements;",
+    "DELETE FROM payments;",
+    "DELETE FROM sale_lines;",
+    "DELETE FROM sales;",
+    "DELETE FROM customers;",
     "DELETE FROM purchase_order_lines;",
     "DELETE FROM purchase_orders;",
     "DELETE FROM supplier_reviews;",
@@ -330,6 +349,11 @@ export function demoStatements({ anchor }: { anchor: Date }) {
     );
   }
 
+  for (const [id, name, phone] of CUSTOMERS) {
+    out.insert("customers (id, name, phone, created_at)", `(${id}, ${sqlString(name)}, '${phone}', ${created})`);
+    activity(ADMIN, "customer.created", "customer", id, `Added customer ${name}`, created, { name });
+  }
+
   const products: Product[] = CATALOG.map(([sku, name, category, supplierId, costCents, priceCents, demand], index) => {
     const supplier = SUPPLIERS[supplierId - 1];
     return {
@@ -371,6 +395,11 @@ export function demoStatements({ anchor }: { anchor: Date }) {
   let nextLineId = 1;
   const open: OpenOrder[] = [];
   let heldBack = false;
+  let nextSaleId = 1;
+  let nextSaleLineId = 1;
+  // Kept apart from the trading dice, so the rest of the history stays as it was.
+  const saleRand = random(77);
+  const dues = new Map<number, number>();
   let sentBack = false;
 
   const placeOrder = (supplier: Supplier, wanted: Product[], day: number) => {
@@ -470,6 +499,83 @@ export function demoStatements({ anchor }: { anchor: Date }) {
         { order: poNumber(order.id), supplier: order.supplier.name, units },
       );
       open.splice(open.indexOf(order), 1);
+    }
+
+    // Sales with prices to customers on account, in the last weeks: a few lines at list
+    // price (now and then a little off), paid in full, in part or not yet.
+    if (day > HISTORY_DAYS - PRICED_SALES_DAYS && saleRand() < 0.55) {
+      const [customerId, customerName] = CUSTOMERS[Math.floor(saleRand() * CUSTOMERS.length)];
+      const picks = [...products].sort(() => saleRand() - 0.5).slice(0, 1 + Math.floor(saleRand() * 3));
+      const lines = picks
+        .map((product) => {
+          const quantity = Math.min(product.onHand - 1, 2 + Math.floor(saleRand() * 7));
+          const gross = quantity * product.priceCents;
+          const discount = saleRand() < 0.2 ? Math.round(gross * 0.05) : 0;
+          return { product, quantity, discount, net: gross - discount };
+        })
+        .filter((line) => line.quantity > 0);
+      if (lines.length > 0) {
+        const saleId = nextSaleId++;
+        const time = at(day, 14);
+        out.insert("sales (id, customer_id, sold_at, created_by)", `(${saleId}, ${customerId}, ${time}, ${STAFF})`);
+        for (const line of lines) {
+          const lineId = nextSaleLineId++;
+          out.insert(
+            "sale_lines (id, sale_id, product_id, quantity, unit_price_cents, discount_cents, net_cents)",
+            `(${lineId}, ${saleId}, ${line.product.id}, ${line.quantity}, ${line.product.priceCents}, ${line.discount}, ${line.net})`,
+          );
+          out.insert(
+            "stock_movements (product_id, kind, quantity, sale_line_id, user_id, occurred_at)",
+            `(${line.product.id}, 'sale', ${-line.quantity}, ${lineId}, ${STAFF}, ${time})`,
+          );
+          line.product.onHand -= line.quantity;
+        }
+        const total = lines.reduce((sum, line) => sum + line.net, 0);
+        const roll = saleRand();
+        const paid = roll < 0.55 ? total : roll < 0.8 ? Math.round(total / 200) * 100 : 0;
+        if (paid > 0) {
+          out.insert(
+            "payments (customer_id, sale_id, amount_cents, method, received_at, user_id)",
+            `(${customerId}, ${saleId}, ${paid}, '${saleRand() < 0.5 ? "cash" : "mobile"}', ${time}, ${STAFF})`,
+          );
+        }
+        dues.set(customerId, (dues.get(customerId) ?? 0) + total - paid);
+        const due = total - paid;
+        const count = `${lines.length} ${lines.length === 1 ? "line" : "lines"}`;
+        activity(
+          STAFF,
+          "sale.recorded",
+          "sale",
+          saleId,
+          `Sold ${count} to ${customerName} for ${money(total)}${due > 0 ? `, ${money(due)} due` : ""}`,
+          time,
+          { customer: customerName, lines: lines.length, totalCents: total, dueCents: due },
+        );
+      }
+    }
+    // Once a week, customers who owe pay some of it off, though not all of them.
+    if (day % 7 === 3) {
+      for (const [customerId, customerName] of CUSTOMERS) {
+        const due = dues.get(customerId) ?? 0;
+        if (due < 1000 || saleRand() < 0.35) continue;
+        const amount = Math.max(500, Math.floor(due / 200) * 100);
+        const time = at(day, 12);
+        out.insert(
+          "payments (customer_id, amount_cents, method, received_at, user_id)",
+          `(${customerId}, ${amount}, '${saleRand() < 0.6 ? "mobile" : "cash"}', ${time}, ${ADMIN})`,
+        );
+        dues.set(customerId, due - amount);
+        const left = due - amount;
+        activity(
+          ADMIN,
+          "payment.received",
+          "customer",
+          customerId,
+          `Took ${money(amount)} from ${customerName}${left > 0 ? `, ${money(left)} still due` : ", paid up"}`,
+          time,
+          { name: customerName, amountCents: amount, dueCents: left },
+        );
+      }
     }
 
     for (const p of products) {

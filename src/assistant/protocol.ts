@@ -12,7 +12,7 @@ import type { Allowance } from "./usage";
  */
 
 const ref = z.object({
-  kind: z.enum(["product", "supplier", "order"]),
+  kind: z.enum(["product", "supplier", "order", "customer"]),
   id: z.number().int().positive(),
   label: z.string().max(200),
   code: z.string().max(60).optional(),

@@ -19,6 +19,8 @@ const PAGES = [
   "/dashboard",
   "/ask",
   "/products",
+  "/sales",
+  "/customers",
   "/orders",
   "/suppliers",
   "/analytics",
@@ -28,7 +30,7 @@ const PAGES = [
 
 /**
  * The command palette: Ctrl+K (⌘K on a Mac) anywhere, or Find in the rail. One search
- * over every product, order and supplier, the sections, and what can be done from here:
+ * over every product, order, supplier and customer, the sections, and what can be done from here:
  * record stock, start an order, switch language or currency. It opens and closes at
  * once, with no animation: it's for people who use it many times a day. A product opens
  * in the drawer over the page; everything else goes to its page.
@@ -138,6 +140,9 @@ export function Palette({ language, currency, isAdmin }: { language: Language; c
                 {t.recordStock}
                 <Key>{shell.recordKey}</Key>
               </Item>
+              <Item value="new-sale" keywords={[t.newSale]} icon={<Plus />} onSelect={() => go("/sales/new")}>
+                {t.newSale}
+              </Item>
               <Item value="new-order" keywords={[t.newOrder]} icon={<Plus />} onSelect={() => go("/orders/new")}>
                 {t.newOrder}
               </Item>
@@ -240,6 +245,19 @@ export function Palette({ language, currency, isAdmin }: { language: Language; c
                       onSelect={() => go(`/suppliers/${s.id}`)}
                     >
                       {s.name}
+                    </Item>
+                  ))}
+                </Group>
+                <Group heading={t.groups.customers}>
+                  {index.customers.map((c) => (
+                    <Item
+                      key={c.id}
+                      value={`customer-${c.id}`}
+                      keywords={[c.name, ...(c.phone ? [c.phone] : [])]}
+                      onSelect={() => go(`/customers/${c.id}`)}
+                      meta={c.phone ?? undefined}
+                    >
+                      {c.name}
                     </Item>
                   ))}
                 </Group>

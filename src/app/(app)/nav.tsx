@@ -11,6 +11,8 @@ export const SECTIONS: (keyof NavLabels & Route)[] = [
   "/dashboard",
   "/ask",
   "/products",
+  "/sales",
+  "/customers",
   "/orders",
   "/suppliers",
   "/analytics",

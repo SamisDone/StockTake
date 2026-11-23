@@ -35,7 +35,11 @@ export type ActivityEvent =
   | {
       action: "stock.supplier_return";
       facts: { name: string; quantity: number; order: string; supplier: string; note?: string };
-    };
+    }
+  | { action: "sale.recorded"; facts: { customer?: string; lines: number; totalCents: number; dueCents: number } }
+  | { action: "sale.voided"; facts: { sale: string; customer?: string; totalCents: number } }
+  | { action: "customer.created" | "customer.updated"; facts: { name: string } }
+  | { action: "payment.received"; facts: { name: string; amountCents: number; dueCents: number } };
 
 /** What an undo reversed: a recorded movement's kind ("adjustment" is a count's). */
 export type UndoneKind = "sale" | "return" | "write_off" | "adjustment";
@@ -90,6 +94,14 @@ const en: Sentences = {
     `Closed ${order} from ${supplier} short: ${short} units never came`,
   "stock.supplier_return": ({ name, quantity, order, supplier, note }) =>
     withNote(`Sent ${quantity} × ${name} back to ${supplier} on ${order}`, note),
+  "sale.recorded": ({ customer, lines, totalCents, dueCents }) =>
+    `Sold ${lines} ${lines === 1 ? "line" : "lines"} ${customer ? `to ${customer}` : "to a walk-in"} for ${enDollars(totalCents)}${dueCents > 0 ? `, ${enDollars(dueCents)} due` : ""}`,
+  "sale.voided": ({ sale, customer, totalCents }) =>
+    `Voided ${sale}${customer ? ` to ${customer}` : ""} (${enDollars(totalCents)}); its stock is back`,
+  "customer.created": ({ name }) => `Added customer ${name}`,
+  "customer.updated": ({ name }) => `Updated ${name}`,
+  "payment.received": ({ name, amountCents, dueCents }) =>
+    `Took ${enDollars(amountCents)} from ${name}${dueCents > 0 ? `, ${enDollars(dueCents)} still due` : ", paid up"}`,
 };
 
 const n = formats("bn").count;
@@ -140,6 +152,14 @@ const bn: Sentences = {
     `${supplier}-এর ${order} কম নিয়েই বন্ধ করা হলো: ${n(short)} ইউনিট আসেনি`,
   "stock.supplier_return": ({ name, quantity, order, supplier, note }) =>
     withNote(`${order}-এর ${n(quantity)} × ${name} ${supplier}-কে ফেরত পাঠানো হলো`, note),
+  "sale.recorded": ({ customer, lines, totalCents, dueCents }) =>
+    `${customer ? `${customer}-কে` : "সরাসরি ক্রেতাকে"} ${n(lines)} লাইন বিক্রি, ${bnDollars(totalCents)}${dueCents > 0 ? `, বাকি ${bnDollars(dueCents)}` : ""}`,
+  "sale.voided": ({ sale, customer, totalCents }) =>
+    `${customer ? `${customer}-এর ` : ""}${sale} (${bnDollars(totalCents)}) বাতিল; মজুত ফিরে এসেছে`,
+  "customer.created": ({ name }) => `ক্রেতা ${name} যোগ করা হলো`,
+  "customer.updated": ({ name }) => `${name} হালনাগাদ করা হলো`,
+  "payment.received": ({ name, amountCents, dueCents }) =>
+    `${name}-এর কাছ থেকে ${bnDollars(amountCents)} নেওয়া হলো${dueCents > 0 ? `, এখনো বাকি ${bnDollars(dueCents)}` : ", সব শোধ"}`,
 };
 
 const SENTENCES: Copy<Sentences> = { en, bn };
