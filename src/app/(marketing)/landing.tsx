@@ -9,6 +9,7 @@ import { LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { REFUSALS } from "@/lib/refusals";
 import { parseDayKey } from "@/lib/business-time";
 import { COPY, type LandingCopy, type MovementKind } from "./copy";
+import { LiveRefusal } from "./live-refusal";
 import "./landing.css";
 
 /**
@@ -25,8 +26,6 @@ export function landingMetadata(language: Language): Metadata {
   const t = COPY[language];
   return { title: { absolute: t.metaTitle }, description: t.metaDescription };
 }
-
-const [headline] = REFUSALS;
 
 export function Landing({ language }: { language: Language }) {
   const t = COPY[language];
@@ -99,7 +98,7 @@ function Hero({ t, language }: Props) {
           </span>
         ))}
       </h1>
-      <div className="mt-8 grid items-start gap-8 lg:mt-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12">
+      <div className="mt-8 grid grid-cols-[minmax(0,1fr)] items-start gap-8 lg:mt-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12">
         <div>
           <p className="max-w-[34rem] text-lg leading-relaxed text-ink-2">{t.lede}</p>
           <div className="mt-8 max-w-md">
@@ -107,21 +106,7 @@ function Hero({ t, language }: Props) {
           </div>
         </div>
 
-        <figure className="receipt torn" aria-labelledby="slip-caption">
-          <div className="border-b-2 border-ink px-6 pt-3 pb-4">
-            <p className="field-name">{t.attempted}</p>
-            <pre className="mt-2 font-mono text-sm leading-relaxed break-words whitespace-pre-wrap">{headline.sql}</pre>
-          </div>
-          <div className="px-6 pt-3 pb-5">
-            <p className="field-name">{t.answered}</p>
-            <p className="refusal-stamp mt-2 px-2.5 py-1.5 font-mono text-base leading-snug font-semibold">
-              {headline.refusal}
-            </p>
-          </div>
-          <figcaption id="slip-caption" className="border-t border-hairline px-6 py-3 text-sm text-ink-2">
-            {t.refused}
-          </figcaption>
-        </figure>
+        <LiveRefusal language={language} />
       </div>
     </section>
   );

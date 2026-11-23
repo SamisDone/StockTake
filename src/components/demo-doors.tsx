@@ -40,12 +40,18 @@ export function DemoStub({
       value={role}
       formNoValidate
       onClick={onPress}
-      className={`group focus-inset flex min-h-28 flex-col items-start gap-1 px-6 pt-2 pb-5 text-left transition-[background-color] duration-150 ${
+      className={`group focus-inset flex min-h-28 min-w-0 flex-col items-start gap-1 pt-2 pb-5 text-left transition-[background-color] duration-150 ${
+        receipt ? "px-4 sm:px-6" : "px-6"
+      } ${
         divided ? `border-l border-ink ${receipt ? "border-dashed" : ""}` : ""
       } enabled:hover:bg-liner disabled:cursor-progress`}
     >
       <span className="flex w-full items-center justify-between gap-2">
-        <span className="print-display inline-block origin-left text-3xl transition-transform duration-150 ease-out group-enabled:group-active:scale-[0.96]">
+        <span
+          className={`print-display inline-block origin-left transition-transform ${
+            receipt ? "text-[clamp(1.5rem,7vw,1.875rem)]" : "text-3xl"
+          } duration-150 ease-out group-enabled:group-active:scale-[0.96]`}
+        >
           {label}
         </span>
         <ArrowRight

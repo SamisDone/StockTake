@@ -89,3 +89,78 @@
   transform-origin: 0 50%;
   text-shadow: 0 0 1px rgb(179 19 27 / 0.35); /* the ink bleeding a little into the paper */
 }
+
+/*
+ * The hero's live statement. The number is a real input printed inline in the SQL,
+ * underlined like a blank on a form; it turns fault red when it can't be run.
+ */
+.statement-input {
+  margin: 0;
+  padding: 0 0.25rem;
+  border: 0;
+  border-bottom: 2px solid var(--color-ink);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  line-height: inherit;
+  text-align: center;
+}
+.statement-input[aria-invalid] {
+  border-bottom-color: var(--color-fault);
+}
+.statement-input:focus-visible {
+  outline-offset: 3px;
+}
+
+/* Where the next character lands while a statement is typed in. Zero width, so the
+   line wraps exactly as the finished statement will. */
+.type-caret {
+  position: relative;
+  display: inline-block;
+  width: 0;
+}
+.type-caret::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -1em;
+  width: 2px;
+  height: 1.15em;
+  background: var(--color-ink);
+}
+
+/* The rule under the statement drains while it's on its way to the database. */
+.execute-bar {
+  transform-origin: right;
+}
+.execute-bar[data-run] {
+  animation: var(--dur-execute) linear both drain;
+}
+
+/* The answer lands like a rubber stamp: from a touch larger and more crooked, settling
+   at its own slight tilt. */
+.stamp-hit {
+  animation: var(--dur-impact) var(--ease-out) both stamp-hit;
+}
+@keyframes stamp-hit {
+  from {
+    scale: 1.15;
+    rotate: -2deg;
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+/* Reduced motion: the answer fades in where it lands; nothing drains, shakes or scales. */
+@media (prefers-reduced-motion: reduce) {
+  .stamp-hit {
+    animation: var(--dur-fade) ease both fade-in;
+  }
+  .execute-bar[data-run] {
+    animation: none;
+  }
+}
