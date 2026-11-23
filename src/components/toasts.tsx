@@ -1,7 +1,8 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { Toaster as Sonner, toast } from "sonner";
 import type { Language } from "@/lib/i18n";
 import { COMPONENT_COPY } from "./copy";
@@ -122,9 +123,23 @@ function Notice({
   );
 }
 
+/**
+ * The modal dialog on top, if one is open. A modal <dialog> sits in the browser's top
+ * layer and makes the rest of the page inert, so a toast rendered outside it is painted
+ * beneath it and can't be clicked: recording stock in the product drawer would hide its
+ * own Undo. While one is open, the toasts move inside it.
+ */
+function subscribeModals(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["open"], childList: true });
+  return () => observer.disconnect();
+}
+const topModal = () => [...document.querySelectorAll<HTMLDialogElement>("dialog:modal")].at(-1) ?? null;
+
 /** Where toasts appear: bottom right at a desk, along the foot of a phone above the Record button. */
 export function Toaster({ language }: { language: Language }) {
-  return (
+  const modal = useSyncExternalStore(subscribeModals, topModal, () => null);
+  const toaster = (
     <Sonner
       position="bottom-right"
       gap={8}
@@ -134,4 +149,5 @@ export function Toaster({ language }: { language: Language }) {
       toastOptions={{ unstyled: true }}
     />
   );
+  return modal ? createPortal(toaster, modal) : toaster;
 }
