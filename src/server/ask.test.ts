@@ -51,8 +51,9 @@ describe("answerStream", () => {
         usage: { neurons: 3 },
       });
 
-    const [step, answer, ...rest] = await events(run);
+    const [lookup, step, answer, ...rest] = await events(run);
     expect(rest).toEqual([]);
+    expect(lookup).toEqual({ type: "lookup", tool: "search_products" });
     expect(step).toEqual({
       type: "step",
       step: { tool: "search_products", summary: "Searched products: 2 matches", ok: true },

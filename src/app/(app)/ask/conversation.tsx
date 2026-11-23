@@ -29,6 +29,10 @@ type Turn = {
   id: number;
   question: string;
   steps: Step[];
+  /** The lookup running now, by its tool's name. */
+  running: string | null;
+  /** The answer as it's being written, before it arrives whole with its links. */
+  draft: string;
   answer: Answered | null;
   problem: Problem | null;
   /** Prints in once, when it first appears; never again when the page is shown again. */
@@ -84,7 +88,17 @@ export function Conversation({
       .map((t) => ({ question: t.question, answer: t.answer!.text.slice(0, 4000), refs: t.answer!.refs.slice(0, 40) }));
 
     const id = nextId.current++;
-    const turn: Turn = { id, question: text, steps: [], answer: null, problem: null, fresh: true, written: null };
+    const turn: Turn = {
+      id,
+      question: text,
+      steps: [],
+      running: null,
+      draft: "",
+      answer: null,
+      problem: null,
+      fresh: true,
+      written: null,
+    };
     setTurns((all) => [...all.filter((t) => t.id !== replacing), turn]);
     setDraft("");
     setBusy(true);
@@ -130,13 +144,22 @@ export function Conversation({
       }
       let finished = false;
       for await (const event of readEvents(response)) {
-        if (event.type === "step") {
-          update(id, (t) => ({ steps: [...t.steps, event.step] }));
+        if (event.type === "lookup") {
+          update(id, () => ({ running: event.tool }));
+        } else if (event.type === "step") {
+          update(id, (t) => ({ steps: [...t.steps, event.step], running: null }));
+        } else if (event.type === "text") {
+          update(id, (t) => ({ draft: t.draft + event.delta }));
+        } else if (event.type === "reset") {
+          update(id, () => ({ draft: "" }));
         } else {
           finished = true;
           setAllowance(event.allowance);
-          update(id, () =>
-            event.type === "answer" ? { answer: event.answer, fresh: true } : { problem: event.reason, fresh: true },
+          // An answer already printed as it was written doesn't print in again.
+          update(id, (t) =>
+            event.type === "answer"
+              ? { answer: event.answer, fresh: !t.draft, running: null }
+              : { problem: event.reason, fresh: true, running: null },
           );
         }
       }
@@ -332,8 +355,17 @@ function TurnView({
 
       {!settled ? (
         <div className="mt-3">
-          <p className="text-sm text-ink-2">{t.lookingUp}</p>
-          <StepList steps={turn.steps} t={t} live />
+          {turn.draft ? (
+            // The answer as it's written: plain until it arrives whole, with its links.
+            <div aria-busy>
+              <AnswerText text={turn.draft} refs={[]} language={language} />
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-ink-2">{t.lookingUp}</p>
+              <StepList steps={turn.steps} running={turn.running} t={t} live />
+            </>
+          )}
         </div>
       ) : turn.answer ? (
         <div className={`mt-3 ${print}`} onAnimationEnd={onPrinted}>
@@ -419,8 +451,19 @@ function Working({ steps, t, count }: { steps: Step[]; t: AskCopy; count: (n: nu
   );
 }
 
-function StepList({ steps, t, live = false }: { steps: Step[]; t: AskCopy; live?: boolean }) {
-  if (steps.length === 0) return null;
+function StepList({
+  steps,
+  running = null,
+  t,
+  live = false,
+}: {
+  steps: Step[];
+  /** A lookup still running: its line prints now and fills in when it's done. */
+  running?: string | null;
+  t: AskCopy;
+  live?: boolean;
+}) {
+  if (steps.length === 0 && !running) return null;
   return (
     <ol className="mt-2 max-w-2xl border-t border-hairline">
       {steps.map((step, i) => (
@@ -434,6 +477,12 @@ function StepList({ steps, t, live = false }: { steps: Step[]; t: AskCopy; live?
           <span className={step.ok ? "" : "text-ink-2"}>{step.ok ? step.summary : t.notRun(step.summary)}</span>
         </li>
       ))}
+      {running ? (
+        <li className="grid gap-x-4 border-b border-hairline py-2 text-sm print-in sm:grid-cols-[11rem_minmax(0,1fr)]">
+          <span className="pt-0.5 font-mono text-xs text-ink-3">{running}</span>
+          <span className="text-ink-2">{t.running}</span>
+        </li>
+      ) : null}
     </ol>
   );
 }

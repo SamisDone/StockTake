@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "@/db/database";
 import { createTestDb } from "@/test/db";
 import { seedBasics } from "@/test/fixtures";
-import { type ChatCompletion, type ChatInput, AssistantError, ask, mentionedRefs } from "./ask";
+import { type ChatCompletion, type ChatInput, AssistantError, ask, mentionedRefs, readCompletion } from "./ask";
 import { ASSISTANT_MODEL, FALLBACK_MODEL, MAX_MODEL_CALLS } from "./config";
 
 const now = new Date(Date.UTC(2026, 10, 21, 9));
@@ -141,6 +141,116 @@ describe("ask", () => {
 
     const empty = scripted(reply("  "));
     await expect(ask({ run: empty.run, db, now, question: "Hi" })).rejects.toMatchObject({ reason: "failed" });
+  });
+});
+
+/** Server-sent events, split at awkward places the way a network splits them. */
+function sse(...chunks: unknown[]) {
+  const text = chunks
+    .map(
+      (c) => `data: ${typeof c === "string" ? c : JSON.stringify(c)}
+
+`,
+    )
+    .join("");
+  const bytes = new TextEncoder().encode(text);
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (let at = 0; at < bytes.length; at += 7) controller.enqueue(bytes.slice(at, at + 7));
+      controller.close();
+    },
+  });
+}
+
+describe("readCompletion", () => {
+  it("puts streamed text and pieced-together tool calls back into one completion", async () => {
+    const pieces: string[] = [];
+    const completion = await readCompletion(
+      sse(
+        { choices: [{ delta: { content: "Let me " } }] },
+        { choices: [{ delta: { content: "check." } }] },
+        { choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "search_products" } }] } }] },
+        { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"status":' } }] } }] },
+        { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '"out"}' } }] } }] },
+        { usage: { neurons: 4 } },
+        "[DONE]",
+      ),
+      (delta) => pieces.push(delta),
+    );
+    expect(pieces).toEqual(["Let me ", "check."]);
+    expect(completion.choices[0].message.content).toBe("Let me check.");
+    expect(completion.choices[0].message.tool_calls).toEqual([
+      { id: "c1", type: "function", function: { name: "search_products", arguments: '{"status":"out"}' } },
+    ]);
+    expect(completion.usage).toEqual({ neurons: 4 });
+  });
+
+  it("reads Workers AI's own shape too", async () => {
+    const completion = await readCompletion(
+      sse({ response: "Two " }, { response: "are out." }, { tool_calls: [{ name: "list_orders", arguments: {} }] }),
+      () => {},
+    );
+    expect(completion.choices[0].message.content).toBe("Two are out.");
+    expect(completion.choices[0].message.tool_calls?.[0].function).toEqual({ name: "list_orders", arguments: "{}" });
+  });
+});
+
+describe("ask, streamed", () => {
+  it("announces each lookup, takes back a preamble, and streams the answer", async () => {
+    const streams = [
+      sse(
+        { choices: [{ delta: { content: "Checking." } }] },
+        {
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  { index: 0, id: "c1", function: { name: "search_products", arguments: '{"status":"out"}' } },
+                ],
+              },
+            },
+          ],
+        },
+      ),
+      sse({ choices: [{ delta: { content: "Widget " } }] }, { choices: [{ delta: { content: "is out." } }] }),
+    ];
+    const events: string[] = [];
+    const answer = await ask({
+      run: async () => {
+        throw new Error("not used");
+      },
+      stream: async () => streams.shift()!,
+      db,
+      now,
+      question: "What's out?",
+      onLookup: (tool) => events.push(`lookup ${tool}`),
+      onStep: (step) => events.push(`step ${step.tool}`),
+      onText: (delta) => events.push(`text ${delta}`),
+      onReset: () => events.push("reset"),
+    });
+    expect(events).toEqual([
+      "text Checking.",
+      "reset",
+      "lookup search_products",
+      "step search_products",
+      "text Widget ",
+      "text is out.",
+    ]);
+    expect(answer.text).toBe("Widget is out.");
+  });
+
+  it("falls back to a plain call when the stream breaks", async () => {
+    const { run } = scripted(reply("Nothing is out."));
+    const answer = await ask({
+      run,
+      stream: async () => {
+        throw new Error("stream refused");
+      },
+      db,
+      now,
+      question: "What's out?",
+    });
+    expect(answer.text).toBe("Nothing is out.");
   });
 });
 

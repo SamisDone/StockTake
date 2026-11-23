@@ -51,6 +51,86 @@ export type ChatCompletion = {
 
 export type RunModel = (model: string, input: ChatInput) => Promise<ChatCompletion>;
 
+/** The same call with `stream: true`: Workers AI answers with server-sent events. */
+export type StreamModel = (model: string, input: ChatInput) => Promise<ReadableStream<Uint8Array>>;
+
+type StreamChunk = {
+  // OpenAI's shape, which the newer models stream in.
+  choices?: {
+    delta?: {
+      content?: string | null;
+      tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[] | null;
+    };
+  }[];
+  // Workers AI's own shape.
+  response?: string | null;
+  tool_calls?: { name?: string; arguments?: unknown; id?: string }[] | null;
+  usage?: ChatCompletion["usage"];
+};
+
+/**
+ * Reads a streamed completion into the same shape a plain call returns, handing each
+ * piece of text to `onText` as it arrives. Tool calls arrive in pieces too (a name, then
+ * the arguments a few characters at a time) and are put back together by index.
+ */
+export async function readCompletion(stream: ReadableStream<Uint8Array>, onText: (delta: string) => void) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let usage: ChatCompletion["usage"];
+  const calls: ToolCall[] = [];
+
+  const take = (data: string) => {
+    if (!data || data === "[DONE]") return;
+    const chunk = JSON.parse(data) as StreamChunk;
+    // Every chunk carries usage: its own token, and at the end the call's totals. Keep the largest.
+    if (chunk.usage && (chunk.usage.neurons ?? 0) >= (usage?.neurons ?? 0)) usage = chunk.usage;
+    const delta = chunk.choices?.[0]?.delta;
+    const text = delta?.content ?? chunk.response ?? "";
+    if (text) {
+      content += text;
+      onText(text);
+    }
+    for (const [i, part] of (delta?.tool_calls ?? []).entries()) {
+      const at = part.index ?? i;
+      const call = (calls[at] ??= { id: "", type: "function", function: { name: "", arguments: "" } });
+      if (part.id) call.id = part.id;
+      if (part.function?.name) call.function.name += part.function.name;
+      if (part.function?.arguments) call.function.arguments += part.function.arguments;
+    }
+    for (const part of chunk.tool_calls ?? []) {
+      if (!part.name) continue;
+      calls.push({
+        id: part.id ?? `call_${calls.length}`,
+        type: "function",
+        function: {
+          name: part.name,
+          arguments: typeof part.arguments === "string" ? part.arguments : JSON.stringify(part.arguments ?? {}),
+        },
+      });
+    }
+  };
+
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    for (let at = buffer.indexOf("\n"); at >= 0; at = buffer.indexOf("\n")) {
+      const line = buffer.slice(0, at).trim();
+      buffer = buffer.slice(at + 1);
+      if (line.startsWith("data:")) take(line.slice(5).trim());
+    }
+  }
+  if (buffer.trim().startsWith("data:")) take(buffer.trim().slice(5).trim());
+
+  const toolCalls = calls.filter(Boolean).map((call, i) => ({ ...call, id: call.id || `call_${i}` }));
+  return {
+    choices: [{ message: { content, tool_calls: toolCalls.length > 0 ? toolCalls : null } }],
+    usage,
+  } satisfies ChatCompletion;
+}
+
 /** Why a question got no answer. `allowance` is Workers AI's daily free allocation running out. */
 export class AssistantError extends Error {
   constructor(
@@ -134,6 +214,7 @@ function neuronsOf(completion: ChatCompletion) {
 
 export async function ask({
   run,
+  stream,
   db,
   now,
   question,
@@ -141,8 +222,13 @@ export async function ask({
   money = moneyFormat(DOLLARS),
   language = "en",
   onStep,
+  onLookup,
+  onText,
+  onReset,
 }: {
   run: RunModel;
+  /** Streams each call when given, so the answer can be printed as it's written. */
+  stream?: StreamModel;
   db: Database;
   now: Date;
   question: string;
@@ -152,6 +238,12 @@ export async function ask({
   /** The person's language: the answer and the step summaries are written in it. */
   language?: Language;
   onStep?: (step: Step) => void;
+  /** A lookup starting, before it runs. */
+  onLookup?: (tool: string) => void;
+  /** A piece of the answer as the model writes it. */
+  onText?: (delta: string) => void;
+  /** The text so far wasn't the answer (the model went on to look something up). */
+  onReset?: () => void;
 }): Promise<Answer> {
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt(now, money, language) },
@@ -163,6 +255,22 @@ export async function ask({
   let proposal: Proposal | null = null;
   let neurons = 0;
   let model = ASSISTANT_MODEL;
+
+  // A streamed call that breaks falls back to a plain one, after taking back any text it printed.
+  async function once(name: string, input: ChatInput) {
+    if (!stream) return run(name, input);
+    let printed = false;
+    try {
+      return await readCompletion(await stream(name, input), (delta) => {
+        printed = true;
+        onText?.(delta);
+      });
+    } catch (error) {
+      if (isAllowanceError(error)) throw error;
+      if (printed) onReset?.();
+      return run(name, input);
+    }
+  }
 
   async function call(last: boolean) {
     const input: ChatInput = {
@@ -176,13 +284,13 @@ export async function ask({
       chat_template_kwargs: { enable_thinking: false },
     };
     try {
-      return await run(model, input);
+      return await once(model, input);
     } catch (error) {
       if (isAllowanceError(error)) throw new AssistantError("allowance", "The day's free allocation is used up.");
       if (model === FALLBACK_MODEL) throw new AssistantError("failed", "The model didn't respond.");
       model = FALLBACK_MODEL;
       try {
-        return await run(model, input);
+        return await once(model, input);
       } catch (retry) {
         if (isAllowanceError(retry)) throw new AssistantError("allowance", "The day's free allocation is used up.");
         throw new AssistantError("failed", "The model didn't respond.");
@@ -203,8 +311,10 @@ export async function ask({
       return { text: content, refs: answerRefs, proposal, steps, neurons, model };
     }
 
+    if (content) onReset?.();
     messages.push({ role: "assistant", content: message?.content ?? "", tool_calls: toolCalls });
     for (const toolCall of toolCalls) {
+      onLookup?.(toolCall.function.name);
       const result = await runTool(
         { db, now, money, language },
         toolCall.function.name,

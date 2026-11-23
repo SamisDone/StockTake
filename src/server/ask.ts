@@ -2,7 +2,7 @@ import "server-only";
 import type { z } from "zod";
 import type { Database } from "@/db/database";
 import type { SessionUser } from "@/domain/auth";
-import { AssistantError, type RunModel, ask } from "@/assistant/ask";
+import { AssistantError, type RunModel, type StreamModel, ask } from "@/assistant/ask";
 import { type AskEvent, type askRequest, toWire } from "@/assistant/protocol";
 import { claimQuestion, getAllowance, recordNeurons, releaseQuestion } from "@/assistant/usage";
 import type { Language } from "@/lib/i18n";
@@ -18,6 +18,7 @@ export function answerStream({
   user,
   input,
   run,
+  stream,
   now,
   money,
   language,
@@ -26,6 +27,7 @@ export function answerStream({
   user: SessionUser;
   input: z.output<typeof askRequest>;
   run: RunModel;
+  stream?: StreamModel;
   now: Date;
   /** How the person reads money. Dollars when left out. */
   money?: MoneyFormat;
@@ -54,7 +56,11 @@ export function answerStream({
           history: input.history,
           money,
           language,
+          stream,
           onStep: (step) => send({ type: "step", step }),
+          onLookup: (tool) => send({ type: "lookup", tool }),
+          onText: (delta) => send({ type: "text", delta }),
+          onReset: () => send({ type: "reset" }),
         });
         await recordNeurons(db, user.id, claim, neurons);
         send({ type: "answer", answer: { text, refs, proposal, steps }, allowance: await allowance() });

@@ -1,5 +1,5 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import type { ChatCompletion, RunModel } from "@/assistant/ask";
+import type { ChatCompletion, RunModel, StreamModel } from "@/assistant/ask";
 import { askRequest } from "@/assistant/protocol";
 import { getDb } from "@/db/client";
 import { answerStream } from "@/server/ask";
@@ -23,11 +23,24 @@ export async function POST(request: Request) {
   // The binding's types list models by name; the model ID lives in src/assistant/config.ts.
   const run: RunModel = (model, input) =>
     env.AI.run(model as Parameters<typeof env.AI.run>[0], input as never) as Promise<ChatCompletion>;
+  const streamModel: StreamModel = (model, input) =>
+    env.AI.run(model as Parameters<typeof env.AI.run>[0], { ...input, stream: true } as never) as unknown as Promise<
+      ReadableStream<Uint8Array>
+    >;
 
   // Tool results keep Latin digits for the model; the page prints the answer in the person's digits.
   const money = moneyFormat(await getMoneyPrefs());
   const language = await getLanguage();
-  const stream = answerStream({ db: await getDb(), user, input: parsed.data, run, now: new Date(), money, language });
+  const stream = answerStream({
+    db: await getDb(),
+    user,
+    input: parsed.data,
+    run,
+    stream: streamModel,
+    now: new Date(),
+    money,
+    language,
+  });
   return new Response(stream, {
     headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" },
   });

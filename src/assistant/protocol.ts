@@ -6,8 +6,9 @@ import type { Allowance } from "./usage";
 /**
  * What the Ask page and POST /api/ask say to each other. The browser holds the
  * conversation and sends the recent turns back with each question; the server answers
- * with newline-delimited JSON events: a step per tool call as it runs, then one answer or
- * one refusal.
+ * with newline-delimited JSON events: a lookup as each tool call starts and a step when it
+ * has run, the answer's text in pieces as the model writes it (a reset if that text turns
+ * out to be a preamble to another lookup), then one answer or one refusal.
  */
 
 const ref = z.object({
@@ -41,7 +42,10 @@ export type WireAllowance = Omit<Allowance, "resetsAt" | "allowanceResetsAt"> & 
 export type Refusal = "questions" | "allowance" | "failed";
 
 export type AskEvent =
+  | { type: "lookup"; tool: string }
   | { type: "step"; step: Step }
+  | { type: "text"; delta: string }
+  | { type: "reset" }
   | { type: "answer"; answer: Omit<Answer, "neurons" | "model">; allowance: WireAllowance }
   | { type: "refused"; reason: Refusal; allowance: WireAllowance };
 

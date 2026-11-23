@@ -32,6 +32,7 @@ const en = {
   more: " · more at midnight",
   startOver: "Start over",
   lookingUp: "Looking it up…",
+  running: "Running…",
   answered: "Answered.",
   intro:
     "Ask about stock, orders, suppliers and sales in your own words. A language model answers by looking things up in the same records every page shows, and it can propose a purchase order for you to check and write.",
@@ -95,6 +96,7 @@ const bn: AskCopy = {
   more: " · আরও পাবেন রাত ১২টায়",
   startOver: "নতুন করে শুরু",
   lookingUp: "খোঁজা হচ্ছে…",
+  running: "চলছে…",
   answered: "উত্তর এসেছে।",
   intro:
     "স্টক, অর্ডার, সরবরাহকারী আর বিক্রি নিয়ে নিজের ভাষায় জিজ্ঞেস করুন। একটি ভাষা মডেল প্রতিটি পাতায় দেখানো একই রেকর্ড ঘেঁটে উত্তর দেয়, আর আপনার যাচাই করে লেখার জন্য একটি ক্রয় অর্ডারের প্রস্তাবও দিতে পারে।",
