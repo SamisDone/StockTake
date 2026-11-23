@@ -14,6 +14,12 @@ const en = {
   // Fields and labels
   optional: "(optional)",
   edit: "Edit",
+  discard: {
+    title: "Discard your changes?",
+    body: "What you've changed here hasn't been saved.",
+    keep: "Keep editing",
+    discard: "Discard",
+  },
   stars: (rating: string) => `${rating} out of 5 stars`,
 
   // The demo doors
@@ -44,6 +50,12 @@ const bn: typeof en = {
 
   optional: "(ঐচ্ছিক)",
   edit: "সম্পাদনা",
+  discard: {
+    title: "পরিবর্তনগুলো বাদ দেবেন?",
+    body: "এখানে যা বদলেছেন তা এখনো সংরক্ষণ করা হয়নি।",
+    keep: "সম্পাদনা চালিয়ে যান",
+    discard: "বাদ দিন",
+  },
   stars: (rating) => `৫-এর মধ্যে ${rating} তারা`,
 
   openDemo: "লাইভ ডেমো খুলুন",

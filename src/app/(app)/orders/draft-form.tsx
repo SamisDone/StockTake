@@ -5,6 +5,7 @@ import { startTransition, useActionState, useEffect, useRef, useState, type Reac
 import { FaultLine, FaultText } from "@/components/fault";
 import { Field, fieldProps } from "@/components/field";
 import { useLabelEditor } from "@/components/label-editor";
+import { useDiscardGuard } from "@/components/discard-guard";
 import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
 import { DOLLARS, type MoneyFormat, type MoneyPrefs, moneyFormat } from "@/lib/money";
@@ -88,6 +89,7 @@ export function DraftForm({
 
   // A refused entry takes focus to the first field at fault, which is described by its message.
   const formRef = useRef<HTMLFormElement>(null);
+  const discard = useDiscardGuard(formRef, language);
   useEffect(() => {
     if (state.fields) formRef.current?.querySelector<HTMLElement>("[aria-invalid]")?.focus();
   }, [state.fields]);
@@ -200,14 +202,14 @@ export function DraftForm({
       onKeyDown={(event) => {
         if (editing && event.key === "Escape" && editor) {
           event.preventDefault();
-          editor.close();
+          discard.ask(() => editor.close());
         }
       }}
     >
       {order ? <input type="hidden" name="orderId" value={order.id} /> : null}
       <header className="flex items-start justify-between gap-4 px-5 pt-6 pb-3 sm:px-8 sm:pt-8">
         <div className="min-w-0">
-          <h1 id="order-title" className="text-lg font-bold">
+          <h1 id="order-title" className="print-display text-2xl sm:text-3xl">
             {order ? t.editTitle(order.number) : t.newTitle}
           </h1>
           <p className="mt-1 max-w-prose text-sm text-ink-2">
@@ -380,7 +382,7 @@ export function DraftForm({
           {editing ? (
             <button
               type="button"
-              onClick={() => editor?.close()}
+              onClick={() => discard.ask(() => editor?.close())}
               className="press-quiet min-h-12 rounded-control px-4 font-semibold text-ink-2 enabled:hover:bg-liner enabled:hover:text-ink max-sm:flex-1"
             >
               {t.cancel}
@@ -400,6 +402,7 @@ export function DraftForm({
       <p role="status" className="sr-only">
         {said}
       </p>
+      {discard.dialog}
     </form>
   );
 }

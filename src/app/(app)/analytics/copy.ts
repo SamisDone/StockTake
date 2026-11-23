@@ -24,6 +24,7 @@ const en = {
   units: "Units",
   atCost: "At cost",
   runningTotal: "Running total",
+  scaleUnits: (n: string) => `${n} units`,
   opening: (day: string) => `Opening stock, ${day}`,
   lines: {
     received: "Received",
@@ -134,6 +135,7 @@ const bn: AnalyticsCopy = {
   units: "ইউনিট",
   atCost: "কেনা দামে",
   runningTotal: "চলতি যোগফল",
+  scaleUnits: (n) => `${n} ইউনিট`,
   opening: (day) => `শুরুর মজুত, ${day}`,
   lines: {
     received: "এসেছে",

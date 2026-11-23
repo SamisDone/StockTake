@@ -12,6 +12,7 @@ import { ROLE_NAMES } from "@/lib/demo-roles";
 import { LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { SHELL_COPY } from "./copy";
 import { Nav } from "./nav";
+import { PersonMenu } from "./person-menu";
 import { RailCommands } from "./commands";
 import { MoreSheet, TabBar } from "./phone-bar";
 import { Palette } from "./palette";
@@ -153,18 +154,16 @@ async function Person({ language }: { language: Language }) {
   const user = await getCurrentUser();
   const money = await getMoneyPrefs();
   return (
-    <div className="rounded-control bg-label px-3 pt-2.5 pb-1.5">
-      <p className="truncate font-semibold">{user.name}</p>
-      <p className="text-sm text-ink-2">{ROLE_NAMES[language][user.role]}</p>
+    <PersonMenu name={user.name} role={ROLE_NAMES[language][user.role]} label={SHELL_COPY[language].settings}>
       <LanguageSwitch language={language} variant="tag" />
       <CurrencySwitch money={money} language={language} />
       <SignOutButton language={language} />
-    </div>
+    </PersonMenu>
   );
 }
 
 function PersonFallback() {
-  return <div aria-hidden className="h-68 rounded-control bg-liner-deep" />;
+  return <div aria-hidden className="h-16 rounded-control bg-liner-deep" />;
 }
 
 function SignOutButton({ language, compact = false }: { language: Language; compact?: boolean }) {

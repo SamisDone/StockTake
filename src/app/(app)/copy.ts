@@ -15,6 +15,7 @@ const en = {
     "/people": "People",
   },
   signOut: "Sign out",
+  settings: "Your settings",
 
   // Record from anywhere and the command palette
   record: "Record",
@@ -62,6 +63,7 @@ const bn: typeof en = {
     "/people": "দল",
   },
   signOut: "সাইন আউট",
+  settings: "আপনার সেটিংস",
 
   record: "লিখুন",
   more: "আরও",

@@ -8,7 +8,7 @@ import { getStockForecasts } from "@/domain/forecast";
 import { deliveryRecord, listOrders } from "@/domain/purchase-orders";
 import { listSuppliers } from "@/domain/suppliers";
 import { PageHeader } from "@/components/page-header";
-import { Stars, formatRating } from "@/components/stars";
+import { FEW_REVIEWS, Stars, formatRating } from "@/components/stars";
 import { MobileName, Tally, TallyPlaceholder, Th } from "@/components/stock";
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
 import { type Formats, formats } from "@/lib/format";
@@ -71,7 +71,8 @@ async function AddSupplier({ t }: { t: SuppliersCopy }) {
 type Row = {
   id: number;
   name: string;
-  contact: string;
+  email: string | null;
+  phone: string | null;
   leadTimeDays: number;
   products: number;
   /** Its products the forecast flags: out of stock or due a reorder. */
@@ -109,7 +110,8 @@ async function SupplierList({ language }: { language: Language }) {
     return {
       id: s.id,
       name: s.name,
-      contact: [s.email, s.phone].filter(Boolean).join(" · "),
+      email: s.email,
+      phone: s.phone,
       leadTimeDays: s.leadTimeDays,
       products: s.productCount,
       low: forecasts.filter((f) => f.supplierId === s.id && f.status !== "ok").length,
@@ -234,7 +236,27 @@ function SupplierRow({ row, m, f, t }: { row: Row; m: MoneyFormat; f: Formats; t
             <span className="inline-block">{row.name}</span>
           </TitleMorph>
         </RememberLink>
-        {row.contact ? <p className="mt-0.5 text-sm text-ink-3">{row.contact}</p> : null}
+        {row.email || row.phone ? (
+          // Above the row's hit area, so mailing or calling doesn't open the supplier.
+          <p className="relative z-10 mt-0.5 flex flex-wrap gap-x-3 text-sm text-ink-2">
+            {row.email ? (
+              <a
+                href={`mailto:${row.email}`}
+                className="underline decoration-ink-3/50 underline-offset-4 transition-colors duration-150 hover:text-ink hover:decoration-ink"
+              >
+                {row.email}
+              </a>
+            ) : null}
+            {row.phone ? (
+              <a
+                href={`tel:${row.phone.replace(/[^\d+]/g, "")}`}
+                className="whitespace-nowrap underline decoration-ink-3/50 underline-offset-4 transition-colors duration-150 hover:text-ink hover:decoration-ink"
+              >
+                {row.phone}
+              </a>
+            ) : null}
+          </p>
+        ) : null}
       </td>
       <td className="py-3 pr-4 whitespace-nowrap max-lg:p-0 lg:text-right">
         <MobileName>{c.leadTime}</MobileName>
@@ -269,10 +291,12 @@ function SupplierRow({ row, m, f, t }: { row: Row; m: MoneyFormat; f: Formats; t
           <span className="text-sm text-ink-2">{t.noReviews}</span>
         ) : (
           <span className="inline-flex items-center gap-2">
-            <Stars rating={row.averageRating} language={f.language} />
+            <Stars rating={row.averageRating} language={f.language} muted={row.reviewCount < FEW_REVIEWS} />
             <span className="text-sm">
-              <span className="font-semibold">{formatRating(row.averageRating, f.language)}</span>{" "}
-              <span className="text-ink-2">({f.count(row.reviewCount)})</span>
+              <span className={row.reviewCount < FEW_REVIEWS ? "text-ink-2" : "font-semibold"}>
+                {formatRating(row.averageRating, f.language)}
+              </span>{" "}
+              <span className="text-ink-2">· {t.reviewCount(row.reviewCount, f.count(row.reviewCount))}</span>
             </span>
           </span>
         )}

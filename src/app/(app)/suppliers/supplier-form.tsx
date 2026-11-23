@@ -5,6 +5,7 @@ import { useActionState, useEffect, useRef, type ReactNode } from "react";
 import { FaultLine } from "@/components/fault";
 import { Field, fieldProps } from "@/components/field";
 import { useLabelEditor } from "@/components/label-editor";
+import { useDiscardGuard } from "@/components/discard-guard";
 import { notify } from "@/components/toasts";
 import { type Formats, formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
@@ -51,6 +52,7 @@ export function SupplierForm({
 
   // A refused entry takes focus to the first field at fault, which is described by its message.
   const formRef = useRef<HTMLFormElement>(null);
+  const discard = useDiscardGuard(formRef, language);
   useEffect(() => {
     if (state.fields) formRef.current?.querySelector<HTMLElement>("[aria-invalid]")?.focus();
   }, [state.fields]);
@@ -73,14 +75,14 @@ export function SupplierForm({
           // While editing, Escape means "stop editing".
           if (editing && event.key === "Escape" && editor) {
             event.preventDefault();
-            editor.close();
+            discard.ask(() => editor.close());
           }
         }}
       >
         {editing ? <input type="hidden" name="supplierId" value={supplierId} /> : null}
         <header className="flex items-start justify-between gap-4 px-5 pt-6 pb-3 sm:px-8 sm:pt-8">
           <div className="min-w-0">
-            <h1 id="supplier-title" className="text-lg font-bold">
+            <h1 id="supplier-title" className="print-display text-2xl sm:text-3xl">
               {editing ? t.editTitle : t.newTitle}
             </h1>
             <p className="mt-1 max-w-prose text-sm text-ink-2">{editing ? t.editHelp : t.newHelp}</p>
@@ -171,7 +173,7 @@ export function SupplierForm({
             {editing ? (
               <button
                 type="button"
-                onClick={() => editor?.close()}
+                onClick={() => discard.ask(() => editor?.close())}
                 className="press-quiet min-h-12 rounded-control px-4 font-semibold text-ink-2 enabled:hover:bg-liner enabled:hover:text-ink max-sm:flex-1"
               >
                 {t.cancel}
@@ -187,6 +189,7 @@ export function SupplierForm({
             </button>
           </div>
         </fieldset>
+        {discard.dialog}
       </form>
 
       {archive ? <ArchiveZone facts={archive} f={formats(language)} t={copy} /> : null}

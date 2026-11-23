@@ -7,7 +7,25 @@ import { COMPONENT_COPY } from "./copy";
  * half, 2.5 two and a half. Read out as the number, since five icons say nothing to a
  * screen reader.
  */
-export function Stars({ rating, language, size = 16 }: { rating: number; language: Language; size?: number }) {
+/**
+ * Below this many reviews an average says little, so it's printed in grey: one person's
+ * opinion. (Each person reviews a supplier once, so on a small team two is already a lot.)
+ */
+export const FEW_REVIEWS = 2;
+
+export function Stars({
+  rating,
+  language,
+  size = 16,
+  muted = false,
+}: {
+  rating: number;
+  language: Language;
+  size?: number;
+  /** Too few reviews to lean on: the filled stars print grey instead of ink. */
+  muted?: boolean;
+}) {
+  const filled = muted ? "fill-ink-3 text-ink-3" : "fill-ink text-ink";
   const halves = Math.round(rating * 2);
   return (
     <span
@@ -20,11 +38,11 @@ export function Stars({ rating, language, size = 16 }: { rating: number; languag
         const fill = Math.min(Math.max(halves - (n - 1) * 2, 0), 2) / 2;
         return (
           <span key={n} aria-hidden className="relative inline-flex">
-            <Star size={size} strokeWidth={2} className={fill === 1 ? "fill-ink text-ink" : "text-ink-3"} />
+            <Star size={size} strokeWidth={2} className={fill === 1 ? filled : "text-ink-3"} />
             {fill === 0.5 ? (
               // The filled half: the same star in ink, cut at its middle.
               <span className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
-                <Star size={size} strokeWidth={2} className="fill-ink text-ink" />
+                <Star size={size} strokeWidth={2} className={filled} />
               </span>
             ) : null}
           </span>

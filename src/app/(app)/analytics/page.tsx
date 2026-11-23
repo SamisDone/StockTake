@@ -28,6 +28,7 @@ import { Delivery } from "./delivery";
 import { SalesChart } from "./sales-chart";
 import { StockChart } from "./stock-chart";
 import { WhereItWent } from "./where-it-went";
+import { niceMax } from "@/lib/nice-max";
 import { Key, Zone } from "./zone";
 import { EitherLanguage } from "@/components/either-language";
 import { WithLanguage } from "@/components/with-language";
@@ -118,10 +119,11 @@ async function Report({
           </dl>
 
           <Statement analytics={analytics} now={now} money={money} m={m} f={f} t={t} />
-          {/* Where the stock went, and how the stock that came in arrived. */}
-          <div className="grid border-b-2 border-ink lg:grid-cols-2">
+          {/* Where the stock went, then how the stock that came in arrived: stacked, since
+              side by side the shorter one left a blank block beside the taller. */}
+          <div className="border-b-2 border-ink">
             <WhereItWent analytics={analytics} m={m} f={f} t={t} className="" />
-            <Delivery analytics={analytics} f={f} t={t} className="border-ink max-lg:border-t lg:border-l" />
+            <Delivery analytics={analytics} f={f} t={t} className="border-t border-ink" />
           </div>
           <Sales analytics={analytics} now={now} money={money} m={m} f={f} t={t} />
           <Categories analytics={analytics} m={m} f={f} t={t} />
@@ -196,7 +198,8 @@ function Statement({
     running += sign * amount.units;
     return [Math.min(start, running), Math.max(start, running)] as const;
   });
-  const scale = Math.max(stock.opening.units, stock.closing.units, ...spans.map(([, end]) => end), 1);
+  // One round scale for every bar, printed over the bar column.
+  const scale = niceMax(Math.max(stock.opening.units, stock.closing.units, ...spans.map(([, end]) => end), 1));
   const agrees = stock.closing.units === stock.onHand.units && stock.closing.costCents === stock.onHand.costCents;
 
   return (
@@ -227,6 +230,11 @@ function Statement({
             <Th align="right">{t.atCost}</Th>
             <Th className="w-[38%] max-md:hidden">
               <span className="sr-only">{t.runningTotal}</span>
+              <span aria-hidden className="tabular relative flex justify-between font-normal">
+                <span>{f.count(0)}</span>
+                <span className="absolute left-1/2 -translate-x-1/2">{f.count(scale / 2)}</span>
+                <span>{t.scaleUnits(f.count(scale))}</span>
+              </span>
             </Th>
           </tr>
         </thead>

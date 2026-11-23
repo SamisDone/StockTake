@@ -16,6 +16,7 @@ import {
   setProductArchived,
 } from "@/server/product-actions";
 import { useLabelEditor } from "@/components/label-editor";
+import { useDiscardGuard } from "@/components/discard-guard";
 import { notify } from "@/components/toasts";
 import type { ArchiveFacts, ProductValues, SupplierOption } from "./product-values";
 import { PRODUCTS_COPY, type ProductsCopy } from "./copy";
@@ -78,6 +79,7 @@ export function ProductForm({
 
   // A refused entry takes focus to the first field at fault, which is described by its message.
   const formRef = useRef<HTMLFormElement>(null);
+  const discard = useDiscardGuard(formRef, language);
   useEffect(() => {
     if (state.fields) formRef.current?.querySelector<HTMLElement>("[aria-invalid]")?.focus();
   }, [state.fields]);
@@ -110,14 +112,14 @@ export function ProductForm({
           // Inside the drawer Escape would close it; while editing it means "stop editing".
           if (editing && event.key === "Escape" && editor) {
             event.preventDefault();
-            editor.close();
+            discard.ask(() => editor.close());
           }
         }}
       >
         {editing ? <input type="hidden" name="productId" value={productId} /> : null}
         <header className="flex items-start justify-between gap-4 px-5 pt-6 pb-3 sm:px-8 sm:pt-8">
           <div className="min-w-0">
-            <Heading id="product-title" className="text-lg font-bold">
+            <Heading id="product-title" className="print-display text-2xl sm:text-3xl">
               {editing ? t.editTitle : t.newTitle}
             </Heading>
             <p className="mt-1 max-w-prose text-sm text-ink-2">{editing ? t.editHelp : t.newHelp}</p>
@@ -293,7 +295,7 @@ export function ProductForm({
             {editing ? (
               <button
                 type="button"
-                onClick={() => editor?.close()}
+                onClick={() => discard.ask(() => editor?.close())}
                 className="min-h-12 rounded-control px-4 press-quiet font-semibold text-ink-2 enabled:hover:bg-liner enabled:hover:text-ink max-sm:flex-1"
               >
                 {t.cancel}
@@ -309,6 +311,7 @@ export function ProductForm({
             </button>
           </div>
         </fieldset>
+        {discard.dialog}
       </form>
 
       {archive ? <ArchiveZone facts={archive} m={m} f={f} t={copy} headingLevel={headingLevel === 1 ? 2 : 3} /> : null}
