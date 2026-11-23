@@ -11,7 +11,8 @@
  * stock, prints only what went wrong: a field or an action the system refused.
  */
 @theme {
-  --color-liner: #e5e6e1;
+  --color-ground: #e5e6e1; /* the liner the sheets sit on */
+  --color-liner: #e5e6e1; /* the same gray as a tint on a sheet: tracks, hovers, blanks */
   --color-liner-deep: #d6d7d1;
   --color-label: #ffffff;
   --color-ink: #0e0e0e;
@@ -38,6 +39,47 @@
 }
 
 /*
+ * The dark theme: the same label printed in reverse. The ground goes near-black and the
+ * sheets sit a step lighter on it; ink turns pale, so reverse print (bg-ink text-label)
+ * stays reverse. Yellow stock and fault red keep their roles: the yellow is the same
+ * stock with dark ink printed on it, the red lifts to read on the dark sheet. Unlayered,
+ * so it outranks the theme layer Tailwind writes the tokens into.
+ */
+:root {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  /* The ground goes darker than the sheets, but a tint on a sheet goes a step lighter:
+     a dark tint would read as a hole cut in the label. */
+  --color-ground: #0c0c0b;
+  --color-liner: #262623;
+  --color-liner-deep: #33332f;
+  --color-label: #191917;
+  --color-ink: #ecece6;
+  --color-ink-lift: #d2d2cb;
+  --color-ink-2: #b3b3aa; /* 8.6:1 on label */
+  --color-ink-3: #8f8f86; /* 5.5:1 on label */
+  --color-hairline: #2e2e2a;
+  --color-fault: #ff6b66; /* 6.7:1 on label */
+  --shadow-label: 0 1px 1px rgb(0 0 0 / 0.4), 0 4px 16px -6px rgb(0 0 0 / 0.6);
+}
+/* Anything printed on yellow stock is printed in the light theme's inks. */
+:root[data-theme="dark"] .bg-stock {
+  --color-ink: #0e0e0e;
+  --color-ink-2: #474743;
+  --color-ink-3: #67675f;
+  color: var(--color-ink);
+}
+:root[data-theme="dark"] ::selection {
+  color: #0e0e0e;
+}
+/* Behind a dialog the page dims, in either theme. */
+:root[data-theme="dark"] ::backdrop {
+  background-color: rgb(0 0 0 / 0.55);
+}
+
+/*
  * How long things take. What leaves goes faster than what arrives, and nothing a person
  * waits on runs past the drawer's 300ms.
  */
@@ -58,7 +100,7 @@
 
 @layer base {
   html {
-    background: var(--color-liner);
+    background: var(--color-ground);
     color: var(--color-ink);
     font-family: var(--font-sans);
     text-rendering: optimizeLegibility;
@@ -80,7 +122,7 @@
 
   body {
     min-height: 100dvh;
-    background: var(--color-liner);
+    background: var(--color-ground);
     text-wrap: pretty;
   }
 

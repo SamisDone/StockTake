@@ -8,7 +8,9 @@
  *   the active and urgent, hi-vis yellow label stock only for "needs attention", and
  *   fault red (the second ink of two-colour thermal stock) only for errors. Archivo
  *   from condensed to normal width; Martian Mono only for identifiers and literal machine
- *   text (SKUs, PO numbers, SQL, the database's own messages).
+ *   text (SKUs, PO numbers, SQL, the database's own messages). Dark theme (the owner's
+ *   decision, 2026-11-21): the same label printed in reverse, sheets a step lighter than
+ *   a near-black ground, pale ink; yellow stock keeps dark ink, fault red lifts.
  * STORY: the operator sees what's on hand and what's running out, sees why each number
  *   is what it is, and acts on it.
  * FIRST VIEWPORT: login is one label on liner gray: wordmark zone, tear-off demo stubs
@@ -21,6 +23,7 @@
  */
 import type { Metadata, Viewport } from "next";
 import { Archivo, Martian_Mono, Noto_Sans_Bengali } from "next/font/google";
+import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 const archivo = Archivo({
@@ -51,13 +54,24 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#e5e6e1",
-  colorScheme: "light",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#e5e6e1" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0c0b" },
+  ],
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${archivo.variable} ${notoBengali.variable} ${martianMono.variable}`}>
+    // The head script sets data-theme before React hydrates, so <html> differs on purpose.
+    <html
+      lang="en"
+      className={`${archivo.variable} ${notoBengali.variable} ${martianMono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

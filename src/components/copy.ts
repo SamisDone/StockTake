@@ -32,6 +32,8 @@ const en = {
   takaAt: (rate: string) => `taka at ${rate}`,
   rate: (perDollar: string, day: string | null) => `$1 = ৳${perDollar}${day ? ` on ${day}` : ""}`,
   language: "Language",
+  theme: "Theme",
+  themes: { system: "System", light: "Light", dark: "Dark" },
 
   // Toasts
   notifications: "Notifications",
@@ -66,6 +68,8 @@ const bn: typeof en = {
   takaAt: (rate) => `টাকা, ${rate}`,
   rate: (perDollar, day) => `$১ = ৳${perDollar}${day ? `, ${day}-এর হার` : ""}`,
   language: "ভাষা",
+  theme: "থিম",
+  themes: { system: "সিস্টেম", light: "হালকা", dark: "গাঢ়" },
 
   notifications: "বার্তা",
   undo: "ফিরিয়ে নিন",

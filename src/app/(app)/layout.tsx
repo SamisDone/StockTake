@@ -13,6 +13,7 @@ import { LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { SHELL_COPY } from "./copy";
 import { Nav } from "./nav";
 import { PersonMenu } from "./person-menu";
+import { ThemeSwitch } from "@/components/theme-switch";
 import { RailCommands } from "./commands";
 import { MoreSheet, TabBar } from "./phone-bar";
 import { Palette } from "./palette";
@@ -140,6 +141,7 @@ async function PersonInMore({ language }: { language: Language }) {
     <div className="grid gap-x-8 sm:grid-cols-2">
       <LanguageSwitch language={language} variant="tag" />
       <CurrencySwitch money={money} language={language} />
+      <ThemeSwitch language={language} name="theme-more" />
       <SignOutButton language={language} />
     </div>
   );
@@ -157,6 +159,7 @@ async function Person({ language }: { language: Language }) {
     <PersonMenu name={user.name} role={ROLE_NAMES[language][user.role]} label={SHELL_COPY[language].settings}>
       <LanguageSwitch language={language} variant="tag" />
       <CurrencySwitch money={money} language={language} />
+      <ThemeSwitch language={language} name="theme-rail" />
       <SignOutButton language={language} />
     </PersonMenu>
   );
