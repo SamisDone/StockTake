@@ -15,10 +15,26 @@ export type Refusal = {
   refusal: string;
 };
 
+/**
+ * The first refusal's UPDATE, split around the number it tries to write, so the landing
+ * page can let a visitor type their own. The trigger refuses any number other than the
+ * ledger's total (`onHand`, WID-001's on hand in the state the test builds: 50 received,
+ * 5 sold); the test runs several numbers, and the total itself, to prove it.
+ */
+export const ON_HAND_STATEMENT = {
+  before: "UPDATE products SET on_hand = ",
+  value: "500",
+  after: " WHERE sku = 'WID-001';",
+  onHand: 45,
+};
+
+/** The on-hand UPDATE writing `value`. */
+export const onHandStatement = (value: string) => `${ON_HAND_STATEMENT.before}${value}${ON_HAND_STATEMENT.after}`;
+
 export const REFUSALS: Refusal[] = [
   {
     attempt: { en: "Type a new count over the old one", bn: "পুরোনো গণনার ওপর নতুন সংখ্যা বসানো" },
-    sql: "UPDATE products SET on_hand = 500 WHERE sku = 'WID-001';",
+    sql: onHandStatement(ON_HAND_STATEMENT.value),
     refusal: "on_hand must match the stock ledger",
   },
   {

@@ -21,6 +21,7 @@ export function DemoStub({
   onPress,
   language,
   divided = false,
+  receipt = false,
 }: {
   role: string;
   label: string;
@@ -29,6 +30,8 @@ export function DemoStub({
   language: Language;
   onPress: () => void;
   divided?: boolean;
+  /** On the landing's receipt paper: a perforated divider between the stubs. */
+  receipt?: boolean;
 }) {
   return (
     <button
@@ -38,7 +41,7 @@ export function DemoStub({
       formNoValidate
       onClick={onPress}
       className={`group focus-inset flex min-h-28 flex-col items-start gap-1 px-6 pt-2 pb-5 text-left transition-[background-color] duration-150 ${
-        divided ? "border-l border-ink" : ""
+        divided ? `border-l border-ink ${receipt ? "border-dashed" : ""}` : ""
       } enabled:hover:bg-liner disabled:cursor-progress`}
     >
       <span className="flex w-full items-center justify-between gap-2">
@@ -67,12 +70,21 @@ export function DemoStub({
 }
 
 /** The two demo accounts as a small label of their own: one click opens the app. */
-export function DemoDoors({ language, name }: { language: Language; name?: string }) {
+export function DemoDoors({
+  language,
+  name,
+  receipt = false,
+}: {
+  language: Language;
+  name?: string;
+  /** Printed on the landing's receipt paper (landing.css) instead of a label sheet. */
+  receipt?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(signIn, initialFormState);
   const [via, setVia] = useState<string | null>(null);
 
   return (
-    <form action={formAction} className="sheet overflow-hidden" aria-busy={pending}>
+    <form action={formAction} className={receipt ? "receipt torn" : "sheet overflow-hidden"} aria-busy={pending}>
       <fieldset disabled={pending}>
         <legend className="field-name px-6 pt-3">{name ?? COMPONENT_COPY[language].openDemo}</legend>
         <div className="grid grid-cols-2">
@@ -86,6 +98,7 @@ export function DemoDoors({ language, name }: { language: Language; name?: strin
               onPress={() => setVia(role)}
               language={language}
               divided={index > 0}
+              receipt={receipt}
             />
           ))}
         </div>

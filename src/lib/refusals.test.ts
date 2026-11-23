@@ -5,7 +5,7 @@ import { createDraft, placeOrder, receiveOrder } from "@/domain/purchase-orders"
 import { recordStockChange } from "@/domain/stock";
 import { createTestDb } from "@/test/db";
 import { admin, seedBasics, staff } from "@/test/fixtures";
-import { REFUSALS } from "./refusals";
+import { ON_HAND_STATEMENT, onHandStatement, REFUSALS } from "./refusals";
 
 // The landing page quotes these refusals. Each SQL statement runs against the real
 // migrations, in a state where the ids it names exist, and must fail with exactly the
@@ -34,8 +34,22 @@ describe("the refusals on the landing page", () => {
     expect(String((error as Error).message)).toContain(refusal);
   });
 
+  // The landing page lets a visitor type any whole number into the first statement and
+  // answers with the same refusal; only the ledger's own total goes through, unchanged.
+  it.each(["0", "1", "44", "46", "500", "9999999"])("on_hand = %s → the same refusal", async (value) => {
+    const error = await client.execute(onHandStatement(value)).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(String((error as Error | null)?.message)).toContain(REFUSALS[0].refusal);
+  });
+
+  it("accepts the ledger's own total, changing nothing", async () => {
+    await client.execute(onHandStatement(String(ON_HAND_STATEMENT.onHand)));
+  });
+
   it("leaves the data exactly as it was", async () => {
     const onHand = await client.execute("SELECT on_hand FROM products WHERE sku = 'WID-001'");
-    expect(onHand.rows[0][0]).toBe(45);
+    expect(onHand.rows[0][0]).toBe(ON_HAND_STATEMENT.onHand);
   });
 });

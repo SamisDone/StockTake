@@ -1,0 +1,91 @@
+/*
+ * The landing page's own motion and paper, loaded only by the landing (/ and /bn).
+ *
+ * The app's timings (globals.css, 110–300ms) stay as they are: they suit something used
+ * all day. The landing is read once, and its motion explains the product, so it runs on a
+ * slower stage tier: a receipt printing, a rubber stamp landing, a ledger tallying.
+ */
+
+.landing {
+  --dur-stage: 600ms; /* a headline line rising, a card printing in */
+  --dur-stage-long: 900ms;
+  --stagger: 50ms; /* between rows that start together */
+  --stagger-line: 80ms; /* between the lines of a headline */
+  --dur-impact: 220ms; /* a stamp landing on the paper */
+  --dur-execute: 500ms; /* the statement on its way to the database */
+  --dur-shake: 250ms; /* the field refusing its number */
+  --dur-wipe: 300ms; /* a door's fill wiping in under the pointer */
+}
+
+/*
+ * Receipt paper: flat white stock, no shadow (it lies on the liner, it doesn't float), its
+ * zones ruled by hairlines, and torn edges cut by a zigzag mask. Each tooth is --tooth wide
+ * and half as deep; the padding keeps content clear of the teeth.
+ */
+.receipt {
+  --tooth: 12px;
+  background: var(--color-label);
+}
+.torn,
+.torn-top,
+.torn-bottom {
+  --edge-top: conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / var(--tooth) 51% repeat-x;
+  --edge-bottom: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / var(--tooth) 51%
+    repeat-x;
+  --edge-none-top: linear-gradient(#000 0 0) top / 100% 51% no-repeat;
+  --edge-none-bottom: linear-gradient(#000 0 0) bottom / 100% 51% no-repeat;
+}
+.torn {
+  padding-block: calc(var(--tooth) / 2);
+  -webkit-mask: var(--edge-top), var(--edge-bottom);
+  mask: var(--edge-top), var(--edge-bottom);
+}
+.torn-top {
+  padding-top: calc(var(--tooth) / 2);
+  -webkit-mask: var(--edge-top), var(--edge-none-bottom);
+  mask: var(--edge-top), var(--edge-none-bottom);
+}
+.torn-bottom {
+  padding-bottom: calc(var(--tooth) / 2);
+  -webkit-mask: var(--edge-none-top), var(--edge-bottom);
+  mask: var(--edge-none-top), var(--edge-bottom);
+}
+
+/* The grain of the paper over the whole page: fixed, so it never scrolls or repaints. */
+.landing-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.2 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* A section's entry number, the way a ledger numbers its lines: small mono capitals. */
+.ledger-marker {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+/* Martian Mono has no Bengali: Bangla markers print in the text face, a size up. */
+.ledger-marker:lang(bn) {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* The database's answer, stamped on the paper in the second ink, a touch crooked. */
+.refusal-stamp {
+  display: inline-block;
+  border: 1px solid var(--color-fault);
+  border-radius: var(--radius-mark);
+  color: var(--color-fault);
+  rotate: -1deg;
+  transform-origin: 0 50%;
+  text-shadow: 0 0 1px rgb(179 19 27 / 0.35); /* the ink bleeding a little into the paper */
+}
