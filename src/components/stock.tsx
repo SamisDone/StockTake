@@ -149,7 +149,8 @@ export function TallyPlaceholder({
   className,
   notes = false,
 }: {
-  names: string[];
+  /** A null name prints as a bar: the page doesn't know yet which tallies it will show. */
+  names: (string | null)[];
   className?: string;
   /** The tallies print a line of notes under their figures, so the blocks hold that too. */
   notes?: boolean;
@@ -159,9 +160,15 @@ export function TallyPlaceholder({
       className={`grid border-b-2 border-ink ${className ?? ""}`}
       style={className ? undefined : { gridTemplateColumns: `repeat(${names.length}, minmax(0, 1fr))` }}
     >
-      {names.map((name) => (
-        <div key={name} className="border-l border-ink px-5 pt-3 pb-4 first:border-l-0 sm:px-8">
-          <p className="field-name">{name}</p>
+      {names.map((name, i) => (
+        <div key={i} className="border-l border-ink px-5 pt-3 pb-4 first:border-l-0 sm:px-8">
+          {name === null ? (
+            <div className="flex h-4 items-center lang-bn:h-4.5">
+              <div className="h-3 w-20 bg-liner" />
+            </div>
+          ) : (
+            <p className="field-name">{name}</p>
+          )}
           {/* The figure: 1.75rem (3rem from sm) at 0.95 leading, under a 4px gap. */}
           <div className="mt-1.5 h-7 w-14 bg-liner sm:h-11" />
           {notes ? <div className="mt-1 h-5 w-24 bg-liner/70" /> : null}

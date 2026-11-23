@@ -57,22 +57,3 @@ function PaletteKey() {
   }, []);
   return mac ? "⌘K" : "Ctrl K";
 }
-
-/**
- * On a phone, Record sits at the foot of the screen under the thumb, above the page: a
- * real layer, so it carries the sheet's shadow. The bottom tab bar will take it over.
- */
-export function PhoneRecord({ language }: { language: Language }) {
-  return (
-    <button
-      type="button"
-      onClick={() => openSurface("record")}
-      className="group fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex h-14 items-center gap-2 rounded-control bg-ink px-5 font-semibold text-label shadow-label lg:hidden"
-    >
-      <span className="flex items-center gap-2 transition-transform duration-150 ease-out group-active:scale-[0.96]">
-        <SquarePen aria-hidden size={20} strokeWidth={2.25} />
-        {SHELL_COPY[language].record}
-      </span>
-    </button>
-  );
-}

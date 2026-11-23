@@ -13,10 +13,10 @@ import { CoverBar, MobileName, StatusMark, Tally, TallyPlaceholder, Th } from "@
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
 import { getCurrentUser } from "@/server/dal";
 import { getLanguage, getMoneyPrefs } from "@/server/preferences";
-import { EitherLanguage } from "@/components/either-language";
 import { WithLanguage } from "@/components/with-language";
 import { both } from "@/lib/i18n";
 import { ProductLink } from "@/components/product-link";
+import { StaffBoard } from "./staff-board";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: COPY[await getLanguage()].title };
@@ -26,7 +26,7 @@ export default function DashboardPage() {
   return (
     <PageTransition>
       <PageHeader title={both(COPY, (t) => t.title)} />
-      <Reveal fallback={<EitherLanguage>{(language) => <AttentionPlaceholder t={COPY[language]} />}</EitherLanguage>}>
+      <Reveal fallback={<AttentionPlaceholder />}>
         <WithLanguage>{(language) => <Attention language={language} />}</WithLanguage>
       </Reveal>
     </PageTransition>
@@ -38,7 +38,9 @@ type Forecast = StockForecast;
 async function Attention({ language }: { language: Language }) {
   const t = COPY[language];
   const f = formats(language);
-  await getCurrentUser();
+  const user = await getCurrentUser();
+  // Staff get the stockroom's to-do list; reordering is an admin's job.
+  if (user.role === "staff") return <StaffBoard userId={user.id} language={language} />;
   // Forecasts are relative to now, so they belong to the request, never to a prerender.
   await connection();
   const db = await getDb();
@@ -180,10 +182,12 @@ function AttentionRow({
 }
 
 /** The same label, unprinted: the tally fields and rows hold their space while data loads. */
-function AttentionPlaceholder({ t }: { t: DashboardCopy }) {
+function AttentionPlaceholder() {
   return (
     <div aria-hidden>
-      <TallyPlaceholder names={t.tallies} />
+      {/* Staff see their own board with other tallies, and the role isn't known until the
+          request is, so the names wait for it. */}
+      <TallyPlaceholder names={[null, null, null]} />
       <div className="px-5 pt-6 sm:px-8">
         <div className="h-5 w-36 bg-liner" />
         <div className="mt-6 space-y-5">

@@ -18,6 +18,7 @@ const en = {
 
   // Record from anywhere and the command palette
   record: "Record",
+  more: "More",
   recordKey: "R",
   find: "Find",
   sheet: {
@@ -63,6 +64,7 @@ const bn: typeof en = {
   signOut: "সাইন আউট",
 
   record: "লিখুন",
+  more: "আরও",
   recordKey: "R",
   find: "খুঁজুন",
   sheet: {

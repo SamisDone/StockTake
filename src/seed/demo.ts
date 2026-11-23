@@ -120,6 +120,13 @@ const CATALOG: [string, string, string, number, number, number, number][] = [
 /** Products whose reordering someone "forgot" near the end, so the dashboard has work to show. */
 const NEGLECTED = new Set(["ELC-USB-C", "OFC-PAPER-A4", "TXT-VEST-HV", "PKG-TAPE"]);
 
+/**
+ * The first delivery the seed has arriving on one of these days never arrives, so the
+ * staff home has a late one to chase. Day HISTORY_DAYS is yesterday, and the app's due
+ * day is at most a day off the seed's (the jitter), so it's one to five days late.
+ */
+const LATE_WINDOW = [HISTORY_DAYS - 3, HISTORY_DAYS - 2, HISTORY_DAYS - 1];
+
 const WRITE_OFF_REASONS = ["Damaged in the warehouse", "Water damage", "Crushed in transit", "Failed inspection"];
 
 const REVIEWS: [supplier: number, user: number, rating: number, comment: string | null][] = [
@@ -360,6 +367,7 @@ export function demoStatements({ anchor }: { anchor: Date }) {
   let nextOrderId = 1;
   let nextLineId = 1;
   const open: OpenOrder[] = [];
+  let heldBack = false;
 
   const placeOrder = (supplier: Supplier, wanted: Product[], day: number) => {
     const id = nextOrderId++;
@@ -399,8 +407,12 @@ export function demoStatements({ anchor }: { anchor: Date }) {
     const weekday = weekdayOf(new Date(at(day, 12)));
     const dayFactor = weekday === 0 || weekday === 6 ? 0.55 : 1.1;
 
-    // Deliveries due today.
+    // Deliveries due today, except the one that runs late.
     for (const order of open.filter((o) => o.dueDay === day)) {
+      if (!heldBack && LATE_WINDOW.includes(day)) {
+        heldBack = true;
+        continue;
+      }
       for (const line of order.lines) {
         movement(line.product, "receipt", line.quantity, STAFF, at(day, 11), null, line.id);
         line.product.onHand += line.quantity;
@@ -456,9 +468,11 @@ export function demoStatements({ anchor }: { anchor: Date }) {
       }
     }
 
-    // Monthly cycle count of one category, which finds a little shrinkage.
-    if (day % 30 === 0) {
-      const category = [...new Set(products.map((p) => p.category))][(day / 30) % 6];
+    // A rolling cycle count, one category every six days, which finds a little shrinkage.
+    // A round of six takes 36 days against the 30 the staff home asks for, so on any day
+    // a category or so is due a count.
+    if (day % 6 === 0) {
+      const category = [...new Set(products.map((p) => p.category))][(day / 6) % 6];
       for (const p of products.filter((x) => x.category === category && x.onHand > 4)) {
         const shrink = Math.floor(rand() * 3);
         const counted = p.onHand - shrink;

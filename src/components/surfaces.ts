@@ -1,11 +1,12 @@
 import { type FindIndex, findIndex } from "@/server/find-actions";
 
 /**
- * The two surfaces that open over any page: the record sheet and the command palette.
+ * The surfaces that open over any page: the record sheet, the command palette, and on a
+ * phone the More sheet.
  * Buttons in the shell, the palette and the keyboard all open them through here, so
  * the surfaces don't need to know who asked. Client only.
  */
-export type Surface = "record" | "palette";
+export type Surface = "record" | "palette" | "more";
 
 const OPEN = "stocktake:open";
 

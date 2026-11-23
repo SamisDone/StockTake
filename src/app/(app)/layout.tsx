@@ -12,7 +12,8 @@ import { ROLE_NAMES } from "@/lib/demo-roles";
 import { LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { SHELL_COPY } from "./copy";
 import { Nav } from "./nav";
-import { PhoneRecord, RailCommands } from "./commands";
+import { RailCommands } from "./commands";
+import { MoreSheet, TabBar } from "./phone-bar";
 import { Palette } from "./palette";
 import { RecordSheet } from "./record-sheet";
 
@@ -49,7 +50,7 @@ async function Shell({ children, drawer }: { children: ReactNode; drawer: ReactN
           <RailCommands language={language} />
         </div>
         <div className="mt-6">
-          <Nav layout="rail" labels={t.nav} name={t.sections} />
+          <Nav labels={t.nav} name={t.sections} />
         </div>
         <div className="mt-auto">
           <Suspense fallback={<PersonFallback />}>
@@ -58,26 +59,30 @@ async function Shell({ children, drawer }: { children: ReactNode; drawer: ReactN
         </div>
       </aside>
 
+      {/* On a phone the top is just the mark and who's signed in; the sections, Record and
+          the rest live in the tab bar at the foot. */}
       <div style={{ viewTransitionName: "app-bar" }} className="lg:hidden">
-        <div className="flex items-center justify-between gap-4 px-3 pt-4 pb-3">
+        <div className="flex items-center justify-between gap-4 px-3 pt-3 pb-2">
           <Wordmark compact />
           <Suspense fallback={null}>
             <PersonCompact language={language} />
           </Suspense>
         </div>
-        <div className="px-3 pb-3">
-          <Nav layout="strip" labels={t.nav} name={t.sections} />
-        </div>
       </div>
 
-      {/* On a phone the page ends clear of the Record button floating at its foot. */}
-      <main className="pb-24 lg:py-3 lg:pr-3">
+      {/* On a phone the page ends clear of the tab bar at its foot. */}
+      <main className="pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:py-3 lg:pr-3">
         <div className="sheet min-h-[calc(100dvh-8rem)] rounded-none lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-label">
           {children}
         </div>
       </main>
       {drawer}
-      <PhoneRecord language={language} />
+      <TabBar language={language} />
+      <MoreSheet language={language}>
+        <Suspense fallback={null}>
+          <PersonInMore language={language} />
+        </Suspense>
+      </MoreSheet>
       <RecordSheet language={language} />
       <Suspense fallback={null}>
         <PaletteFor language={language} />
@@ -116,19 +121,25 @@ async function PaletteFor({ language }: { language: Language }) {
   return <Palette language={language} currency={money.currency} isAdmin={user.role === "admin"} />;
 }
 
-/** On a phone: who is signed in, in which role, the currency, the language, and the way out, in one line. */
+/** On a phone: who is signed in, and in which role. The rest is under More. */
 async function PersonCompact({ language }: { language: Language }) {
   const user = await getCurrentUser();
+  return (
+    <p className="min-w-0 truncate text-sm">
+      <span className="font-semibold">{user.name}</span>
+      <span className="text-ink-2"> · {ROLE_NAMES[language][user.role]}</span>
+    </p>
+  );
+}
+
+/** The foot of the phone's More sheet: the language, the currency, and the way out. */
+async function PersonInMore({ language }: { language: Language }) {
   const money = await getMoneyPrefs();
   return (
-    <div className="flex min-w-0 items-center gap-2 text-sm">
-      <p className="min-w-0 truncate">
-        <span className="font-semibold">{user.name}</span>
-        <span className="text-ink-2"> · {ROLE_NAMES[language][user.role]}</span>
-      </p>
-      <CurrencySwitch money={money} language={language} compact />
-      <LanguageSwitch language={language} variant="toggle" short />
-      <SignOutButton language={language} compact />
+    <div className="grid gap-x-8 sm:grid-cols-2">
+      <LanguageSwitch language={language} variant="tag" />
+      <CurrencySwitch money={money} language={language} />
+      <SignOutButton language={language} />
     </div>
   );
 }
