@@ -29,7 +29,13 @@ export type ActivityEvent =
   | { action: "purchase_order.edited"; facts: { order: string; lines: number; totalCents: number } }
   | { action: "purchase_order.placed"; facts: { order: string; supplier: string; totalCents: number } }
   | { action: "purchase_order.cancelled"; facts: { order: string } }
-  | { action: "purchase_order.received"; facts: { order: string; supplier: string; units: number } };
+  | { action: "purchase_order.received"; facts: { order: string; supplier: string; units: number } }
+  | { action: "purchase_order.received_part"; facts: { order: string; supplier: string; units: number } }
+  | { action: "purchase_order.closed_short"; facts: { order: string; supplier: string; short: number } }
+  | {
+      action: "stock.supplier_return";
+      facts: { name: string; quantity: number; order: string; supplier: string; note?: string };
+    };
 
 /** What an undo reversed: a recorded movement's kind ("adjustment" is a count's). */
 export type UndoneKind = "sale" | "return" | "write_off" | "adjustment";
@@ -78,6 +84,12 @@ const en: Sentences = {
     `Placed ${order} with ${supplier} for ${enDollars(totalCents)}`,
   "purchase_order.cancelled": ({ order }) => `Cancelled ${order}`,
   "purchase_order.received": ({ order, supplier, units }) => `Received ${order} from ${supplier}: ${units} units`,
+  "purchase_order.received_part": ({ order, supplier, units }) =>
+    `Received part of ${order} from ${supplier}: ${units} units`,
+  "purchase_order.closed_short": ({ order, supplier, short }) =>
+    `Closed ${order} from ${supplier} short: ${short} units never came`,
+  "stock.supplier_return": ({ name, quantity, order, supplier, note }) =>
+    withNote(`Sent ${quantity} × ${name} back to ${supplier} on ${order}`, note),
 };
 
 const n = formats("bn").count;
@@ -122,6 +134,12 @@ const bn: Sentences = {
   "purchase_order.cancelled": ({ order }) => `${order} বাতিল হলো`,
   "purchase_order.received": ({ order, supplier, units }) =>
     `${supplier}-এর কাছ থেকে ${order} বুঝে নেওয়া হলো: ${n(units)} ইউনিট`,
+  "purchase_order.received_part": ({ order, supplier, units }) =>
+    `${supplier}-এর কাছ থেকে ${order}-এর কিছু অংশ বুঝে নেওয়া হলো: ${n(units)} ইউনিট`,
+  "purchase_order.closed_short": ({ order, supplier, short }) =>
+    `${supplier}-এর ${order} কম নিয়েই বন্ধ করা হলো: ${n(short)} ইউনিট আসেনি`,
+  "stock.supplier_return": ({ name, quantity, order, supplier, note }) =>
+    withNote(`${order}-এর ${n(quantity)} × ${name} ${supplier}-কে ফেরত পাঠানো হলো`, note),
 };
 
 const SENTENCES: Copy<Sentences> = { en, bn };

@@ -31,6 +31,7 @@ const en = {
     returned: "Returned",
     sold: "Sold",
     writtenOff: "Written off",
+    sentBack: "Sent back to suppliers",
     found: "Found in counts",
     short: "Short in counts",
   },
@@ -59,6 +60,7 @@ const en = {
   wentParts: {
     sold: "Sold",
     writtenOff: "Written off",
+    sentBack: "Sent back to suppliers",
     short: "Missing at counts",
     onHand: "Still on the shelves",
   },
@@ -142,6 +144,7 @@ const bn: AnalyticsCopy = {
     returned: "ফেরত এসেছে",
     sold: "বিক্রি",
     writtenOff: "বাতিল",
+    sentBack: "সরবরাহকারীকে ফেরত",
     found: "গণনায় বেশি পাওয়া",
     short: "গণনায় কম পাওয়া",
   },
@@ -165,6 +168,7 @@ const bn: AnalyticsCopy = {
   wentParts: {
     sold: "বিক্রি",
     writtenOff: "বাতিল",
+    sentBack: "সরবরাহকারীকে ফেরত",
     short: "গণনায় পাওয়া যায়নি",
     onHand: "এখনও তাকে",
   },

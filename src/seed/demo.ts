@@ -127,6 +127,9 @@ const NEGLECTED = new Set(["ELC-USB-C", "OFC-PAPER-A4", "TXT-VEST-HV", "PKG-TAPE
  */
 const LATE_WINDOW = [HISTORY_DAYS - 3, HISTORY_DAYS - 2, HISTORY_DAYS - 1];
 
+/** The first full delivery from this day on has a few damaged units sent back. */
+const RETURN_FROM_DAY = 90;
+
 const WRITE_OFF_REASONS = ["Damaged in the warehouse", "Water damage", "Crushed in transit", "Failed inspection"];
 
 const REVIEWS: [supplier: number, user: number, rating: number, comment: string | null][] = [
@@ -368,6 +371,7 @@ export function demoStatements({ anchor }: { anchor: Date }) {
   let nextLineId = 1;
   const open: OpenOrder[] = [];
   let heldBack = false;
+  let sentBack = false;
 
   const placeOrder = (supplier: Supplier, wanted: Product[], day: number) => {
     const id = nextOrderId++;
@@ -410,13 +414,47 @@ export function demoStatements({ anchor }: { anchor: Date }) {
     // Deliveries due today, except the one that runs late.
     for (const order of open.filter((o) => o.dueDay === day)) {
       if (!heldBack && LATE_WINDOW.includes(day)) {
+        // About half of its first line came; the rest is late, so the order stays placed.
         heldBack = true;
+        const line = order.lines[0];
+        const part = Math.floor(line.quantity / 2);
+        if (part > 0) {
+          movement(line.product, "receipt", part, STAFF, at(day, 11), null, line.id);
+          line.product.onHand += part;
+          line.product.onOrder -= part;
+          activity(
+            STAFF,
+            "purchase_order.received_part",
+            "purchase_order",
+            order.id,
+            `Received part of ${poNumber(order.id)} from ${order.supplier.name}: ${part} units`,
+            at(day, 11),
+            { order: poNumber(order.id), supplier: order.supplier.name, units: part },
+          );
+        }
         continue;
       }
       for (const line of order.lines) {
         movement(line.product, "receipt", line.quantity, STAFF, at(day, 11), null, line.id);
         line.product.onHand += line.quantity;
         line.product.onOrder -= line.quantity;
+      }
+      // Once, a delivery with a few damaged: they go back to the supplier on the same line.
+      if (!sentBack && day >= RETURN_FROM_DAY && order.lines[0].quantity >= 10) {
+        sentBack = true;
+        const line = order.lines[0];
+        const note = "Damaged in transit";
+        movement(line.product, "supplier_return", -3, STAFF, at(day, 12), note, line.id);
+        line.product.onHand -= 3;
+        activity(
+          STAFF,
+          "stock.supplier_return",
+          "product",
+          line.product.id,
+          `Sent 3 × ${line.product.name} back to ${order.supplier.name} on ${poNumber(order.id)}: ${note}`,
+          at(day, 12),
+          { name: line.product.name, quantity: 3, order: poNumber(order.id), supplier: order.supplier.name, note },
+        );
       }
       out.statement(
         `UPDATE purchase_orders SET status = 'received', received_at = ${at(day, 11)} WHERE id = ${order.id};`,

@@ -29,6 +29,8 @@ export type OrderRow = {
   sortAt: number | null;
   /** Placed and past its due date. */
   late: boolean;
+  /** Placed, and part of it has come in. */
+  partly: boolean;
 };
 
 const SORTS = ["lines", "total", "date"] as const;
@@ -173,6 +175,7 @@ function Row({ row, m, f, t }: { row: OrderRow; m: MoneyFormat; f: Formats; t: O
               {t.late}
             </span>
           ) : null}
+          {row.partly ? <span className="text-xs font-semibold text-ink-2">{t.partlyIn}</span> : null}
         </span>
       </td>
       <td className="tabular py-3 pr-4 text-right max-md:hidden">{f.count(row.lineCount)}</td>

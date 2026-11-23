@@ -57,6 +57,13 @@
       "when": 1795322075122,
       "tag": "0007_undo_reversals",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795416432302,
+      "tag": "0008_partial_receiving",
+      "breakpoints": true
     }
   ]
 }

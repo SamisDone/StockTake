@@ -115,7 +115,7 @@ async function SupplierList({ language }: { language: Language }) {
       leadTimeDays: s.leadTimeDays,
       products: s.productCount,
       low: forecasts.filter((f) => f.supplierId === s.id && f.status !== "ok").length,
-      onOrderCents: theirs.filter((o) => o.status === "ordered").reduce((sum, o) => sum + o.totalCents, 0),
+      onOrderCents: theirs.filter((o) => o.status === "ordered").reduce((sum, o) => sum + o.dueCents, 0),
       ...deliveryRecord(theirs),
       averageRating: s.averageRating,
       reviewCount: s.reviewCount,

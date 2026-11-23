@@ -55,8 +55,12 @@ const urgency: Record<StockStatus, number> = { out: 0, reorder: 1, ok: 2 };
 async function forecastRows(db: Database, where: SQL | undefined, now: Date) {
   const since = new Date(now.getTime() - DEMAND_WINDOW_DAYS * DAY_MS);
 
+  // What placed orders still have to bring: each line less what has come in on it.
   const onOrder = sql<number>`(
-    SELECT coalesce(sum(${purchaseOrderLines.quantity}), 0)
+    SELECT coalesce(sum(${purchaseOrderLines.quantity} - coalesce((
+      SELECT sum(m.quantity) FROM ${stockMovements} m
+      WHERE m.purchase_order_line_id = ${purchaseOrderLines.id} AND m.kind = 'receipt'
+    ), 0)), 0)
     FROM ${purchaseOrderLines}
     JOIN ${purchaseOrders} ON ${purchaseOrders.id} = ${purchaseOrderLines.purchaseOrderId}
     WHERE ${purchaseOrderLines.productId} = ${outer(products, "id")} AND ${purchaseOrders.status} = 'ordered'

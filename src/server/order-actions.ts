@@ -6,11 +6,13 @@ import { DomainError } from "@/domain/errors";
 import {
   type DraftInput,
   cancelOrder,
+  closeOrderShort,
   createDraft,
   getOrder,
   placeOrder,
   poNumber,
   receiveOrder,
+  returnToSupplier,
   updateDraft,
 } from "@/domain/purchase-orders";
 import { draftSuggestedOrder } from "@/domain/reorder";
@@ -50,8 +52,8 @@ export async function draftFromSuggestions(_previous: FormState, formData: FormD
   redirect(`/orders/${id}`);
 }
 
-type Intent = "place" | "cancel" | "receive";
-const INTENTS: Intent[] = ["place", "cancel", "receive"];
+type Intent = "place" | "cancel" | "receive" | "close";
+const INTENTS: Intent[] = ["place", "cancel", "receive", "close"];
 
 /**
  * Places, cancels or receives an order. The domain decides who may (placing and
@@ -74,11 +76,27 @@ export async function changeOrder(_previous: OrderFormState, formData: FormData)
     } else if (intent === "cancel") {
       await cancelOrder(db, user, orderId);
       message = t.cancelled(poNumber(orderId));
+    } else if (intent === "close") {
+      const { short } = await closeOrderShort(db, user, orderId);
+      message = t.closedShort(poNumber(orderId), short);
     } else {
-      await receiveOrder(db, user, orderId);
-      const order = await getOrder(db, orderId);
-      const units = order.lines.reduce((total, line) => total + line.quantity, 0);
-      message = t.received(order.number, units);
+      // What came in, per line: `receive-<lineId>`. A form without them receives everything due.
+      const delivery: { lineId: number; quantity: number }[] = [];
+      for (const [key, value] of formData) {
+        const lineId = key.startsWith("receive-") ? positiveId(key.slice("receive-".length)) : null;
+        if (lineId === null) continue;
+        const quantity = parseUnits(String(value));
+        if (quantity === null || quantity < 0) return { error: { message: t.wholeUnits, field: key } };
+        delivery.push({ lineId, quantity });
+      }
+      const { complete, units } = await receiveOrder(
+        db,
+        user,
+        orderId,
+        new Date(),
+        delivery.length > 0 ? delivery : undefined,
+      );
+      message = complete ? t.received(poNumber(orderId), units) : t.receivedPart(poNumber(orderId), units);
     }
   } catch (error) {
     return formError(error, language);
@@ -86,6 +104,28 @@ export async function changeOrder(_previous: OrderFormState, formData: FormData)
 
   refresh();
   return { done: { message, at: Date.now() } };
+}
+
+/**
+ * Sends stock back to the supplier against an order line. Anyone can, like a write-off:
+ * the domain checks the line received at least that much.
+ */
+export async function sendBack(_previous: OrderFormState, formData: FormData): Promise<OrderFormState> {
+  const { db, user, language } = await authorize();
+  const t = ACTION_COPY[language];
+  const lineId = positiveId(field(formData, "lineId"));
+  const quantity = parseUnits(field(formData, "quantity"));
+  if (lineId === null) return { error: { message: t.noOrder } };
+  if (quantity === null || quantity < 1) {
+    return { error: { message: t.orderAtLeastOne, field: "quantity" } };
+  }
+  try {
+    const sent = await returnToSupplier(db, user, { lineId, quantity, note: field(formData, "note") });
+    refresh();
+    return { done: { message: t.sentBack(sent.name, sent.quantity, sent.order), at: Date.now() } };
+  } catch (error) {
+    return formError(error, language);
+  }
 }
 
 /** What the draft form gets back: what's wrong with it, or the draft it saved. */

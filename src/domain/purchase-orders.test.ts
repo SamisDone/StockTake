@@ -4,6 +4,7 @@ import type { Database } from "@/db/database";
 import { activityLog, products, suppliers } from "@/db/schema";
 import {
   cancelOrder,
+  closeOrderShort,
   createDraft,
   daysLate,
   deliveryRecord,
@@ -13,8 +14,11 @@ import {
   placeOrder,
   poNumber,
   receiveOrder,
+  returnToSupplier,
   updateDraft,
 } from "@/domain/purchase-orders";
+import { getAnalytics } from "@/domain/analytics";
+import { getProductForecast } from "@/domain/forecast";
 import { createTestDb } from "@/test/db";
 import { admin, seedBasics, staff } from "@/test/fixtures";
 
@@ -250,6 +254,110 @@ describe("receiveOrder", () => {
     expect(failure.reason).toMatchObject({ code: "invalid_state", message: "PO-0001 has been received already." });
     expect(await onHand(1)).toBe(30);
     expect(await onHand(2)).toBe(10);
+  });
+});
+
+describe("receiving in parts", () => {
+  async function placed() {
+    const { id } = await createDraft(db, staff, twoLines, at(1));
+    await placeOrder(db, admin, id, at(2));
+    return getOrder(db, id);
+  }
+
+  it("books what came, keeps the order placed until the rest comes, then receives it", async () => {
+    const order = await placed();
+    const [widgets, gadgets] = order.lines;
+    const first = await receiveOrder(db, staff, order.id, at(5), [
+      { lineId: widgets.id, quantity: 12 },
+      { lineId: gadgets.id, quantity: 0 },
+    ]);
+    expect(first).toEqual({ complete: false, units: 12 });
+    expect(await onHand(1)).toBe(12);
+    let now = await getOrder(db, order.id);
+    expect(now.status).toBe("ordered");
+    expect(now.lines.map((l) => l.received)).toEqual([12, 0]);
+    expect(await lastSummary()).toBe("Received part of PO-0001 from Northwind Supply: 12 units");
+    expect((await listOrders(db))[0]).toMatchObject({
+      orderedUnits: 40,
+      receivedUnits: 12,
+      dueCents: 18 * 250 + 10 * 380,
+    });
+    // On order is what's still to come, so the 12 that came in aren't counted twice.
+    expect((await getProductForecast(db, 1, at(5))).onOrder).toBe(18);
+
+    // Without quantities: everything still due.
+    expect(await receiveOrder(db, staff, order.id, at(7))).toEqual({ complete: true, units: 28 });
+    now = await getOrder(db, order.id);
+    expect(now.status).toBe("received");
+    expect(now.lines.map((l) => l.received)).toEqual([30, 10]);
+  });
+
+  it("refuses more than is still due, and a delivery of nothing", async () => {
+    const order = await placed();
+    const [widgets] = order.lines;
+    await receiveOrder(db, staff, order.id, at(5), [{ lineId: widgets.id, quantity: 25 }]);
+    await expect(receiveOrder(db, staff, order.id, at(6), [{ lineId: widgets.id, quantity: 6 }])).rejects.toMatchObject(
+      { message: "Only 5 more of Widget is due on this order.", field: `receive-${widgets.id}` },
+    );
+    await expect(receiveOrder(db, staff, order.id, at(6), [{ lineId: widgets.id, quantity: 0 }])).rejects.toMatchObject(
+      {
+        message: "Enter how many came in for at least one line.",
+      },
+    );
+  });
+
+  it("lets an admin close a partly received order short, and only then", async () => {
+    const order = await placed();
+    await expect(closeOrderShort(db, admin, order.id, at(6))).rejects.toMatchObject({
+      message: "Nothing has come in on PO-0001 yet. If it isn't coming, cancel it instead.",
+    });
+    await receiveOrder(db, staff, order.id, at(5), [{ lineId: order.lines[0].id, quantity: 30 }]);
+    await expect(closeOrderShort(db, staff, order.id, at(6))).rejects.toMatchObject({ code: "forbidden" });
+    expect(await closeOrderShort(db, admin, order.id, at(6))).toEqual({ short: 10 });
+    const closed = await getOrder(db, order.id);
+    expect(closed.status).toBe("received");
+    expect(closed.receivedAt).toEqual(at(6));
+    expect(await lastSummary()).toBe("Closed PO-0001 from Northwind Supply short: 10 units never came");
+  });
+});
+
+describe("returnToSupplier", () => {
+  it("sends stock back against its line, no more than it received, and the books still balance", async () => {
+    const { id } = await createDraft(db, staff, twoLines, at(1));
+    await placeOrder(db, admin, id, at(2));
+    await receiveOrder(db, staff, id, at(5));
+    const [widgets, gadgets] = (await getOrder(db, id)).lines;
+
+    expect(await returnToSupplier(db, staff, { lineId: widgets.id, quantity: 4, note: "Crushed" }, at(6))).toEqual({
+      name: "Widget",
+      quantity: 4,
+      order: "PO-0001",
+    });
+    expect(await onHand(1)).toBe(26);
+    expect(await lastSummary()).toBe("Sent 4 × Widget back to Northwind Supply on PO-0001: Crushed");
+    expect((await getOrder(db, id)).lines[0].returned).toBe(4);
+
+    await expect(returnToSupplier(db, staff, { lineId: widgets.id, quantity: 27 }, at(6))).rejects.toMatchObject({
+      message: "Only 26 of Widget came in on this order and can go back.",
+      field: "quantity",
+    });
+    await returnToSupplier(db, staff, { lineId: gadgets.id, quantity: 10 }, at(6));
+    await expect(returnToSupplier(db, staff, { lineId: gadgets.id, quantity: 1 }, at(6))).rejects.toMatchObject({
+      message: "None of Gadget on this order is left to send back.",
+    });
+
+    const { stock } = await getAnalytics(db, 28, at(7));
+    expect(stock.sentBack.units).toBe(14);
+    expect(stock.closing).toEqual(stock.onHand);
+  });
+
+  it("refuses a line nothing has come in on", async () => {
+    const { id } = await createDraft(db, staff, twoLines, at(1));
+    await placeOrder(db, admin, id, at(2));
+    const [widgets] = (await getOrder(db, id)).lines;
+    await expect(returnToSupplier(db, staff, { lineId: widgets.id, quantity: 1 }, at(3))).rejects.toMatchObject({
+      message: "Nothing has been received on PO-0001, so nothing can go back on it.",
+    });
   });
 });
 

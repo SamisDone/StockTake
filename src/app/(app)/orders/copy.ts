@@ -71,13 +71,20 @@ const en = {
   // An order's label
   labelTallies: ["Lines", "Units", "Total"] as [string, string, string],
   linesTitle: "Lines",
-  lineColumns: { product: "Product", quantity: "Quantity", unitCost: "Unit cost", lineTotal: "Line total" },
+  lineColumns: {
+    product: "Product",
+    quantity: "Quantity",
+    received: "Received",
+    unitCost: "Unit cost",
+    lineTotal: "Line total",
+  },
+  sentBackNote: (n: string) => `${n} sent back`,
   total: "Total",
   history: "History",
   draftedBy: (name: string) => `Drafted by ${name}`,
   placedWith: (supplier: string) => `Placed with ${supplier}`,
-  receivedLine: (n: number, count: string) =>
-    `Received: ${count} ${n === 1 ? "receipt" : "receipts"} booked into stock`,
+  receivedLine: (units: string) => `Received in full: ${units} units booked into stock`,
+  closedShortLine: (arrived: string, ordered: string) => `Closed short: ${arrived} of ${ordered} units came in`,
   cancelledLine: "Cancelled",
   notes: "Notes",
   gone: "It's no longer a draft, so its lines can't be changed.",
@@ -103,18 +110,54 @@ const en = {
       text: "Each line was booked into stock as a receipt, and shows in its product's ledger.",
     },
     cancelled: { lead: "Cancelled.", text: "Nothing was received, and it can't be reopened." },
+    partly: (arrived: string, ordered: string, due: string, basis: string) => ({
+      lead: "Partly in.",
+      text: `${arrived} of ${ordered} units have come in. The rest is due ${due}, from ${basis}.`,
+    }),
+    partlyLate: (arrived: string, ordered: string, due: string, ago: string) => ({
+      lead: "Partly in, the rest late.",
+      text: `${arrived} of ${ordered} units have come in. The rest was due ${due}, ${ago} ago. Receive it when it comes, or close the order short.`,
+    }),
+    receivedShort: (short: string) => ({
+      lead: "Received short.",
+      text: `It was closed with ${short} units that never came. What did come is in the ledger.`,
+    }),
   },
 
   // Next step
   adminPlaces: "An admin places this draft, or cancels it.",
   nextStep: "Next step",
-  receiveHelp: "Receive it once the delivery is checked in. That books one receipt per line: ",
-  busy: { place: "Placing…", cancel: "Cancelling…", receive: "Receiving…" },
+  deliveryHelp: "Check the delivery in and enter what came, line by line. Whatever isn't here yet stays due.",
+  deliveryCaption: "What came in this delivery",
+  dueColumn: "Still due",
+  arrivedColumn: "Arrived",
+  arrivedLabel: (product: string) => `${product}: units arrived`,
+  allIn: "All in",
+  busy: { place: "Placing…", cancel: "Cancelling…", receive: "Receiving…", close: "Closing…" },
+  closeShort: "Close short",
+  confirmClose: (order: string, short: string) =>
+    `Close ${order} with ${short} units still missing? They won't be expected any more.`,
+  keepWaiting: "Keep waiting",
   confirmCancel: (order: string) => `Cancel ${order}? It can't be reopened.`,
   keep: "Keep it",
   cancelOrder: "Cancel order",
   placeOrder: "Place order",
   receiveDelivery: "Receive delivery",
+
+  // Sending stock back
+  sendBack: {
+    title: "Send stock back",
+    help: (supplier: string) =>
+      `Damaged, wrong or more than wanted: it leaves the shelf and goes back to ${supplier}, against the line it came in on.`,
+    line: "Line",
+    lineOption: (product: string, left: string) => `${product} (${left} can go back)`,
+    quantity: "Units going back",
+    reason: "Reason",
+    reasonHint: "Optional. Goes in the ledger and the activity log.",
+    submit: "Send back",
+    busy: "Sending back…",
+  },
+  partlyIn: "Partly in",
 
   // The draft form
   form: {
@@ -238,12 +281,14 @@ const bn: OrdersCopy = {
 
   labelTallies: ["লাইন", "ইউনিট", "মোট"],
   linesTitle: "লাইন",
-  lineColumns: { product: "পণ্য", quantity: "পরিমাণ", unitCost: "একক দাম", lineTotal: "লাইনের মোট" },
+  lineColumns: { product: "পণ্য", quantity: "পরিমাণ", received: "এসেছে", unitCost: "একক দাম", lineTotal: "লাইনের মোট" },
+  sentBackNote: (n) => `${n}টি ফেরত গেছে`,
   total: "মোট",
   history: "ইতিহাস",
   draftedBy: (name) => `খসড়া করেছেন ${name}`,
   placedWith: (supplier) => `${supplier}-কে দেওয়া হয়েছে`,
-  receivedLine: (_n, count) => `বুঝে নেওয়া: ${count}টি প্রাপ্তি মজুতে যোগ হয়েছে`,
+  receivedLine: (units) => `পুরোটা বুঝে নেওয়া: ${units} ইউনিট মজুতে যোগ হয়েছে`,
+  closedShortLine: (arrived, ordered) => `কম নিয়ে বন্ধ: ${ordered} ইউনিটের মধ্যে ${arrived}টি এসেছে`,
   cancelledLine: "বাতিল",
   notes: "নোট",
   gone: "এটি আর খসড়া নেই, তাই এর লাইন বদলানো যাবে না।",
@@ -269,17 +314,51 @@ const bn: OrdersCopy = {
       text: "প্রতিটি লাইন প্রাপ্তি হিসেবে মজুতে যোগ হয়েছে, আর পণ্যের খাতায় দেখা যাচ্ছে।",
     },
     cancelled: { lead: "বাতিল।", text: "কিছুই আসেনি, আর এটি আবার খোলা যাবে না।" },
+    partly: (arrived, ordered, due, basis) => ({
+      lead: "কিছু অংশ এসেছে।",
+      text: `${ordered} ইউনিটের মধ্যে ${arrived}টি এসেছে। বাকিটা আসার কথা ${due}, ${basis} অনুযায়ী।`,
+    }),
+    partlyLate: (arrived, ordered, due, ago) => ({
+      lead: "কিছু অংশ এসেছে, বাকিটা দেরিতে।",
+      text: `${ordered} ইউনিটের মধ্যে ${arrived}টি এসেছে। বাকিটা আসার কথা ছিল ${due}, ${ago} আগে। এলে বুঝে নিন, নইলে কম নিয়ে বন্ধ করুন।`,
+    }),
+    receivedShort: (short) => ({
+      lead: "কম নিয়ে বুঝে নেওয়া।",
+      text: `${short} ইউনিট না আসা অবস্থায় এটি বন্ধ করা হয়েছে। যা এসেছে তা খাতায় আছে।`,
+    }),
   },
 
   adminPlaces: "অ্যাডমিন এই খসড়ার অর্ডার দেন, অথবা বাতিল করেন।",
   nextStep: "পরের ধাপ",
-  receiveHelp: "ডেলিভারি মিলিয়ে নেওয়ার পর বুঝে নিন। এতে প্রতিটি লাইনের জন্য একটি করে প্রাপ্তি লেখা হবে: ",
-  busy: { place: "অর্ডার দেওয়া হচ্ছে…", cancel: "বাতিল হচ্ছে…", receive: "বুঝে নেওয়া হচ্ছে…" },
+  deliveryHelp: "ডেলিভারি মিলিয়ে প্রতিটি লাইনে কতগুলো এসেছে লিখুন। যা এখনো আসেনি তা আসার কথা থেকে যাবে।",
+  deliveryCaption: "এই ডেলিভারিতে যা এসেছে",
+  dueColumn: "বাকি",
+  arrivedColumn: "এসেছে",
+  arrivedLabel: (product) => `${product}: কতগুলো এসেছে`,
+  allIn: "সব এসেছে",
+  busy: { place: "অর্ডার দেওয়া হচ্ছে…", cancel: "বাতিল হচ্ছে…", receive: "বুঝে নেওয়া হচ্ছে…", close: "বন্ধ হচ্ছে…" },
+  closeShort: "কম নিয়ে বন্ধ করুন",
+  confirmClose: (order, short) => `${short} ইউনিট বাকি রেখে ${order} বন্ধ করবেন? সেগুলো আর আসার কথা থাকবে না।`,
+  keepWaiting: "অপেক্ষা করুন",
   confirmCancel: (order) => `${order} বাতিল করবেন? এটি আর খোলা যাবে না।`,
   keep: "রেখে দিন",
   cancelOrder: "অর্ডার বাতিল",
   placeOrder: "অর্ডার দিন",
   receiveDelivery: "ডেলিভারি বুঝে নিন",
+
+  sendBack: {
+    title: "মাল ফেরত পাঠান",
+    help: (supplier) =>
+      `ক্ষতিগ্রস্ত, ভুল বা বেশি এসেছে: এটি তাক থেকে সরে ${supplier}-এর কাছে ফেরত যায়, যে লাইনে এসেছিল সেই লাইনের বিপরীতে।`,
+    line: "লাইন",
+    lineOption: (product, left) => `${product} (${left}টি ফেরত যেতে পারে)`,
+    quantity: "কতগুলো ফেরত যাচ্ছে",
+    reason: "কারণ",
+    reasonHint: "ঐচ্ছিক। খাতা আর কার্যক্রমে লেখা থাকবে।",
+    submit: "ফেরত পাঠান",
+    busy: "ফেরত পাঠানো হচ্ছে…",
+  },
+  partlyIn: "কিছু এসেছে",
 
   form: {
     editTitle: (order) => `${order} সম্পাদনা`,

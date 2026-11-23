@@ -83,6 +83,21 @@ const en = {
     `${supplier} doesn't supply ${product}.`,
   nothingToOrder: () => "Nothing from that supplier needs ordering right now.",
   allDrafted: ({ supplier }: { supplier: string }) => `Everything ${supplier} should send is on a draft already.`,
+  noOrderLine: () => "That order line doesn't exist.",
+  cancelPartly: ({ order }: { order: string }) =>
+    `Part of ${order} has come in, so it can't be cancelled. Close it short instead.`,
+  receiveNothing: () => "Enter how many came in for at least one line.",
+  receiveTooMany: ({ product, left }: { product: string; left: number }) =>
+    left === 0 ? `All of ${product} is in already.` : `Only ${left} more of ${product} is due on this order.`,
+  receivedMeanwhile: ({ order }: { order: string }) =>
+    `Someone received part of ${order} just now. Check what's still due and try again.`,
+  nothingReceivedYet: ({ order }: { order: string }) =>
+    `Nothing has come in on ${order} yet. If it isn't coming, cancel it instead.`,
+  returnTooMany: ({ product, left }: { product: string; left: number }) =>
+    left === 0
+      ? `None of ${product} on this order is left to send back.`
+      : `Only ${left} of ${product} came in on this order and can go back.`,
+  returnState: ({ order }: { order: string }) => `Nothing has been received on ${order}, so nothing can go back on it.`,
   orderState: ({ order, status, operation }: { order: string; status: OrderStatus; operation: Operation }) =>
     (
       ({
@@ -160,6 +175,19 @@ const bn: typeof en = {
   notSupplied: ({ supplier, product }) => `${supplier} ${product} সরবরাহ করে না।`,
   nothingToOrder: () => "এই সরবরাহকারীর কাছ থেকে এখন কিছু অর্ডার করার দরকার নেই।",
   allDrafted: ({ supplier }) => `${supplier}-এর কাছ থেকে যা আসার কথা, সবই আগে থেকে খসড়ায় আছে।`,
+  noOrderLine: () => "এই অর্ডার লাইনটি নেই।",
+  cancelPartly: ({ order }) => `${order}-এর কিছু অংশ এসে গেছে, তাই বাতিল করা যাবে না। বরং কম নিয়ে বন্ধ করুন।`,
+  receiveNothing: () => "অন্তত একটি লাইনে কতগুলো এসেছে লিখুন।",
+  receiveTooMany: ({ product, left }) =>
+    left === 0 ? `${product}-এর সবটাই আগে এসে গেছে।` : `এই অর্ডারে ${product}-এর আর ${n(left)}টি আসার কথা।`,
+  receivedMeanwhile: ({ order }) =>
+    `এইমাত্র কেউ ${order}-এর কিছু অংশ বুঝে নিয়েছেন। কী বাকি আছে দেখে আবার চেষ্টা করুন।`,
+  nothingReceivedYet: ({ order }) => `${order}-এ এখনো কিছু আসেনি। না এলে বরং বাতিল করুন।`,
+  returnTooMany: ({ product, left }) =>
+    left === 0
+      ? `এই অর্ডারের ${product}-এর কিছুই ফেরত পাঠানোর মতো বাকি নেই।`
+      : `এই অর্ডারে ${product}-এর ${n(left)}টি এসেছিল, সেগুলোই ফেরত যেতে পারে।`,
+  returnState: ({ order }) => `${order}-এ কিছু বুঝে নেওয়া হয়নি, তাই কিছু ফেরতও যাবে না।`,
   orderState: ({ order, status, operation }) =>
     (
       ({
@@ -196,6 +224,7 @@ export type AdminAction =
   | "restoreProducts"
   | "placeOrders"
   | "cancelOrders"
+  | "closeOrders"
   | "addSuppliers"
   | "editSuppliers"
   | "archiveSuppliers"
@@ -210,6 +239,7 @@ const ADMIN_ACTIONS_EN: Record<AdminAction, string> = {
   restoreProducts: "restore products",
   placeOrders: "place purchase orders",
   cancelOrders: "cancel purchase orders",
+  closeOrders: "close an order short",
   addSuppliers: "add suppliers",
   editSuppliers: "edit suppliers",
   archiveSuppliers: "archive suppliers",
@@ -225,6 +255,7 @@ const ADMIN_ACTIONS_BN: Record<AdminAction, string> = {
   restoreProducts: "পণ্য ফিরিয়ে আনতে পারেন",
   placeOrders: "ক্রয় অর্ডার দিতে পারেন",
   cancelOrders: "ক্রয় অর্ডার বাতিল করতে পারেন",
+  closeOrders: "অর্ডার কম নিয়ে বন্ধ করতে পারেন",
   addSuppliers: "সরবরাহকারী যোগ করতে পারেন",
   editSuppliers: "সরবরাহকারী সম্পাদনা করতে পারেন",
   archiveSuppliers: "সরবরাহকারী আর্কাইভ করতে পারেন",

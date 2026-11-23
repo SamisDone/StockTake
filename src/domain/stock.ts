@@ -184,7 +184,8 @@ export async function undoMovement(db: Database, actor: Actor, movementId: numbe
     .innerJoin(products, eq(products.id, stockMovements.productId))
     .where(eq(stockMovements.id, id));
   if (!line) throw new DomainError("not_found", said("noMovement"));
-  if (line.kind === "receipt" || line.reversesId !== null) throw new DomainError("invalid_state", said("cantUndo"));
+  if (line.kind === "receipt" || line.kind === "supplier_return" || line.reversesId !== null)
+    throw new DomainError("invalid_state", said("cantUndo"));
   if (line.undone) throw new DomainError("invalid_state", said("alreadyUndone"));
   if (line.userId !== actor.id) throw new DomainError("forbidden", said("undoNotYours"));
   if (now.getTime() - line.occurredAt.getTime() > UNDO_WINDOW_MS) {

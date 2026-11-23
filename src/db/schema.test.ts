@@ -298,18 +298,28 @@ describe("purchase orders", () => {
     await expect(move(1, "receipt", 30, 1)).rejects.toThrow(/only placed orders can be received/);
   });
 
-  it("rejects a receipt whose product or quantity differs from its line", async () => {
+  it("rejects a receipt for another product than its line's", async () => {
     await placeOrder();
-    await expect(move(1, "receipt", 29, 1)).rejects.toThrow(/receipt must match its order line/);
-    await expect(move(2, "receipt", 30, 1)).rejects.toThrow(/receipt must match its order line/);
+    await expect(move(2, "receipt", 5, 1)).rejects.toThrow(/can't receive more than it ordered/);
   });
 
-  it("refuses to mark an order received while a line has no receipt", async () => {
+  it("receives a line in parts, never past what it ordered", async () => {
     await placeOrder();
-    await move(1, "receipt", 30, 1);
+    await move(1, "receipt", 12, 1);
+    await move(1, "receipt", 18, 1);
+    expect(await onHand(1)).toBe(30);
+    await expect(move(1, "receipt", 1, 1)).rejects.toThrow(/can't receive more than it ordered/);
+  });
+
+  it("closes an order short once something came in, but not with nothing in", async () => {
+    await placeOrder();
     await expect(
       run("UPDATE purchase_orders SET status = 'received', received_at = ? WHERE id = 1", [T0]),
-    ).rejects.toThrow(/every line needs a receipt/);
+    ).rejects.toThrow(/needs something received/);
+    await move(1, "receipt", 20, 1);
+    await run("UPDATE purchase_orders SET status = 'received', received_at = ? WHERE id = 1", [T0]);
+    // Closed: nothing more comes in on it.
+    await expect(move(1, "receipt", 10, 1)).rejects.toThrow(/only placed orders can be received/);
   });
 
   it("fails atomically when the same order is received twice", async () => {
@@ -321,10 +331,33 @@ describe("purchase orders", () => {
     expect(await scalar(client, "SELECT count(*) FROM stock_movements")).toBe(2);
   });
 
-  it("never receives an order line twice, even split across movements", async () => {
+  it("sends stock back against its line, never more than the line received", async () => {
     await placeOrder();
-    await move(1, "receipt", 30, 1);
-    await expect(move(1, "receipt", 30, 1)).rejects.toThrow(/UNIQUE/);
+    await move(1, "receipt", 20, 1);
+    await move(1, "supplier_return", -5, 1);
+    expect(await onHand(1)).toBe(15);
+    await expect(move(1, "supplier_return", -16, 1)).rejects.toThrow(/can't send back more than it received/);
+    await expect(move(2, "supplier_return", -1, 2)).rejects.toThrow(/can't send back more than it received/);
+    await expect(move(1, "supplier_return", -1)).rejects.toThrow(/stock_movements_receipt_line/);
+    await expect(move(1, "supplier_return", 3, 1)).rejects.toThrow(/stock_movements_quantity_sign/);
+  });
+
+  it("never undoes a receipt or a return to the supplier", async () => {
+    await placeOrder();
+    await move(1, "receipt", 20, 1);
+    await move(1, "supplier_return", -5, 1);
+    for (const [id, quantity] of [
+      [1, -20],
+      [2, 5],
+    ]) {
+      await expect(
+        run(
+          `INSERT INTO stock_movements (product_id, kind, quantity, user_id, occurred_at, reverses_id)
+           VALUES (1, 'adjustment', ?, 1, ?, ?)`,
+          [quantity, T0, id],
+        ),
+      ).rejects.toThrow(/an undo must reverse one movement exactly/);
+    }
   });
 });
 

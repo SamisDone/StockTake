@@ -165,13 +165,16 @@ export const purchaseOrderLines = sqliteTable(
   ],
 );
 
-export const movementKinds = ["receipt", "sale", "adjustment", "return", "write_off"] as const;
+export const movementKinds = ["receipt", "sale", "adjustment", "return", "write_off", "supplier_return"] as const;
 export type MovementKind = (typeof movementKinds)[number];
 
 /**
  * The stock ledger and the source of truth for stock levels. Rows are append-only;
  * a correction is a new adjustment. Quantities are signed: receipts and returns add,
- * sales and write-offs remove, adjustments go either way. An undo is an adjustment that
+ * sales, write-offs and returns to the supplier remove, adjustments go either way.
+ * Receipts and returns to the supplier belong to a purchase order line: a line can be
+ * received in several parts, never past what was ordered, and sent back only up to what
+ * it received. An undo is an adjustment that
  * reverses one earlier movement exactly (`reverses_id`), and it counts as that
  * movement's kind wherever the ledger is summed by kind.
  */
@@ -185,10 +188,8 @@ export const stockMovements = sqliteTable(
     kind: text("kind", { enum: movementKinds }).notNull(),
     quantity: integer("quantity").notNull(),
     note: text("note"),
-    /** Set on receipts only. Unique, so an order line can be received once. */
-    purchaseOrderLineId: integer("purchase_order_line_id")
-      .unique()
-      .references(() => purchaseOrderLines.id),
+    /** Set on receipts and returns to the supplier, and only on those. */
+    purchaseOrderLineId: integer("purchase_order_line_id").references(() => purchaseOrderLines.id),
     userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
     occurredAt: timestamp("occurred_at").notNull().default(now),
     /** Set on an undo: the movement it reverses. Unique, so a movement can be undone once. */
@@ -198,7 +199,11 @@ export const stockMovements = sqliteTable(
   },
   (t) => [
     index("stock_movements_product_occurred").on(t.productId, t.occurredAt),
-    check("stock_movements_kind", sql`${t.kind} IN ('receipt', 'sale', 'adjustment', 'return', 'write_off')`),
+    index("stock_movements_purchase_order_line").on(t.purchaseOrderLineId),
+    check(
+      "stock_movements_kind",
+      sql`${t.kind} IN ('receipt', 'sale', 'adjustment', 'return', 'write_off', 'supplier_return')`,
+    ),
     check(
       "stock_movements_quantity_sign",
       sql`CASE ${t.kind}
@@ -206,10 +211,14 @@ export const stockMovements = sqliteTable(
         WHEN 'return' THEN ${t.quantity} > 0
         WHEN 'sale' THEN ${t.quantity} < 0
         WHEN 'write_off' THEN ${t.quantity} < 0
+        WHEN 'supplier_return' THEN ${t.quantity} < 0
         WHEN 'adjustment' THEN ${t.quantity} <> 0
       END`,
     ),
-    check("stock_movements_receipt_line", sql`(${t.kind} = 'receipt') = (${t.purchaseOrderLineId} IS NOT NULL)`),
+    check(
+      "stock_movements_receipt_line",
+      sql`(${t.kind} IN ('receipt', 'supplier_return')) = (${t.purchaseOrderLineId} IS NOT NULL)`,
+    ),
   ],
 );
 

@@ -187,6 +187,7 @@ function Statement({
     { name: t.lines.returned, sign: 1, amount: stock.returned },
     { name: t.lines.sold, sign: -1, amount: stock.sold },
     { name: t.lines.writtenOff, sign: -1, amount: stock.writtenOff },
+    { name: t.lines.sentBack, sign: -1, amount: stock.sentBack },
     { name: t.lines.found, sign: 1, amount: stock.countFound },
     { name: t.lines.short, sign: -1, amount: stock.countShort },
   ];

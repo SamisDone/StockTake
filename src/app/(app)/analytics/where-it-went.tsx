@@ -11,6 +11,7 @@ type Part = Analytics["whereItWent"]["parts"][number]["part"];
 export const PART_FILL: Record<Part, string> = {
   sold: "bg-ink",
   writtenOff: "fill-hatch",
+  sentBack: "fill-hollow",
   short: "fill-hatch-back",
   onHand: "bg-ink-3/45",
 };

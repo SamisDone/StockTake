@@ -16,6 +16,7 @@ import { getLanguage, getMoneyPrefs } from "@/server/preferences";
 import { DraftForm } from "./draft-form";
 import { dayInput } from "./draft-values";
 import { OrderControls } from "./order-controls";
+import { SendBack } from "./send-back";
 import { StatusStamp } from "./status-stamp";
 import { Arrival, ArrivalScope } from "@/components/arrival";
 import { ORDERS_COPY, type OrdersCopy } from "./copy";
@@ -56,8 +57,14 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
     throw error;
   }
   const units = order.lines.reduce((total, line) => total + line.quantity, 0);
+  const arrived = order.lines.reduce((total, line) => total + line.received, 0);
   const late = isLate(order, now);
   const draft = order.status === "draft";
+  // Once placed, each line shows what has come in; whatever came in can go back.
+  const tracking = order.status === "ordered" || order.status === "received";
+  const returnable = order.lines
+    .map((line) => ({ id: line.id, name: line.name, left: line.received - line.returned }))
+    .filter((line) => line.left > 0);
 
   const label = (
     <article aria-labelledby="order-title">
@@ -95,7 +102,12 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
         status={order.status}
         isAdmin={user.role === "admin"}
         language={language}
-        receipts={order.lines.map((line) => `+${f.count(line.quantity)} ${line.name}`).join(", ")}
+        lines={order.lines.map((line) => ({
+          id: line.id,
+          name: line.name,
+          quantity: line.quantity,
+          received: line.received,
+        }))}
       />
 
       <section aria-labelledby="lines-title" className="pt-5">
@@ -107,6 +119,7 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
             <tr className="border-b border-ink">
               <LineTh className="w-full pl-5 sm:pl-8">{t.lineColumns.product}</LineTh>
               <LineTh align="right">{t.lineColumns.quantity}</LineTh>
+              {tracking ? <LineTh align="right">{t.lineColumns.received}</LineTh> : null}
               <LineTh align="right" className="max-sm:hidden">
                 {t.lineColumns.unitCost}
               </LineTh>
@@ -128,6 +141,16 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
                   <p className="font-mono text-xs text-ink-3">{line.sku}</p>
                 </td>
                 <td className="tabular py-2.5 pr-4 text-right">{f.count(line.quantity)}</td>
+                {tracking ? (
+                  <td className="tabular py-2.5 pr-4 text-right whitespace-nowrap">
+                    <span className={line.received < line.quantity ? "font-semibold" : ""}>
+                      {f.count(line.received)}
+                    </span>
+                    {line.returned > 0 ? (
+                      <span className="block text-xs text-ink-2">{t.sentBackNote(f.count(line.returned))}</span>
+                    ) : null}
+                  </td>
+                ) : null}
                 <td className="tabular py-2.5 pr-4 text-right text-ink-2 max-sm:hidden">
                   {m.money(line.unitCostCents)}
                 </td>
@@ -160,7 +183,7 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
             ) : null}
             {order.receivedAt ? (
               <HistoryLine date={order.receivedAt} now={now} f={f}>
-                {t.receivedLine(order.lines.length, f.count(order.lines.length))}
+                {arrived < units ? t.closedShortLine(f.count(arrived), f.count(units)) : t.receivedLine(f.count(units))}
               </HistoryLine>
             ) : null}
             {order.cancelledAt ? (
@@ -177,6 +200,7 @@ export async function OrderLabel({ id, action }: { id: number; action: ReactNode
           </div>
         ) : null}
       </section>
+      {returnable.length > 0 ? <SendBack lines={returnable} supplier={order.supplierName} language={language} /> : null}
     </article>
   );
 
@@ -245,14 +269,21 @@ function Status({ order, late, now, f, t }: { order: Order; late: boolean; now: 
   } else if (order.status === "ordered") {
     const due = order.dueAt ? f.date(order.dueAt, now) : "–";
     const basis = order.expectedAt ? s.gaveDate : s.leadBasis(f.count(order.leadTimeDays));
-    if (late && order.dueAt) {
-      const overdue = daysLate(order, now);
-      said = s.late(due, f.days(overdue), basis);
+    const ordered = order.lines.reduce((total, line) => total + line.quantity, 0);
+    const arrived = order.lines.reduce((total, line) => total + line.received, 0);
+    const overdue = late && order.dueAt ? f.days(daysLate(order, now)) : null;
+    if (arrived > 0) {
+      said = overdue
+        ? s.partlyLate(f.count(arrived), f.count(ordered), due, overdue)
+        : s.partly(f.count(arrived), f.count(ordered), due, basis);
     } else {
-      said = s.onItsWay(due, basis);
+      said = overdue ? s.late(due, overdue, basis) : s.onItsWay(due, basis);
     }
+  } else if (order.status === "received") {
+    const short = order.lines.reduce((total, line) => total + line.quantity - line.received, 0);
+    said = short > 0 ? s.receivedShort(f.count(short)) : s.received;
   } else {
-    said = order.status === "received" ? s.received : s.cancelled;
+    said = s.cancelled;
   }
   const { lead, text } = said;
 

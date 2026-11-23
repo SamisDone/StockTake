@@ -69,6 +69,7 @@ describe("getAnalytics", () => {
       returned: { units: 2, costCents: 2 * 250 },
       sold: { units: 39, costCents: 34 * 250 + 5 * 400 },
       writtenOff: { units: 3, costCents: 3 * 250 },
+      sentBack: { units: 0, costCents: 0 },
       countFound: { units: 1, costCents: 400 },
       countShort: { units: 2, costCents: 2 * 250 },
       closing: { units: 129, costCents: 113 * 250 + 16 * 400 },
@@ -127,13 +128,14 @@ describe("getAnalytics", () => {
     expect(whereItWent.parts.map((p) => [p.part, p.amount.units])).toEqual([
       ["sold", 39],
       ["writtenOff", 3],
+      ["sentBack", 0],
       ["short", 2],
       ["onHand", 129],
     ]);
     const sum = (key: "units" | "costCents") => whereItWent.parts.reduce((total, p) => total + p.amount[key], 0);
     expect(sum("units")).toBe(whereItWent.whole.units);
     expect(sum("costCents")).toBe(whereItWent.whole.costCents);
-    expect(whereItWent.parts[3].amount).toEqual(stock.closing);
+    expect(whereItWent.parts.at(-1)!.amount).toEqual(stock.closing);
   });
 
   it("lists each supplier's deliveries in the period: days taken, and on time or late", async () => {

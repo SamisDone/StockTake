@@ -54,6 +54,7 @@ async function ledgerRows(db: Database, from: Date, to: Date) {
       returned: total(inside("return")).mapWith(Number),
       sold: total(inside("sale")).mapWith(Number),
       writtenOff: total(inside("write_off")).mapWith(Number),
+      sentBack: total(inside("supplier_return")).mapWith(Number),
       countFound: total(inside("adjustment", sql`${stockMovements.quantity} > 0`)).mapWith(Number),
       countShort: total(inside("adjustment", sql`${stockMovements.quantity} < 0`)).mapWith(Number),
       after: total(sql`${stockMovements.occurredAt} >= ${to.getTime()}`).mapWith(Number),
@@ -140,15 +141,16 @@ export function reconcile(rows: LedgerRow[]) {
   // Sales and write-offs are negative in the ledger; the statement prints them as amounts taken off.
   const sold = amount(rows, (r) => -r.sold);
   const writtenOff = amount(rows, (r) => -r.writtenOff);
+  const sentBack = amount(rows, (r) => -r.sentBack);
   const countFound = amount(rows, (r) => r.countFound);
   const countShort = amount(rows, (r) => -r.countShort);
   const closing = amount(
     rows,
-    (r) => r.opening + r.received + r.returned + r.sold + r.writtenOff + r.countFound + r.countShort,
+    (r) => r.opening + r.received + r.returned + r.sold + r.writtenOff + r.sentBack + r.countFound + r.countShort,
   );
   // On hand includes anything recorded after the period ended (only possible for a past `to`).
   const onHand = amount(rows, (r) => r.onHand - r.after);
-  return { opening, received, returned, sold, writtenOff, countFound, countShort, closing, onHand };
+  return { opening, received, returned, sold, writtenOff, sentBack, countFound, countShort, closing, onHand };
 }
 
 export type Reconciliation = ReturnType<typeof reconcile>;
@@ -233,7 +235,8 @@ export function slowestSellers(rows: LedgerRow[], days: number) {
 
 /**
  * What became of everything that was on the shelves in the period (the opening stock and
- * all that came in): sold, written off, missing at a count, or still there. The parts add
+ * all that came in): sold, written off, sent back to its supplier, missing at a count,
+ * or still there. The parts add
  * up to the whole, in units and at cost.
  */
 export function whereItWent(stock: Reconciliation) {
@@ -247,6 +250,7 @@ export function whereItWent(stock: Reconciliation) {
     parts: [
       { part: "sold", amount: stock.sold },
       { part: "writtenOff", amount: stock.writtenOff },
+      { part: "sentBack", amount: stock.sentBack },
       { part: "short", amount: stock.countShort },
       { part: "onHand", amount: stock.closing },
     ] as const,

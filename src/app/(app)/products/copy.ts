@@ -103,6 +103,7 @@ const en = {
     adjustment: "Count adjustment",
     return: "Return",
     write_off: "Write-off",
+    supplier_return: "Sent back to supplier",
   } as Record<MovementKind, string>,
 
   // Recording stock
@@ -276,6 +277,7 @@ const bn: ProductsCopy = {
     adjustment: "গণনার সমন্বয়",
     return: "ফেরত",
     write_off: "বাতিল",
+    supplier_return: "সরবরাহকারীকে ফেরত",
   },
 
   record: "স্টক লিখুন",

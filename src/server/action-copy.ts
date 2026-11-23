@@ -35,6 +35,13 @@ const en = {
   cancelled: (order: string) => `Cancelled ${order}.`,
   received: (order: string, units: number) =>
     `Received ${order}: ${formats("en").count(units)} units booked into stock.`,
+  receivedPart: (order: string, units: number) =>
+    `Received part of ${order}: ${formats("en").count(units)} units booked into stock. The rest is still due.`,
+  closedShort: (order: string, short: number) =>
+    `Closed ${order} short: ${formats("en").count(short)} units won't come.`,
+  sentBack: (name: string, quantity: number, order: string) =>
+    `Sent ${formats("en").count(quantity)} × ${name} back on ${order}.`,
+  wholeUnits: "Enter whole units, 0 or more.",
   chooseSupplier: "Choose who the order is for.",
   orderAtLeastOne: "Order 1 unit or more.",
   orderAtMost: (max: number) => `Order ${formats("en").count(max)} units or fewer.`,
@@ -85,6 +92,11 @@ const bn: typeof en = {
   placed: (order, supplier) => `${supplier}-কে ${order} দেওয়া হলো।`,
   cancelled: (order) => `${order} বাতিল হলো।`,
   received: (order, units) => `${order} বুঝে নেওয়া হলো: ${b.count(units)} ইউনিট মজুতে যোগ হয়েছে।`,
+  receivedPart: (order, units) =>
+    `${order}-এর কিছু অংশ বুঝে নেওয়া হলো: ${b.count(units)} ইউনিট মজুতে যোগ হয়েছে। বাকিটা এখনো আসার কথা।`,
+  closedShort: (order, short) => `${order} কম নিয়ে বন্ধ হলো: ${b.count(short)} ইউনিট আর আসবে না।`,
+  sentBack: (name, quantity, order) => `${order}-এর ${b.count(quantity)} × ${name} ফেরত পাঠানো হলো।`,
+  wholeUnits: "০ বা তার বেশি পূর্ণ সংখ্যা লিখুন।",
   chooseSupplier: "অর্ডারটি কার জন্য, বেছে নিন।",
   orderAtLeastOne: "অন্তত ১ ইউনিট অর্ডার করুন।",
   orderAtMost: (max) => `${b.count(max)} ইউনিট বা তার কম অর্ডার করুন।`,

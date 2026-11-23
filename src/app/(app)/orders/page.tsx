@@ -89,6 +89,7 @@ async function Orders({ language }: { language: Language }) {
               : o.cancelledAt
         )?.getTime() ?? null,
       late,
+      partly: o.status === "ordered" && o.receivedUnits > 0,
     };
   });
   const placed = orders.filter((o) => o.status === "ordered");
@@ -99,7 +100,7 @@ async function Orders({ language }: { language: Language }) {
         <Tally name={t.tallies[0]} value={orders.filter((o) => o.status === "draft").length} language={language} />
         <Tally
           name={t.tallies[1]}
-          value={m.whole(placed.reduce((sum, o) => sum + o.totalCents, 0))}
+          value={m.whole(placed.reduce((sum, o) => sum + o.dueCents, 0))}
           language={language}
         />
         <Tally name={t.tallies[2]} value={rows.filter((r) => r.late).length} language={language} />
