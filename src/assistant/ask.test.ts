@@ -3,7 +3,15 @@ import type { Database } from "@/db/database";
 import { createTestDb } from "@/test/db";
 import { products, suppliers } from "@/db/schema";
 import { seedBasics } from "@/test/fixtures";
-import { type ChatCompletion, type ChatInput, AssistantError, ask, mentionedRefs, readCompletion } from "./ask";
+import {
+  type ChatCompletion,
+  type ChatInput,
+  AssistantError,
+  ask,
+  mentionedRefs,
+  readCompletion,
+  writtenToolCalls,
+} from "./ask";
 import { ASSISTANT_MODEL, FALLBACK_MODEL, MAX_MODEL_CALLS } from "./config";
 
 const now = new Date(Date.UTC(2026, 10, 21, 9));
@@ -89,6 +97,42 @@ describe("ask", () => {
 
     expect(calls).toHaveLength(MAX_MODEL_CALLS);
     expect(calls.map((c) => c.input.tool_choice)).toEqual([...loops.map(() => "auto"), "none"]);
+  });
+
+  it("makes a tool call the model wrote out as text", async () => {
+    const { run, calls } = scripted(
+      reply("<tool_call>get_supplier<arg_key>supplierId</arg_key><arg_value>1</arg_value></tool_call>"),
+      reply("Northwind Supply delivers in 7 days."),
+    );
+    const answer = await ask({ run, db, now, question: "Northwind?" });
+
+    expect(answer.text).toBe("Northwind Supply delivers in 7 days.");
+    expect(answer.steps).toMatchObject([{ tool: "get_supplier", ok: true }]);
+    expect(calls[1].input.messages.at(-2)).toMatchObject({
+      role: "assistant",
+      content: "",
+      tool_calls: [{ function: { name: "get_supplier", arguments: '{"supplierId":1}' } }],
+    });
+  });
+
+  it("asks once more for words when the last call writes out a tool call", async () => {
+    const loops = Array.from({ length: MAX_MODEL_CALLS - 1 }, () => callTool("list_suppliers", {}));
+    const written = "<tool_call>get_supplier<arg_key>supplierId</arg_key><arg_value>1</arg_value></tool_call>";
+    const resets: number[] = [];
+    const { run, calls } = scripted(...loops, reply(written), reply("Northwind Supply is the only one."));
+    const answer = await ask({ run, db, now, question: "Suppliers?", onReset: () => resets.push(1) });
+
+    expect(answer.text).toBe("Northwind Supply is the only one.");
+    expect(calls).toHaveLength(MAX_MODEL_CALLS + 1);
+    expect(calls.at(-1)?.input.tool_choice).toBe("none");
+    expect(calls.at(-1)?.input.messages.at(-1)).toMatchObject({ role: "user", content: /No more lookups/ });
+    expect(resets).toEqual([1]);
+
+    // Only once: a second written call leaves no answer.
+    const stubborn = scripted(...loops, reply(written), reply(written));
+    await expect(ask({ run: stubborn.run, db, now, question: "Suppliers?" })).rejects.toMatchObject({
+      reason: "failed",
+    });
   });
 
   it("returns a draft proposal without writing anything", async () => {
@@ -328,5 +372,32 @@ describe("mentionedRefs", () => {
     ];
     expect(mentionedRefs("widget is low; PO-0007 brings more.", refs).map((r) => r.id)).toEqual([1, 7]);
     expect(mentionedRefs("GAD-002 is fine", refs).map((r) => r.id)).toEqual([2]);
+  });
+});
+
+describe("writtenToolCalls", () => {
+  it("reads GLM's markup and JSON bodies, and keeps the text around them", () => {
+    expect(
+      writtenToolCalls(
+        "Checking. <tool_call>search_products<arg_key>query</arg_key><arg_value>paper</arg_value><arg_key>limit</arg_key><arg_value>5</arg_value></tool_call>",
+      ),
+    ).toEqual({
+      calls: [
+        {
+          id: "written-0",
+          type: "function",
+          function: { name: "search_products", arguments: '{"query":"paper","limit":5}' },
+        },
+      ],
+      rest: "Checking.",
+    });
+    expect(writtenToolCalls('<tool_call>{"name": "list_suppliers", "arguments": {}}</tool_call>').calls).toMatchObject([
+      { function: { name: "list_suppliers", arguments: "{}" } },
+    ]);
+    // Cut off by the token limit.
+    expect(writtenToolCalls("<tool_call>get_product<arg_key>productId</arg_key><arg_value>4").calls).toMatchObject([
+      { function: { name: "get_product", arguments: '{"productId":4}' } },
+    ]);
+    expect(writtenToolCalls("Widget is out of stock.")).toEqual({ calls: [], rest: "Widget is out of stock." });
   });
 });

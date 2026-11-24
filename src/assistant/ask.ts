@@ -217,6 +217,59 @@ export function claimsProposal(text: string) {
     );
 }
 
+/**
+ * Tool calls the model wrote out as text in its chat template's own markup instead of
+ * making them, which GLM does now and then: `<tool_call>name<arg_key>k</arg_key><arg_value>v</arg_value></tool_call>`,
+ * or a JSON body inside the same tags. Returns the calls and the text around them.
+ */
+export function writtenToolCalls(text: string): { calls: ToolCall[]; rest: string } {
+  const calls: ToolCall[] = [];
+  const rest = text.replace(/<tool_call>([\s\S]*?)(?:<\/tool_call>|$)/g, (_, body: string) => {
+    const call = parseWrittenCall(body.trim());
+    if (call) {
+      calls.push({ id: `written-${calls.length}`, type: "function", function: call });
+    }
+    return " ";
+  });
+  return {
+    calls,
+    rest: rest
+      .replace(/<\/?tool_call>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  };
+}
+
+function parseWrittenCall(body: string): ToolCall["function"] | null {
+  if (body.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(body) as { name?: unknown; arguments?: unknown };
+      if (typeof parsed.name !== "string") return null;
+      const args = typeof parsed.arguments === "string" ? parsed.arguments : JSON.stringify(parsed.arguments ?? {});
+      return { name: parsed.name, arguments: args };
+    } catch {
+      return null;
+    }
+  }
+  const name = body.split("<arg_key>")[0].trim();
+  if (!/^[a-z_]+$/.test(name)) return null;
+  const args: Record<string, unknown> = {};
+  for (const [, key, value] of body.matchAll(
+    /<arg_key>([\s\S]*?)<\/arg_key>\s*<arg_value>([\s\S]*?)(?:<\/arg_value>|$)/g,
+  )) {
+    // The template writes strings as they are and everything else as JSON.
+    try {
+      args[key.trim()] = JSON.parse(value);
+    } catch {
+      args[key.trim()] = value;
+    }
+  }
+  return { name, arguments: JSON.stringify(args) };
+}
+
+const NO_MORE_LOOKUPS =
+  "No more lookups are possible for this question. Answer now, in plain words, from what you've already found.";
+
 const PROPOSAL_CHECK =
   "You said you proposed an order, but draft_purchase_order wasn't called, so the person has no proposal to review. If an order is wanted, call draft_purchase_order now, once per supplier. Otherwise answer again without saying you proposed one.";
 
@@ -320,17 +373,38 @@ export async function ask({
     }
   }
 
-  for (let i = 0; i < MAX_MODEL_CALLS; i++) {
-    const completion = await call(i === MAX_MODEL_CALLS - 1);
+  let limit = MAX_MODEL_CALLS;
+  let pressedForWords = false;
+  for (let i = 0; i < limit; i++) {
+    const last = i === limit - 1;
+    const completion = await call(last);
     neurons += neuronsOf(completion);
     const message = completion.choices?.[0]?.message;
-    const toolCalls = message?.tool_calls ?? [];
-    const content = message?.content?.trim() ?? "";
+    let toolCalls = message?.tool_calls ?? [];
+    const raw = message?.content?.trim() ?? "";
+    let content = raw;
 
-    if (toolCalls.length === 0 || i === MAX_MODEL_CALLS - 1) {
+    // A call written out as text: make it, or on the last call, which can't look anything
+    // up, ask once more for an answer in words.
+    if (toolCalls.length === 0) {
+      const written = writtenToolCalls(raw);
+      if (written.calls.length > 0) {
+        content = written.rest;
+        if (!last) toolCalls = written.calls;
+        else if (!pressedForWords) {
+          pressedForWords = true;
+          limit++;
+          onReset?.();
+          messages.push({ role: "assistant", content: raw }, { role: "user", content: NO_MORE_LOOKUPS });
+          continue;
+        }
+      }
+    }
+
+    if (toolCalls.length === 0 || last) {
       if (!content) throw new AssistantError("failed", "The model gave an empty answer.");
       // One more try when it claims a proposal it never made, while calls are left for the tool and an answer.
-      if (proposals.length === 0 && !checkedProposal && i + 2 < MAX_MODEL_CALLS && claimsProposal(content)) {
+      if (proposals.length === 0 && !checkedProposal && i + 2 < limit && claimsProposal(content)) {
         checkedProposal = true;
         onReset?.();
         messages.push({ role: "assistant", content }, { role: "user", content: PROPOSAL_CHECK });
@@ -340,8 +414,8 @@ export async function ask({
       return { text: content, refs: answerRefs, proposals, steps, neurons, model };
     }
 
-    if (content) onReset?.();
-    messages.push({ role: "assistant", content: message?.content ?? "", tool_calls: toolCalls });
+    if (raw) onReset?.();
+    messages.push({ role: "assistant", content, tool_calls: toolCalls });
     for (const toolCall of toolCalls) {
       onLookup?.(toolCall.function.name);
       const result = await runTool(
