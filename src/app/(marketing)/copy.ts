@@ -17,6 +17,7 @@ const en = {
   /** Under the demo doors in the hero. */
   languages: "In Bangla or English, with money in taka or dollars. Switch either one inside, any time.",
   footer: ["Stocktake rebuilds ", ", a PHP and MySQL course project, on Next.js, Cloudflare Workers and D1."],
+  source: ["The code is on ", "GitHub", "."],
   /** Ledger entry numbers above each section's heading. */
   markers: {
     receipt: "01 · Receipt",
@@ -121,6 +122,7 @@ export const COPY: Copy<LandingCopy> = {
       "Stocktake নতুন করে গড়েছে ",
       ", একটি PHP ও MySQL কোর্স প্রজেক্ট, Next.js, Cloudflare Workers ও D1-এর ওপর।",
     ],
+    source: ["কোড আছে ", "GitHub", "-এ।"],
     markers: {
       receipt: "০১ · রসিদ",
       refusals: "০২ · প্রত্যাখ্যান",

@@ -94,7 +94,14 @@ export function Landing({ language }: { language: Language }) {
           >
             StockMaster
           </a>
-          {t.footer[1]}
+          {t.footer[1]} {t.source[0]}
+          <a
+            href="https://github.com/SamisDone/StockTake"
+            className="font-semibold text-ink underline decoration-ink-3 hover:decoration-ink"
+          >
+            {t.source[1]}
+          </a>
+          {t.source[2]}
         </p>
       </footer>
     </div>
