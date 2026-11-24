@@ -47,6 +47,8 @@ const en = {
     "The rules live in the database, not just in the app, so no bug and no hand-written query can get around them. These are its answers, word for word.",
   runAgain: "Run again",
   runAgainLabel: (n: string) => `Run statement ${n} again`,
+  /** On a phone, under the first three rows. */
+  showRest: (n: string) => `Show the other ${n}`,
   breakItNote:
     "A test runs every statement above against the real migrations and fails if any answer changes, so this list can't drift from the database.",
 
@@ -145,6 +147,7 @@ export const COPY: Copy<LandingCopy> = {
       "নিয়মগুলো শুধু অ্যাপে নয়, ডেটাবেসেই আছে, তাই কোনো বাগ বা হাতে লেখা কোয়েরি এগুলো এড়াতে পারে না। নিচে তার উত্তরগুলো, হুবহু।",
     runAgain: "আবার চালান",
     runAgainLabel: (n) => `${n} নম্বর স্টেটমেন্ট আবার চালান`,
+    showRest: (n) => `বাকি ${n}টি দেখুন`,
     breakItNote:
       "একটি টেস্ট ওপরের প্রতিটি স্টেটমেন্ট আসল মাইগ্রেশনের ওপর চালায়, আর কোনো উত্তর বদলালেই ব্যর্থ হয়, তাই এই তালিকা ডেটাবেস থেকে সরে যেতে পারে না।",
 

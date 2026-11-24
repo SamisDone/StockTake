@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, RotateCcw } from "lucide-react";
+import { Check, ChevronDown, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { formats } from "@/lib/format";
 import type { Language } from "@/lib/i18n";
@@ -13,12 +13,19 @@ import { stageMs, useHydrated, useReducedMotion } from "./stage";
  * together a beat apart): the statement lights, a short rule drains in its answer cell,
  * the cell opens and the database's answer is stamped on. Run again replays a row.
  *
+ * On a phone the list shows the first three once the page is live, and the rest behind
+ * "Show the other three" (six rows of wrapped SQL are two screens there); the rows it
+ * opens run as they come into view like the others.
+ *
  * Prerendered with every answer printed, so without script (or with reduced motion) the
  * list reads complete. Once the page is live, rows that haven't run yet are closed until
  * they do. Each answer's space is held from the start, so opening one never moves the page.
  */
 
 type Phase = "idle" | "highlight" | "executing" | "answered";
+
+/** How many rows a phone shows before "Show the other three". */
+const SHOWN_ON_PHONE = 3;
 
 export function RefusalRows({ language }: { language: Language }) {
   const t = COPY[language];
@@ -30,6 +37,9 @@ export function RefusalRows({ language }: { language: Language }) {
   const [ran, setRan] = useState<boolean[]>(() => REFUSALS.map(() => false));
   const [runIds, setRunIds] = useState<number[]>(() => REFUSALS.map(() => 0));
   const [announcement, setAnnouncement] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  // Folded only once the page is live, so without script every row is there.
+  const folded = hydrated && !showAll;
 
   const list = useRef<HTMLOListElement>(null);
   const timers = useRef<Map<number, number[]>>(new Map());
@@ -114,79 +124,100 @@ export function RefusalRows({ language }: { language: Language }) {
     run(index);
   };
 
+  const showRest = () => {
+    setShowAll(true);
+    // The button goes away with the fold: carry focus to the first row it opened.
+    requestAnimationFrame(() => (list.current?.children[SHOWN_ON_PHONE] as HTMLElement | undefined)?.focus());
+  };
+
   return (
     <>
-      <ol ref={list} className="receipt torn mt-8">
-        {REFUSALS.map(({ attempt, sql, refusal }, index) => {
-          // Before the page is live, and with reduced motion, every answer stays printed.
-          const live = hydrated && !reduced;
-          const phase = live && !ran[index] ? "idle" : phases[index];
-          const open = !live || phase === "answered";
-          return (
-            <li
-              key={sql}
-              data-row={index}
-              className="grid gap-x-6 gap-y-2 border-b border-hairline px-5 py-4 last:border-b-0 sm:px-6 md:grid-cols-[2rem_minmax(0,12rem)_minmax(0,1fr)_minmax(0,18.5rem)] md:items-start"
-            >
-              <span aria-hidden className="font-mono text-xs leading-6 text-ink-3">
-                #{f.count(index + 1)}
-              </span>
-              <p className="leading-6 font-semibold">{attempt[language]}</p>
-              <code
-                lang="en"
-                data-lit={phase === "highlight" || undefined}
-                className="-mx-1.5 self-start rounded-mark px-1.5 py-0.5 font-mono text-xs leading-relaxed break-words text-ink-2 transition-[background-color] duration-(--dur-press) ease-out data-lit:bg-liner"
+      <div className="receipt torn mt-8">
+        <ol ref={list}>
+          {REFUSALS.map(({ attempt, sql, refusal }, index) => {
+            // Before the page is live, and with reduced motion, every answer stays printed.
+            const live = hydrated && !reduced;
+            const phase = live && !ran[index] ? "idle" : phases[index];
+            const open = !live || phase === "answered";
+            return (
+              <li
+                key={sql}
+                data-row={index}
+                tabIndex={index === SHOWN_ON_PHONE ? -1 : undefined}
+                className={`grid gap-x-6 gap-y-2 border-b border-hairline px-5 py-4 outline-offset-[-2px] last:border-b-0 sm:px-6 md:grid-cols-[2rem_minmax(0,12rem)_minmax(0,1fr)_minmax(0,18.5rem)] md:items-start ${
+                  folded && index >= SHOWN_ON_PHONE ? "max-md:hidden" : ""
+                } ${folded && index === SHOWN_ON_PHONE - 1 ? "max-md:border-b-0" : ""}`}
               >
-                {sql}
-              </code>
-              <div lang="en" className="min-w-0">
-                <div aria-hidden className="h-0.5 overflow-hidden">
-                  <div
-                    key={runIds[index]}
-                    data-run={phase === "executing" || undefined}
-                    className="execute-bar h-full bg-ink opacity-0 data-run:opacity-100"
-                  />
-                </div>
-                <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)]">
-                  <div aria-hidden className="invisible col-start-1 row-start-1 py-1">
-                    <p className="refusal-stamp max-w-[calc(100%-0.75rem)] px-2 py-1 font-mono text-xs leading-relaxed font-semibold [overflow-wrap:anywhere]">
-                      {refusal}
-                    </p>
+                <span aria-hidden className="font-mono text-xs leading-6 text-ink-3">
+                  #{f.count(index + 1)}
+                </span>
+                <p className="leading-6 font-semibold">{attempt[language]}</p>
+                <code
+                  lang="en"
+                  data-lit={phase === "highlight" || undefined}
+                  className="-mx-1.5 self-start rounded-mark px-1.5 py-0.5 font-mono text-xs leading-relaxed break-words text-ink-2 transition-[background-color] duration-(--dur-press) ease-out data-lit:bg-liner"
+                >
+                  {sql}
+                </code>
+                <div lang="en" className="min-w-0">
+                  <div aria-hidden className="h-0.5 overflow-hidden">
+                    <div
+                      key={runIds[index]}
+                      data-run={phase === "executing" || undefined}
+                      className="execute-bar h-full bg-ink opacity-0 data-run:opacity-100"
+                    />
                   </div>
-                  <div
-                    className="fault-reveal col-start-1 row-start-1"
-                    data-open={open || undefined}
-                    data-quiet={(live && !ran[index]) || undefined}
-                  >
-                    <div className="-mx-3 min-h-0 overflow-hidden px-3">
-                      <div className="py-1">
-                        <p
-                          key={runIds[index]}
-                          className={`refusal-stamp max-w-[calc(100%-0.75rem)] px-2 py-1 font-mono text-xs leading-relaxed font-semibold [overflow-wrap:anywhere] ${
-                            runIds[index] > 0 ? "stamp-hit" : ""
-                          }`}
-                        >
-                          {refusal}
-                        </p>
+                  <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)]">
+                    <div aria-hidden className="invisible col-start-1 row-start-1 py-1">
+                      <p className="refusal-stamp max-w-[calc(100%-0.75rem)] px-2 py-1 font-mono text-xs leading-relaxed font-semibold [overflow-wrap:anywhere]">
+                        {refusal}
+                      </p>
+                    </div>
+                    <div
+                      className="fault-reveal col-start-1 row-start-1"
+                      data-open={open || undefined}
+                      data-quiet={(live && !ran[index]) || undefined}
+                    >
+                      <div className="-mx-3 min-h-0 overflow-hidden px-3">
+                        <div className="py-1">
+                          <p
+                            key={runIds[index]}
+                            className={`refusal-stamp max-w-[calc(100%-0.75rem)] px-2 py-1 font-mono text-xs leading-relaxed font-semibold [overflow-wrap:anywhere] ${
+                              runIds[index] > 0 ? "stamp-hit" : ""
+                            }`}
+                          >
+                            {refusal}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    lang={language}
+                    onClick={() => runAgain(index)}
+                    aria-label={t.runAgainLabel(f.count(index + 1))}
+                    className="press-quiet -ml-2 flex min-h-11 items-center gap-1.5 rounded-control px-2 text-xs font-semibold text-ink-2 hover:bg-liner hover:text-ink md:mt-0.5 md:min-h-8"
+                  >
+                    <RotateCcw aria-hidden size={13} strokeWidth={2.5} className="run-again-icon" />
+                    {t.runAgain}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  lang={language}
-                  onClick={() => runAgain(index)}
-                  aria-label={t.runAgainLabel(f.count(index + 1))}
-                  className="press-quiet -ml-2 flex min-h-11 items-center gap-1.5 rounded-control px-2 text-xs font-semibold text-ink-2 hover:bg-liner hover:text-ink md:mt-0.5 md:min-h-8"
-                >
-                  <RotateCcw aria-hidden size={13} strokeWidth={2.5} className="run-again-icon" />
-                  {t.runAgain}
-                </button>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+              </li>
+            );
+          })}
+        </ol>
+        {folded ? (
+          <button
+            type="button"
+            onClick={showRest}
+            className="press-quiet flex min-h-12 w-full items-center justify-center gap-1.5 border-t border-ink text-sm font-semibold hover:bg-liner md:hidden"
+          >
+            {t.showRest(f.count(REFUSALS.length - SHOWN_ON_PHONE))}
+            <ChevronDown aria-hidden size={16} strokeWidth={2.25} />
+          </button>
+        ) : null}
+      </div>
       <p className="mt-3 flex max-w-2xl items-start gap-2 text-sm leading-relaxed text-ink-2">
         <Check aria-hidden size={16} strokeWidth={2.5} className="mt-0.5 shrink-0 text-ink" />
         <span>{t.breakItNote}</span>
