@@ -32,16 +32,15 @@ const en = {
   willAnswer: "The database will answer",
   inputLabel: "Number to write into on_hand for WID-001",
   run: "Run",
-  ready: "Change the number, then press Enter.",
+  ready: "Change the number, then press Run.",
+  /** The caption before anyone has run it: the answer is already printed above. */
+  tryYourOwn: (n: string) => `Refused. Nothing changed. Try your own number: change ${n}, then press Run.`,
   sending: "Sending…",
   refused: "Refused. Nothing changed.",
   stillOnHand: (onHand: string) => `On hand is still ${onHand}.`,
-  attemptRefused: (attempt: string) => `${attempt}: refused. Nothing changed.`,
   hintNumber: "Whole numbers only, like 500.",
   hintSame: (onHand: string) =>
     `${onHand} is what the ledger already says, so there's nothing to refuse. Try another number.`,
-  /** Which of the six the card is playing, read beside the field name. */
-  playing: (n: string, total: string) => `${n} of ${total}`,
 
   breakIt: "Try to break it.",
   breakItLede:
@@ -133,14 +132,13 @@ export const COPY: Copy<LandingCopy> = {
     willAnswer: "ডেটাবেস উত্তর দেবে",
     inputLabel: "WID-001-এর on_hand-এ যে সংখ্যা লেখা হবে",
     run: "চালান",
-    ready: "সংখ্যাটা বদলে Enter চাপুন।",
+    ready: "সংখ্যাটা বদলে “চালান” চাপুন।",
+    tryYourOwn: (n) => `ফিরিয়ে দেওয়া হয়েছে। কিছুই বদলায়নি। নিজের একটি সংখ্যা দিয়ে দেখুন: ${n} বদলে “চালান” চাপুন।`,
     sending: "পাঠানো হচ্ছে…",
     refused: "ফিরিয়ে দেওয়া হয়েছে। কিছুই বদলায়নি।",
     stillOnHand: (onHand) => `মজুত এখনো ${onHand}।`,
-    attemptRefused: (attempt) => `${attempt}: ফিরিয়ে দেওয়া হয়েছে। কিছুই বদলায়নি।`,
     hintNumber: "শুধু পূর্ণ সংখ্যা, যেমন ৫০০।",
     hintSame: (onHand) => `খাতাতেও ${onHand}, তাই ফেরানোর কিছু নেই। অন্য একটি সংখ্যা দিয়ে দেখুন।`,
-    playing: (n, total) => `${total}টির ${n} নম্বর`,
 
     breakIt: "ভাঙার চেষ্টা করে দেখুন।",
     breakItLede:

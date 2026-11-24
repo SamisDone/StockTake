@@ -115,23 +115,6 @@
   outline-offset: 3px;
 }
 
-/* Where the next character lands while a statement is typed in. Zero width, so the
-   line wraps exactly as the finished statement will. */
-.type-caret {
-  position: relative;
-  display: inline-block;
-  width: 0;
-}
-.type-caret::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: -1em;
-  width: 2px;
-  height: 1.15em;
-  background: var(--color-ink);
-}
-
 /* The rule under the statement drains while it's on its way to the database. */
 .execute-bar {
   transform-origin: right;
