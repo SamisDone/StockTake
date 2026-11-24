@@ -10,6 +10,7 @@ import { LANGUAGE_TAGS, type Language } from "@/lib/i18n";
 import { parseDayKey } from "@/lib/business-time";
 import { COPY, type LandingCopy, type MovementKind } from "./copy";
 import { AccessRow } from "./access-row";
+import { AskReceipt } from "./ask-receipt";
 import { INTRO_SCRIPT } from "./intro";
 import { LiveRefusal } from "./live-refusal";
 import { Odometer } from "./odometer";
@@ -80,6 +81,7 @@ export function Landing({ language }: { language: Language }) {
         <Hero t={t} language={language} />
         <Refusals t={t} language={language} />
         <Ledger t={t} language={language} />
+        <Questions t={t} language={language} />
         <TwoWaysIn t={t} language={language} />
       </main>
 
@@ -286,6 +288,42 @@ function Ledger({ t, language }: Props) {
           <Odometer balances={LEDGER_ROWS.map((row) => row.balance)} language={language} />
         </div>
       </figure>
+    </section>
+  );
+}
+
+/**
+ * The rest of the app: a real exchange with the assistant on its receipt, and a packing
+ * list of what else the demo holds. The receipt sits on the left on a wide screen, so
+ * the page doesn't print two sections in a row the same way round.
+ */
+function Questions({ t, language }: Props) {
+  return (
+    <section
+      aria-labelledby="questions-title"
+      className="grid gap-10 py-12 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start"
+    >
+      <div className="lg:order-last">
+        <Marker>{t.markers.questions}</Marker>
+        <div {...rise(250)}>
+          <h2 id="questions-title" className="print-display mt-3 text-4xl sm:text-5xl">
+            {t.shows}
+          </h2>
+        </div>
+        <div {...rise(350)}>
+          <p className="mt-4 max-w-md text-lg leading-relaxed text-ink-2">{t.showsLede}</p>
+        </div>
+        <h3 className="field-name mt-10">{t.insideTitle}</h3>
+        <ul className="mt-1 max-w-md border-t border-ink">
+          {t.inside.map(([thing, what]) => (
+            <li key={thing} className="border-b border-hairline py-2.5 leading-snug">
+              <span className="font-semibold">{thing}</span>
+              <span className="text-ink-2"> · {what}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <AskReceipt language={language} />
     </section>
   );
 }

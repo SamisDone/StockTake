@@ -16,7 +16,13 @@ const en = {
   signIn: "Sign in",
   footer: ["Stocktake rebuilds ", ", a PHP and MySQL course project, on Next.js, Cloudflare Workers and D1."],
   /** Ledger entry numbers above each section's heading. */
-  markers: { receipt: "01 · Receipt", refusals: "02 · Refusals", balance: "03 · Balance", access: "04 · Access" },
+  markers: {
+    receipt: "01 · Receipt",
+    refusals: "02 · Refusals",
+    balance: "03 · Balance",
+    questions: "04 · Questions",
+    access: "05 · Access",
+  },
   /** The headline, one entry per printed line. */
   headline: ["Stock you", "can prove."],
   lede: "Stocktake records every receipt, sale, return and write-off in a ledger that only grows. The number on hand is that ledger's total, and the database refuses any write that would make the two disagree.",
@@ -63,6 +69,31 @@ const en = {
   correctionNote: "A correction is a new line. Nothing above it was edited.",
   onHand: "On hand",
 
+  shows: "It shows its working.",
+  showsLede:
+    "Ask the assistant about stock, orders, suppliers or sales in plain words. It answers from the same records through a few read-only lookups and lists each one under its answer. It can't write anything: an order it suggests stays a proposal until a person writes it as a draft.",
+  /** What else the demo holds, one line each: the thing, then what it does. */
+  insideTitle: "Also inside",
+  inside: [
+    ["Reorder suggestions", "from days of cover, grouped by supplier"],
+    ["Purchase orders", "drafted, placed, received in part, sent back"],
+    ["Sales", "with discounts, customers and what each one owes"],
+    ["Analytics", "that reconcile to the ledger"],
+    ["CSV in and out", "and purchase orders ready to print"],
+    ["Bangla or English", "with money in taka or dollars"],
+  ] as [string, string][],
+  exchange: {
+    question: "Question",
+    asked: (day: string) => `Example, asked ${day}`,
+    inEnglish: null as string | null,
+    lookups: "Lookups",
+    answer: "Answer",
+    proposed: "Proposed order",
+    onHand: (n: string) => `${n} on hand`,
+    total: "Total",
+    handover: "Nothing is written until a person presses Write this draft.",
+  },
+
   twoWays: "Two ways in.",
   work: {
     admin: "Runs the catalog and suppliers, reads days of cover and reorder suggestions, and places purchase orders.",
@@ -87,7 +118,13 @@ export const COPY: Copy<LandingCopy> = {
       "Stocktake নতুন করে গড়েছে ",
       ", একটি PHP ও MySQL কোর্স প্রজেক্ট, Next.js, Cloudflare Workers ও D1-এর ওপর।",
     ],
-    markers: { receipt: "০১ · রসিদ", refusals: "০২ · প্রত্যাখ্যান", balance: "০৩ · ব্যালান্স", access: "০৪ · প্রবেশ" },
+    markers: {
+      receipt: "০১ · রসিদ",
+      refusals: "০২ · প্রত্যাখ্যান",
+      balance: "০৩ · ব্যালান্স",
+      questions: "০৪ · প্রশ্ন",
+      access: "০৫ · প্রবেশ",
+    },
     headline: ["যে মজুত", "প্রমাণ করা যায়।"],
     lede: "Stocktake প্রতিটি প্রাপ্তি, বিক্রি, ফেরত আর বাতিল এমন একটি খাতায় লেখে যা শুধু বাড়ে। মজুতের সংখ্যা সেই খাতারই যোগফল, আর দুটোর মধ্যে গরমিল ঘটায় এমন যেকোনো লেখা ডেটাবেস ফিরিয়ে দেয়।",
 
@@ -124,6 +161,30 @@ export const COPY: Copy<LandingCopy> = {
     details: { order: "PO-0012", crushed: "কার্টন চ্যাপ্টা", found: "পাওয়া গেছে ৪০, থাকার কথা ৪২" },
     correctionNote: "সংশোধন মানে নতুন একটি লাইন। ওপরের কিছুই বদলানো হয়নি।",
     onHand: "মজুত",
+
+    shows: "কীভাবে উত্তর এল, তাও দেখায়।",
+    showsLede:
+      "মজুত, অর্ডার, সরবরাহকারী বা বিক্রি নিয়ে সহকারীকে সাধারণ ভাষায় জিজ্ঞেস করুন। সে একই রেকর্ড থেকে কয়েকটি শুধু-পড়া খোঁজ চালিয়ে উত্তর দেয়, আর প্রতিটি খোঁজ উত্তরের নিচে দেখায়। সে নিজে কিছুই লিখতে পারে না: তার প্রস্তাবিত অর্ডার প্রস্তাবই থাকে, যতক্ষণ না কেউ সেটি খসড়া হিসেবে লেখেন।",
+    insideTitle: "ভেতরে আরও",
+    inside: [
+      ["পুনঃঅর্ডারের প্রস্তাব", "মজুত কত দিন চলবে তা থেকে, সরবরাহকারী ধরে"],
+      ["ক্রয় অর্ডার", "খসড়া, দেওয়া, আংশিক বুঝে নেওয়া, ফেরত পাঠানো"],
+      ["বিক্রি", "ছাড়, গ্রাহক আর কার কাছে কত পাওনা সহ"],
+      ["বিশ্লেষণ", "যা খাতার সঙ্গে মিলিয়ে দেখা"],
+      ["CSV আনা-নেওয়া", "আর ছাপার উপযোগী ক্রয় অর্ডার"],
+      ["বাংলা বা ইংরেজি", "টাকা বা ডলারে হিসাব"],
+    ],
+    exchange: {
+      question: "প্রশ্ন",
+      asked: (day) => `উদাহরণ, ${day} জিজ্ঞাসা`,
+      inEnglish: "প্রশ্ন আর উত্তর ইংরেজিতে, যেমন হয়েছিল।",
+      lookups: "খোঁজ",
+      answer: "উত্তর",
+      proposed: "প্রস্তাবিত অর্ডার",
+      onHand: (n) => `মজুত ${n}`,
+      total: "মোট",
+      handover: "কেউ “এই খসড়াটি লিখুন” না চাপা পর্যন্ত কিছুই লেখা হয় না।",
+    },
 
     twoWays: "ঢোকার দুটি পথ।",
     work: {
