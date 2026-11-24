@@ -1,8 +1,9 @@
 "use client";
 
 import { Check, ChevronDown, RotateCcw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { formats } from "@/lib/format";
+import { duration, easing, reducedMotion } from "@/lib/motion";
 import type { Language } from "@/lib/i18n";
 import { REFUSALS } from "@/lib/refusals";
 import { COPY } from "./copy";
@@ -43,6 +44,26 @@ export function RefusalRows({ language }: { language: Language }) {
 
   const list = useRef<HTMLOListElement>(null);
   const timers = useRef<Map<number, number[]>>(new Map());
+  /** The folded list's height when "Show the other 3" was pressed, to open from. */
+  const foldFrom = useRef<number | null>(null);
+
+  // Opening the fold grows the list by height, so what's below moves down with it
+  // instead of snapping (under reduced motion it simply opens).
+  useLayoutEffect(() => {
+    const element = list.current;
+    const from = foldFrom.current;
+    foldFrom.current = null;
+    if (!showAll || !element || from === null || reducedMotion()) return;
+    const to = element.offsetHeight;
+    if (to <= from) return;
+    element.animate(
+      [
+        { height: `${from}px`, overflow: "hidden" },
+        { height: `${to}px`, overflow: "hidden" },
+      ],
+      { duration: duration("--dur-print", 260), easing: easing("--ease-out") },
+    );
+  }, [showAll]);
 
   const at = <T,>(setter: (update: (all: T[]) => T[]) => void, index: number, value: T) =>
     setter((all) => all.map((item, i) => (i === index ? value : item)));
@@ -125,6 +146,7 @@ export function RefusalRows({ language }: { language: Language }) {
   };
 
   const showRest = () => {
+    foldFrom.current = list.current?.offsetHeight ?? null;
     setShowAll(true);
     // The button goes away with the fold: carry focus to the first row it opened.
     requestAnimationFrame(() => (list.current?.children[SHOWN_ON_PHONE] as HTMLElement | undefined)?.focus());

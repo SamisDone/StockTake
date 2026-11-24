@@ -31,7 +31,7 @@ export function AskReceipt({ language }: { language: Language }) {
           <p className="field-name">{t.question}</p>
           <p className="field-name text-right">{t.asked(f.date(asked, asked))}</p>
         </div>
-        <p lang="en" className="max-w-[30rem] text-lg leading-snug font-bold text-pretty">
+        <p lang="en" className="max-w-120 text-lg leading-snug font-bold text-pretty">
           {ASK_EXAMPLE.question}
         </p>
       </div>
