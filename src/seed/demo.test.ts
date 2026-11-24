@@ -34,6 +34,14 @@ describe("demo seed", () => {
     expect(await count("stock_movements")).toBeGreaterThan(2000);
   });
 
+  it("never prints a phone number or address that could reach a real person", async () => {
+    const phones = await client.execute("SELECT phone FROM suppliers UNION ALL SELECT phone FROM customers");
+    expect(phones.rows.length).toBe(12);
+    for (const { phone } of phones.rows) expect(String(phone)).toMatch(/^(\+880 10|010)\d{2}-\d{6}$/);
+    const emails = await client.execute("SELECT email FROM suppliers WHERE email IS NOT NULL");
+    for (const { email } of emails.rows) expect(String(email)).toMatch(/\.example$/);
+  });
+
   it("gives the dashboard the same stock line as analytics", async () => {
     const now = new Date(anchor.getTime() + 10 * 60 * 60 * 1000);
     const { stock, stockByDay } = await getAnalytics(db, 28, now);

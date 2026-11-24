@@ -118,6 +118,8 @@ async function Attention({ language }: { language: Language }) {
  * history. The figure and its line grow into the analytics stock chart when opened.
  */
 async function StockTally({ language }: { language: Language }) {
+  // Checked again here, beside the read, not left to the board that renders it.
+  await getCurrentUser();
   await connection();
   const [trail, money] = await Promise.all([getStockTrail(await getDb(), PERIODS[0]), getMoneyPrefs()]);
   const t = COPY[language];

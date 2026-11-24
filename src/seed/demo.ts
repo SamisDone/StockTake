@@ -50,47 +50,53 @@ function poisson(rand: () => number, mean: number) {
 
 type Supplier = { id: number; name: string; email: string; phone: string; leadTimeDays: number };
 
+/*
+ * Every phone number in the demo is on 010, a Bangladeshi mobile prefix the numbering plan
+ * leaves spare: the app prints numbers as call links, and a public demo mustn't ring a
+ * real person. Email addresses are on the reserved .example domain for the same reason.
+ */
+
 const SUPPLIERS: Supplier[] = [
   {
     id: 1,
     name: "Padma Packaging Ltd.",
     email: "orders@padmapack.example",
-    phone: "+880 1711-204518",
+    phone: "+880 1011-204518",
     leadTimeDays: 5,
   },
   {
     id: 2,
     name: "Teesta Electronics",
     email: "sales@teesta-elec.example",
-    phone: "+880 1819-447120",
+    phone: "+880 1019-447120",
     leadTimeDays: 14,
   },
   {
     id: 3,
     name: "Karnaphuli Tools & Hardware",
     email: "trade@karnaphuli.example",
-    phone: "+880 1552-318806",
+    phone: "+880 1052-318806",
     leadTimeDays: 10,
   },
   {
     id: 4,
     name: "Sonargaon Paper House",
     email: "hello@sonargaonpaper.example",
-    phone: "+880 1913-570244",
+    phone: "+880 1013-570244",
     leadTimeDays: 4,
   },
   {
     id: 5,
     name: "Buriganga Fasteners",
     email: "orders@burigangafast.example",
-    phone: "+880 1675-902371",
+    phone: "+880 1075-902371",
     leadTimeDays: 7,
   },
   {
     id: 6,
     name: "Rupsha Textile Mills",
     email: "wholesale@rupsha.example",
-    phone: "+880 1784-116630",
+    phone: "+880 1084-116630",
     leadTimeDays: 21,
   },
 ];
@@ -158,12 +164,12 @@ const REVIEWS: [supplier: number, user: number, rating: number, comment: string 
 
 /** Shops and people who buy on account: sales with prices, some paid later. */
 const CUSTOMERS: [id: number, name: string, phone: string][] = [
-  [1, "Rahman Traders", "01711-482019"],
-  [2, "Motijheel Print House", "01819-330145"],
-  [3, "Nadia Akter", "01552-907713"],
-  [4, "Chowdhury Hardware", "01913-645280"],
-  [5, "Banani Corner Café", "01675-218846"],
-  [6, "Hasan Electricals", "01784-552301"],
+  [1, "Rahman Traders", "01011-482019"],
+  [2, "Motijheel Print House", "01019-330145"],
+  [3, "Nadia Akter", "01052-907713"],
+  [4, "Chowdhury Hardware", "01013-645280"],
+  [5, "Banani Corner Café", "01075-218846"],
+  [6, "Hasan Electricals", "01084-552301"],
 ];
 /** Sales with prices start this many days before the end of the history. */
 const PRICED_SALES_DAYS = 45;
