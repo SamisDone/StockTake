@@ -200,6 +200,26 @@ export function mentionedRefs(text: string, refs: Ref[]) {
   });
 }
 
+/**
+ * Whether an answer says it proposed an order. The model sometimes writes that without calling
+ * draft_purchase_order, which leaves the person with no slip to review. Questions are offers, not claims.
+ */
+export function claimsProposal(text: string) {
+  return text
+    .split(/(?<=[.!?।])\s+/)
+    .filter((sentence) => !sentence.trim().endsWith("?"))
+    .some(
+      (sentence) =>
+        /\b(?:i'?ve|i have)\s+(?:\w+\s+)?(?:proposed|drafted|prepared)\b/i.test(sentence) ||
+        /\bproposed (?:purchase )?orders?\b/i.test(sentence) ||
+        /\bhere(?:'s| is| are)\b.*\bpropos/i.test(sentence) ||
+        /প্রস্তাব\s*(?:করেছি|দিয়েছি|করা হয়েছে|তৈরি করেছি)/.test(sentence),
+    );
+}
+
+const PROPOSAL_CHECK =
+  "You said you proposed an order, but draft_purchase_order wasn't called, so the person has no proposal to review. If an order is wanted, call draft_purchase_order now, once per supplier. Otherwise answer again without saying you proposed one.";
+
 const isAllowanceError = (error: unknown) =>
   error instanceof Error && /4006|daily free allocation|neurons/i.test(error.message);
 
@@ -256,6 +276,7 @@ export async function ask({
   const proposals: Proposal[] = [];
   let neurons = 0;
   let model = ASSISTANT_MODEL;
+  let checkedProposal = false;
 
   // A streamed call that breaks falls back to a plain one, after taking back any text it printed.
   async function once(name: string, input: ChatInput) {
@@ -308,6 +329,13 @@ export async function ask({
 
     if (toolCalls.length === 0 || i === MAX_MODEL_CALLS - 1) {
       if (!content) throw new AssistantError("failed", "The model gave an empty answer.");
+      // One more try when it claims a proposal it never made, while calls are left for the tool and an answer.
+      if (proposals.length === 0 && !checkedProposal && i + 2 < MAX_MODEL_CALLS && claimsProposal(content)) {
+        checkedProposal = true;
+        onReset?.();
+        messages.push({ role: "assistant", content }, { role: "user", content: PROPOSAL_CHECK });
+        continue;
+      }
       const answerRefs = mentionedRefs(content, refs);
       return { text: content, refs: answerRefs, proposals, steps, neurons, model };
     }

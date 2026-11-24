@@ -8,6 +8,7 @@ import { getStockForecasts } from "@/domain/forecast";
 import { DEMO_PASSWORD_HASH } from "@/seed/accounts";
 import { DEMO_PASSWORD, DEMO_USERS, demoPasswordHash, demoStatements } from "@/seed/demo";
 import { createTestDb, scalar, seedDemo } from "@/test/db";
+import { ASK_COPY } from "@/app/(app)/ask/copy";
 
 const anchor = new Date(Date.UTC(2026, 10, 20));
 
@@ -82,6 +83,17 @@ describe("demo seed", () => {
     expect(statements.length).toBeLessThan(1000);
     const encoder = new TextEncoder();
     for (const sql of statements) expect(encoder.encode(sql).length).toBeLessThan(100_000);
+  });
+
+  it("has the supplier the Ask page's example question names", async () => {
+    const names = (await client.execute("SELECT name FROM suppliers")).rows.map((row) => String(row.name));
+    for (const language of ["en", "bn"] as const) {
+      const example = ASK_COPY[language].placeholder;
+      expect(
+        names.some((name) => example.includes(name)),
+        example,
+      ).toBe(true);
+    }
   });
 
   it("is deterministic", () => {

@@ -102,6 +102,43 @@ describe("ask", () => {
     expect(answer.refs.map((r) => r.label)).toEqual(["Northwind Supply"]);
   });
 
+  it("sends the model back to call the tool when it claims a proposal it never made", async () => {
+    const taken: number[] = [];
+    const { run, calls } = scripted(
+      reply("I've proposed an order to Northwind Supply for both products."),
+      callTool("draft_purchase_order", { supplierId: 1 }),
+      reply("I've proposed an order to Northwind Supply for both products."),
+    );
+    const answer = await ask({ run, db, now, question: "Order what's out", onReset: () => taken.push(1) });
+
+    expect(answer.proposals).toHaveLength(1);
+    expect(calls).toHaveLength(3);
+    expect(calls[1].input.messages.at(-1)).toMatchObject({ role: "user" });
+    expect((calls[1].input.messages.at(-1) as { content: string }).content).toMatch(/draft_purchase_order/);
+    expect(taken).toEqual([1]);
+  });
+
+  it("asks only once, and leaves offers and real proposals alone", async () => {
+    const twice = scripted(reply("I've proposed an order."), reply("I've proposed an order."));
+    expect((await ask({ run: twice.run, db, now, question: "Order" })).proposals).toEqual([]);
+    expect(twice.calls).toHaveLength(2);
+
+    const offer = scripted(reply("Widget is out. Would you like me to propose an order from Northwind Supply?"));
+    await ask({ run: offer.run, db, now, question: "Widget?" });
+    expect(offer.calls).toHaveLength(1);
+
+    const bangla = scripted(reply("আমি Northwind Supply-কে একটি অর্ডারের প্রস্তাব করেছি।"), reply("ঠিক আছে।"));
+    await ask({ run: bangla.run, db, now, question: "অর্ডার", language: "bn" });
+    expect(bangla.calls).toHaveLength(2);
+  });
+
+  it("doesn't ask when no call is left for the tool and an answer", async () => {
+    const loops = Array.from({ length: MAX_MODEL_CALLS - 2 }, () => callTool("list_suppliers", {}));
+    const { run, calls } = scripted(...loops, reply("I've proposed an order."));
+    await ask({ run, db, now, question: "Order" });
+    expect(calls).toHaveLength(MAX_MODEL_CALLS - 1);
+  });
+
   it("keeps a proposal for each supplier, the latest one when a supplier comes up twice", async () => {
     await db.insert(suppliers).values({ id: 2, name: "Harbor Packaging", leadTimeDays: 3 });
     await db.insert(products).values({
