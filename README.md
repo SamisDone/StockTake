@@ -9,7 +9,7 @@
 
 **Stock you can prove.** An inventory system where every unit on hand traces back to a line in an append-only ledger, and the database itself refuses any write that would make the two disagree. On top sits Ask, an assistant that answers questions about the stock by looking things up. It can read, but it can never change anything.
 
-[![CI](https://github.com/SamisDone/stocktake/actions/workflows/ci.yml/badge.svg)](https://github.com/SamisDone/stocktake/actions/workflows/ci.yml)
+[![CI](https://github.com/SamisDone/StockTake/actions/workflows/ci.yml/badge.svg)](https://github.com/SamisDone/StockTake/actions/workflows/ci.yml)
 ![Next.js 16](https://img.shields.io/badge/Next.js-16.4-000?logo=nextdotjs)
 ![React 19](https://img.shields.io/badge/React-19.3-149eca?logo=react&logoColor=white)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers%20%2B%20D1-f38020?logo=cloudflare&logoColor=white)
