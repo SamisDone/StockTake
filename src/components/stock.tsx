@@ -25,27 +25,51 @@ export function Tally({
   name,
   value,
   language,
+  className = "",
+  figure = (shown) => shown,
   children,
 }: {
   name: string;
   value: number | string;
   language: Language;
+  className?: string;
+  /** Wraps the printed figure, for a figure that travels to another page. */
+  figure?: (shown: ReactNode) => ReactNode;
   children?: ReactNode;
 }) {
   const text = typeof value === "number" ? formats(language).count(value) : value;
   return (
-    <div className="@container min-w-0 border-l border-ink px-5 pt-3 pb-4 first:border-l-0 sm:px-8">
+    <div className={`@container min-w-0 border-l border-ink px-5 pt-3 pb-4 first:border-l-0 sm:px-8 ${className}`}>
       <dt className="field-name">{name}</dt>
-      {/* A figure too long for its column (taka grouped in lakhs, three to a phone's row)
-          prints just small enough to fit: condensed figures run under half an em each. */}
-      <dd
-        style={{ "--fit": `calc(100cqi / ${(text.length * 0.46).toFixed(2)})` } as CSSProperties}
-        className="print-display mt-1 text-[length:min(1.75rem,var(--fit))] whitespace-nowrap sm:text-[length:min(3rem,var(--fit))]"
-      >
-        {typeof value === "number" ? <Count value={value} language={language} /> : text}
-      </dd>
+      <TallyFigure text={text}>
+        {figure(typeof value === "number" ? <Count value={value} language={language} /> : text)}
+      </TallyFigure>
       {children}
     </div>
+  );
+}
+
+/**
+ * A tally's printed figure. A figure too long for its column (taka grouped in lakhs, three
+ * to a phone's row) prints just small enough to fit: condensed figures run under half an
+ * em each. The column must be a size container. `as="p"` for a placeholder's, outside a `dl`.
+ */
+export function TallyFigure({
+  text,
+  as: Tag = "dd",
+  children,
+}: {
+  text: string;
+  as?: "dd" | "p";
+  children: ReactNode;
+}) {
+  return (
+    <Tag
+      style={{ "--fit": `calc(100cqi / ${(text.length * 0.46).toFixed(2)})` } as CSSProperties}
+      className="print-display mt-1 text-[length:min(1.75rem,var(--fit))] whitespace-nowrap sm:text-[length:min(3rem,var(--fit))]"
+    >
+      {children}
+    </Tag>
   );
 }
 
@@ -144,16 +168,24 @@ export function Th({
  * Field names of a tally zone over unprinted blocks, holding its space while data loads.
  * A zone that isn't one row at every width passes its own column classes as `className`.
  */
+const FIGURE_BAR = <div className="mt-1.5 h-7 w-14 bg-liner sm:h-11" />;
+
 export function TallyPlaceholder({
   names,
   className,
   notes = false,
+  last,
+  known,
 }: {
   /** A null name prints as a bar: the page doesn't know yet which tallies it will show. */
   names: (string | null)[];
   className?: string;
   /** The tallies print a line of notes under their figures, so the blocks hold that too. */
   notes?: boolean;
+  /** What the last tally prints under its figure, held as bars. */
+  last?: ReactNode;
+  /** One tally whose figure may already be known: given its bar, prints the figure or the bar. */
+  known?: { at: number; figure: (bar: ReactNode) => ReactNode };
 }) {
   return (
     <div
@@ -161,7 +193,7 @@ export function TallyPlaceholder({
       style={className ? undefined : { gridTemplateColumns: `repeat(${names.length}, minmax(0, 1fr))` }}
     >
       {names.map((name, i) => (
-        <div key={i} className="border-l border-ink px-5 pt-3 pb-4 first:border-l-0 sm:px-8">
+        <div key={i} className="@container min-w-0 border-l border-ink px-5 pt-3 pb-4 first:border-l-0 sm:px-8">
           {name === null ? (
             <div className="flex h-4 items-center lang-bn:h-4.5">
               <div className="h-3 w-20 bg-liner" />
@@ -170,8 +202,9 @@ export function TallyPlaceholder({
             <p className="field-name">{name}</p>
           )}
           {/* The figure: 1.75rem (3rem from sm) at 0.95 leading, under a 4px gap. */}
-          <div className="mt-1.5 h-7 w-14 bg-liner sm:h-11" />
+          {known?.at === i ? known.figure(FIGURE_BAR) : FIGURE_BAR}
           {notes ? <div className="mt-1 h-5 w-24 bg-liner/70" /> : null}
+          {i === names.length - 1 ? last : null}
         </div>
       ))}
     </div>

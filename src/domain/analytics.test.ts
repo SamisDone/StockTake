@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "@/db/database";
 import { products } from "@/db/schema";
-import { getAnalytics, periodRange, readPeriod } from "@/domain/analytics";
+import { getAnalytics, getStockTrail, periodRange, readPeriod } from "@/domain/analytics";
 import { createDraft, placeOrder, receiveOrder } from "@/domain/purchase-orders";
 import { recordCount, recordStockChange } from "@/domain/stock";
 import { createTestDb } from "@/test/db";
@@ -120,6 +120,11 @@ describe("getAnalytics", () => {
     // The delivery ten days ago adds 50 Widgets at $2.50.
     expect(stockByDay.at(-11)!.costCents - stockByDay.at(-12)!.costCents).toBe(50 * 250);
     expect(stockByDay.at(-1)!.costCents).toBe(stock.closing.costCents);
+  });
+
+  it("works the same stock line back from what's on hand, for the dashboard", async () => {
+    const { stock, stockByDay } = await getAnalytics(db, 28, now);
+    expect(await getStockTrail(db, 28, now)).toEqual({ openingCents: stock.opening.costCents, days: stockByDay });
   });
 
   it("splits everything on the shelves into what was sold, lost and is still there", async () => {

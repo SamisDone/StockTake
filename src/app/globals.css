@@ -545,6 +545,27 @@ html [data-sonner-toast][data-removed="true"] {
   animation-timing-function: var(--ease-in-out);
 }
 
+/* The dashboard's stock line growing into the analytics chart (TrailMorph). Both
+   snapshots stretch to the box as it travels, rather than keeping their own proportions,
+   so the line holds its shape from small to large. The small one hands over quickly:
+   stretched, its stroke would thicken. */
+::view-transition-group(.grow) {
+  z-index: 5;
+  animation-duration: var(--dur-move);
+  animation-timing-function: var(--ease-in-out);
+}
+::view-transition-old(.grow),
+::view-transition-new(.grow) {
+  block-size: 100%;
+  object-fit: fill;
+}
+::view-transition-old(.grow) {
+  animation: var(--dur-tear) var(--ease-out) both fade-out;
+}
+::view-transition-new(.grow) {
+  animation: var(--dur-fade) var(--ease-out) both fade-in;
+}
+
 ::view-transition-old(.nav-forward) {
   --slide: -32px;
   animation:
@@ -625,8 +646,9 @@ html [data-sonner-toast][data-removed="true"] {
   ::view-transition-old(.morph) {
     animation: var(--dur-tear) ease both fade-out;
   }
-  /* The name changes places without travelling. */
-  ::view-transition-group(.morph) {
+  /* The name and the stock line change places without travelling. */
+  ::view-transition-group(.morph),
+  ::view-transition-group(.grow) {
     animation: none;
   }
   .print-in,

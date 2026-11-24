@@ -27,6 +27,7 @@ import { getLanguage, getMoneyPrefs } from "@/server/preferences";
 import { ANALYTICS_COPY, type AnalyticsCopy } from "./copy";
 import { Delivery } from "./delivery";
 import { SalesChart } from "./sales-chart";
+import { KnownStockChart, KnownStockFigure, StockFigureMorph } from "./known-trail";
 import { StockChart } from "./stock-chart";
 import { WhereItWent } from "./where-it-went";
 import { niceMax } from "@/lib/nice-max";
@@ -46,7 +47,11 @@ export default function AnalyticsPage({ searchParams }: PageProps<"/analytics">)
     <PageTransition>
       <PageHeader title={both(ANALYTICS_COPY, (t) => t.title)} />
       <Reveal
-        fallback={<EitherLanguage>{(language) => <ReportPlaceholder t={ANALYTICS_COPY[language]} />}</EitherLanguage>}
+        fallback={
+          <EitherLanguage>
+            {(language) => <ReportPlaceholder t={ANALYTICS_COPY[language]} language={language} />}
+          </EitherLanguage>
+        }
       >
         <WithLanguage>{(language) => <Report searchParams={searchParams} language={language} />}</WithLanguage>
       </Reveal>
@@ -111,7 +116,12 @@ async function Report({
                   : t.noSales}
               </Note>
             </Tally>
-            <Tally name={t.tallies[2]} value={m.whole(stock.onHand.costCents)} language={language}>
+            <Tally
+              name={t.tallies[2]}
+              value={m.whole(stock.onHand.costCents)}
+              language={language}
+              figure={days === PERIODS[0] ? (shown) => <StockFigureMorph>{shown}</StockFigureMorph> : undefined}
+            >
               <Note>{t.unitsOnHand(f.count(stock.onHand.units))}</Note>
             </Tally>
             <Tally name={t.tallies[3]} value={m.whole(lost)} language={language}>
@@ -223,6 +233,7 @@ function Statement({
           openingCents={stock.opening.costCents}
           money={money}
           language={f.language}
+          morph={analytics.days === PERIODS[0]}
         />
       </div>
       <table className="mt-8 w-full border-collapse text-left">
@@ -543,19 +554,33 @@ function ProductList({
 }
 
 /** The same report, unprinted: the period row, tallies and statement hold their space. */
-function ReportPlaceholder({ t }: { t: AnalyticsCopy }) {
+function ReportPlaceholder({ t, language }: { t: AnalyticsCopy; language: Language }) {
   return (
     <div aria-hidden>
       <div className="border-b-2 border-ink">
         <FilterRowPlaceholder legend={t.period} count={2} />
       </div>
-      <TallyPlaceholder names={t.tallies} className={FOUR_TALLIES} notes />
+      <TallyPlaceholder
+        names={t.tallies}
+        className={FOUR_TALLIES}
+        notes
+        known={{ at: 2, figure: (bar) => <KnownStockFigure language={language} bar={bar} /> }}
+      />
       <div className="px-5 pt-6 sm:px-8">
         <p className="text-lg font-bold">{t.statement}</p>
-        <div className="mt-2 h-10 max-w-prose bg-liner/70" />
-        {/* The stock chart: its readout, then the plot. */}
-        <div className="mt-5 h-20 w-40 bg-liner/70" />
-        <div className="mt-4 h-44 bg-liner/70" />
+        <div className="mt-1 h-10 max-w-prose bg-liner/70" />
+        {/* The stock chart: its readout, then the plot; or the chart itself, opened from the dashboard. */}
+        <div className="mt-5">
+          <KnownStockChart
+            language={language}
+            bars={
+              <>
+                <div className="h-20 w-40 bg-liner/70" />
+                <div className="mt-4 h-44 bg-liner/70" />
+              </>
+            }
+          />
+        </div>
         <div className="mt-8 space-y-5">
           {Array.from({ length: 8 }, (_, i) => (
             <div key={i} className="h-7 bg-liner/70" />

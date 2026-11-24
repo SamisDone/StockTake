@@ -4,6 +4,7 @@ import type { Database } from "@/db/database";
 import { authenticate } from "@/domain/auth";
 import { listActivity } from "@/domain/activity";
 import { activityText } from "@/domain/activity-copy";
+import { getAnalytics, getStockTrail } from "@/domain/analytics";
 import { getStockForecasts } from "@/domain/forecast";
 import { DEMO_PASSWORD_HASH } from "@/seed/accounts";
 import { DEMO_PASSWORD, DEMO_USERS, demoPasswordHash, demoStatements } from "@/seed/demo";
@@ -31,6 +32,12 @@ describe("demo seed", () => {
     expect(await count("supplier_reviews")).toBe(9);
     expect(await count("purchase_orders")).toBeGreaterThan(20);
     expect(await count("stock_movements")).toBeGreaterThan(2000);
+  });
+
+  it("gives the dashboard the same stock line as analytics", async () => {
+    const now = new Date(anchor.getTime() + 10 * 60 * 60 * 1000);
+    const { stock, stockByDay } = await getAnalytics(db, 28, now);
+    expect(await getStockTrail(db, 28, now)).toEqual({ openingCents: stock.opening.costCents, days: stockByDay });
   });
 
   it("keeps every product's stock equal to its ledger", async () => {

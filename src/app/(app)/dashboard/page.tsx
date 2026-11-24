@@ -9,7 +9,8 @@ import { type Formats, formats } from "@/lib/format";
 import type { Copy, Language } from "@/lib/i18n";
 import { type MoneyFormat, moneyFormat } from "@/lib/money";
 import { PageHeader } from "@/components/page-header";
-import { CoverBar, MobileName, StatusMark, Tally, TallyPlaceholder, Th } from "@/components/stock";
+import { CoverBar, FOUR_TALLIES, MobileName, StatusMark, Tally, TallyPlaceholder, Th } from "@/components/stock";
+import { PERIODS, getStockTrail } from "@/domain/analytics";
 import { NAV_FORWARD, PageTransition, Reveal } from "@/components/transitions";
 import { getCurrentUser } from "@/server/dal";
 import { getLanguage, getMoneyPrefs } from "@/server/preferences";
@@ -17,6 +18,7 @@ import { WithLanguage } from "@/components/with-language";
 import { both } from "@/lib/i18n";
 import { ProductLink } from "@/components/product-link";
 import { StaffBoard } from "./staff-board";
+import { StockFigure } from "./stock-figure";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: COPY[await getLanguage()].title };
@@ -40,7 +42,9 @@ async function Attention({ language }: { language: Language }) {
   const f = formats(language);
   const user = await getCurrentUser();
   // Staff get the stockroom's to-do list; reordering is an admin's job.
-  if (user.role === "staff") return <StaffBoard userId={user.id} language={language} />;
+  if (user.role === "staff") {
+    return <StaffBoard userId={user.id} language={language} stock={<StockTally language={language} />} />;
+  }
   // Forecasts are relative to now, so they belong to the request, never to a prerender.
   await connection();
   const db = await getDb();
@@ -59,10 +63,11 @@ async function Attention({ language }: { language: Language }) {
 
   return (
     <>
-      <dl className="grid grid-cols-3 border-b-2 border-ink">
+      <dl className={`grid border-b-2 border-ink ${FOUR_TALLIES}`}>
         <Tally name={t.tallies[0]} value={out} language={language} />
         <Tally name={t.tallies[1]} value={attention.length - out} language={language} />
         <Tally name={t.tallies[2]} value={m.whole(reorderCost)} language={language} />
+        <StockTally language={language} />
       </dl>
 
       <section aria-labelledby="attention-title" className="pt-6 pb-8">
@@ -105,6 +110,26 @@ async function Attention({ language }: { language: Language }) {
         )}
       </section>
     </>
+  );
+}
+
+/**
+ * Stock at cost, on both roles' boards: the stockroom as a whole, and the way into its
+ * history. The figure and its line grow into the analytics stock chart when opened.
+ */
+async function StockTally({ language }: { language: Language }) {
+  await connection();
+  const [trail, money] = await Promise.all([getStockTrail(await getDb(), PERIODS[0]), getMoneyPrefs()]);
+  const t = COPY[language];
+  return (
+    <StockFigure
+      days={trail.days}
+      openingCents={trail.openingCents}
+      money={money}
+      language={language}
+      name={t.stock}
+      link={t.stockLink(formats(language).count(PERIODS[0]))}
+    />
   );
 }
 
@@ -186,8 +211,17 @@ function AttentionPlaceholder() {
   return (
     <div aria-hidden>
       {/* Staff see their own board with other tallies, and the role isn't known until the
-          request is, so the names wait for it. */}
-      <TallyPlaceholder names={[null, null, null]} />
+          request is, so the names wait for it. Both boards end with stock at cost. */}
+      <TallyPlaceholder
+        names={[null, null, null, null]}
+        className={FOUR_TALLIES}
+        last={
+          <>
+            <div className="mt-2 h-6 bg-liner/70" />
+            <div className="mt-1.5 h-5 w-28 bg-liner/70" />
+          </>
+        }
+      />
       <div className="px-5 pt-6 sm:px-8">
         <div className="h-5 w-36 bg-liner" />
         <div className="mt-6 space-y-5">
@@ -217,6 +251,8 @@ const en = {
   order: "Order",
   units: (n: string) => `${n} units`,
   onDraft: "On draft",
+  stock: "Stock at cost",
+  stockLink: (days: string) => `${days} days in analytics`,
 };
 type DashboardCopy = typeof en;
 
@@ -239,5 +275,7 @@ const COPY: Copy<DashboardCopy> = {
     order: "অর্ডার",
     units: (n) => `${n} ইউনিট`,
     onDraft: "খসড়ায় আছে",
+    stock: "কেনা দামে মজুত",
+    stockLink: (days) => `বিশ্লেষণে ${days} দিন`,
   },
 };

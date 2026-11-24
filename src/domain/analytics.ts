@@ -386,3 +386,34 @@ export async function getAnalytics(db: Database, days: PeriodDays, now = new Dat
 }
 
 export type Analytics = Awaited<ReturnType<typeof getAnalytics>>;
+
+/**
+ * Stock at cost at the end of each of the last `days` business days, the last being now:
+ * the dashboard's figure and its line, the same series as the analytics stock chart for
+ * that period. It works back from what's on hand, so it needs only the period's movements.
+ */
+export async function getStockTrail(db: Database, days: PeriodDays, now = new Date()) {
+  const { from, to } = periodRange(days, now);
+  const day = sql<number>`cast((${stockMovements.occurredAt} + ${BUSINESS_OFFSET_MS}) / ${DAY_MS} as integer)`;
+  const [[held], rows] = await Promise.all([
+    db
+      .select({
+        costCents: sql<number>`coalesce(sum(${products.onHand} * ${products.unitCostCents}), 0)`.mapWith(Number),
+      })
+      .from(products),
+    db
+      .select({
+        day: day.mapWith(Number),
+        stockChangeCents: sql<number>`sum(${stockMovements.quantity} * ${products.unitCostCents})`.mapWith(Number),
+      })
+      .from(stockMovements)
+      .innerJoin(products, eq(products.id, stockMovements.productId))
+      .where(and(gte(stockMovements.occurredAt, from), lt(stockMovements.occurredAt, to)))
+      .groupBy(day),
+  ]);
+  const openingCents = held.costCents - rows.reduce((sum, r) => sum + r.stockChangeCents, 0);
+  const filled = rows.map((r) => ({ ...r, units: 0, valueCents: 0, costCents: 0 }));
+  return { openingCents, days: fillDays(filled, from, days, openingCents).stock };
+}
+
+export type StockTrail = Awaited<ReturnType<typeof getStockTrail>>;

@@ -6,7 +6,7 @@ import { activityText } from "@/domain/activity-copy";
 import { COUNT_EVERY_DAYS, staffHome } from "@/domain/home";
 import { IntentLink } from "@/components/intent-link";
 import { ProductLink } from "@/components/product-link";
-import { Tally } from "@/components/stock";
+import { FOUR_TALLIES, Tally } from "@/components/stock";
 import { NAV_FORWARD } from "@/components/transitions";
 import { daysBetween } from "@/lib/business-time";
 import { formats } from "@/lib/format";
@@ -21,7 +21,16 @@ const SHELVES_SHOWN = 8;
  * a count (each opens the product, where the count is recorded), and what you've
  * recorded today. The Record button is the way to all three.
  */
-export async function StaffBoard({ userId, language }: { userId: number; language: Language }) {
+export async function StaffBoard({
+  userId,
+  language,
+  stock,
+}: {
+  userId: number;
+  language: Language;
+  /** The stock-at-cost tally both boards end with. */
+  stock: ReactNode;
+}) {
   const t = COPY[language];
   const f = formats(language);
   await connection();
@@ -32,12 +41,13 @@ export async function StaffBoard({ userId, language }: { userId: number; languag
 
   return (
     <>
-      <dl className="grid grid-cols-3 border-b-2 border-ink">
+      <dl className={`grid border-b-2 border-ink ${FOUR_TALLIES}`}>
         <Tally name={t.tallies[0]} value={deliveries.length} language={language}>
           {late > 0 ? <p className="mt-1 text-sm font-semibold">{t.lateCount(f.count(late))}</p> : null}
         </Tally>
         <Tally name={t.tallies[1]} value={countsDue.length} language={language} />
         <Tally name={t.tallies[2]} value={today.length} language={language} />
+        {stock}
       </dl>
 
       <Section id="deliveries" title={t.deliveries} help={t.deliveriesHelp}>
