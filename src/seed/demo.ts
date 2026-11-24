@@ -53,32 +53,44 @@ type Supplier = { id: number; name: string; email: string; phone: string; leadTi
 const SUPPLIERS: Supplier[] = [
   {
     id: 1,
-    name: "Harbor Packaging Co.",
-    email: "orders@harborpack.example",
-    phone: "+1 206 555 0141",
+    name: "Padma Packaging Ltd.",
+    email: "orders@padmapack.example",
+    phone: "+880 1711-204518",
     leadTimeDays: 5,
   },
   {
     id: 2,
-    name: "Northline Electronics",
-    email: "sales@northline.example",
-    phone: "+1 408 555 0187",
+    name: "Teesta Electronics",
+    email: "sales@teesta-elec.example",
+    phone: "+880 1819-447120",
     leadTimeDays: 14,
   },
-  { id: 3, name: "Copperleaf Tools", email: "trade@copperleaf.example", phone: "+1 312 555 0112", leadTimeDays: 10 },
+  {
+    id: 3,
+    name: "Karnaphuli Tools & Hardware",
+    email: "trade@karnaphuli.example",
+    phone: "+880 1552-318806",
+    leadTimeDays: 10,
+  },
   {
     id: 4,
-    name: "Greenfield Paper Goods",
-    email: "hello@greenfield.example",
-    phone: "+1 503 555 0164",
+    name: "Sonargaon Paper House",
+    email: "hello@sonargaonpaper.example",
+    phone: "+880 1913-570244",
     leadTimeDays: 4,
   },
-  { id: 5, name: "Atlas Fasteners", email: "orders@atlasfast.example", phone: "+1 713 555 0129", leadTimeDays: 7 },
+  {
+    id: 5,
+    name: "Buriganga Fasteners",
+    email: "orders@burigangafast.example",
+    phone: "+880 1675-902371",
+    leadTimeDays: 7,
+  },
   {
     id: 6,
-    name: "Blue Ridge Textiles",
-    email: "wholesale@blueridge.example",
-    phone: "+1 828 555 0195",
+    name: "Rupsha Textile Mills",
+    email: "wholesale@rupsha.example",
+    phone: "+880 1784-116630",
     leadTimeDays: 21,
   },
 ];
@@ -89,12 +101,12 @@ const CATALOG: [string, string, string, number, number, number, number][] = [
   ["PKG-BOX-M", "Shipping box, medium", "Packaging", 1, 54, 165, 7],
   ["PKG-BOX-L", "Shipping box, large", "Packaging", 1, 81, 240, 4],
   ["PKG-TAPE", "Packing tape, 48 mm", "Packaging", 1, 145, 420, 6],
-  ["PKG-BUBBLE", "Bubble wrap roll, 30 m", "Packaging", 1, 690, 1650, 1.5],
+  ["PKG-JUTE", "Jute twine, 100 m", "Packaging", 1, 690, 1650, 1.5],
   ["ELC-USB-C", "USB-C cable, 1 m", "Electronics", 2, 210, 999, 5],
   ["ELC-CHG-20", "20 W wall charger", "Electronics", 2, 640, 1999, 2.5],
   ["ELC-BATT-AA", "AA batteries, 8 pack", "Electronics", 2, 310, 849, 6],
   ["ELC-HUB-4", "4-port USB hub", "Electronics", 2, 920, 2499, 1],
-  ["ELC-LED-E27", "LED bulb, E27 warm white", "Electronics", 2, 175, 599, 3.5],
+  ["ELC-LED-B22", "LED bulb, B22 cool white", "Electronics", 2, 175, 599, 3.5],
   ["TLS-DRV-SET", "Screwdriver set, 12 piece", "Tools", 3, 1180, 2999, 1.2],
   ["TLS-TAPE-5", "Tape measure, 5 m", "Tools", 3, 420, 1199, 2],
   ["TLS-KNIFE", "Utility knife", "Tools", 3, 260, 799, 3],
@@ -112,8 +124,8 @@ const CATALOG: [string, string, string, number, number, number, number][] = [
   ["FST-WASHER", "Flat washers, 200", "Fasteners", 5, 240, 599, 1.1],
   ["TXT-APRON", "Canvas work apron", "Apparel", 6, 910, 2499, 0.8],
   ["TXT-VEST-HV", "Hi-vis safety vest", "Apparel", 6, 480, 1299, 1.6],
-  ["TXT-TOWEL", "Shop towels, 25 pack", "Apparel", 6, 640, 1499, 2.4],
-  ["TXT-CAP", "Logo cap, navy", "Apparel", 6, 520, 1599, 0.7],
+  ["TXT-GAMCHHA", "Gamchha towels, 5 pack", "Apparel", 6, 640, 1499, 2.4],
+  ["TXT-LUNGI", "Cotton lungi, checked", "Apparel", 6, 520, 1599, 0.7],
   ["TXT-SOCK", "Work socks, 3 pairs", "Apparel", 6, 350, 1099, 1.9],
 ];
 
@@ -133,24 +145,24 @@ const RETURN_FROM_DAY = 90;
 const WRITE_OFF_REASONS = ["Damaged in the warehouse", "Water damage", "Crushed in transit", "Failed inspection"];
 
 const REVIEWS: [supplier: number, user: number, rating: number, comment: string | null][] = [
-  [1, ADMIN, 5, "Boxes arrive on time and well stacked."],
+  [1, ADMIN, 5, "Boxes arrive on time, even in the monsoon."],
   [1, STAFF, 4, null],
-  [2, ADMIN, 3, "Good prices, but the 14-day lead time hurts."],
-  [2, STAFF, 2, "Two partial cartons last quarter."],
+  [2, ADMIN, 3, "Good prices, but 14 days from Chattogram hurts."],
+  [2, STAFF, 2, "Two short cartons last quarter."],
   [3, ADMIN, 4, "Solid quality, slightly pricey."],
-  [4, ADMIN, 5, "Fastest supplier we have."],
+  [4, ADMIN, 5, "Fastest supplier we have: Narayanganj overnight."],
   [4, STAFF, 5, "Always friendly on the phone."],
   [5, STAFF, 4, null],
-  [6, ADMIN, 3, "Lovely stock, very long lead times."],
+  [6, ADMIN, 3, "Lovely cloth, very long lead times."],
 ];
 
 /** Shops and people who buy on account: sales with prices, some paid later. */
 const CUSTOMERS: [id: number, name: string, phone: string][] = [
   [1, "Rahman Traders", "01711-482019"],
-  [2, "Lakeside Print Shop", "01819-330145"],
+  [2, "Motijheel Print House", "01819-330145"],
   [3, "Nadia Akter", "01552-907713"],
-  [4, "Corner Hardware", "01913-645280"],
-  [5, "Green Leaf Café", "01675-218846"],
+  [4, "Chowdhury Hardware", "01913-645280"],
+  [5, "Banani Corner Café", "01675-218846"],
   [6, "Hasan Electricals", "01784-552301"],
 ];
 /** Sales with prices start this many days before the end of the history. */
@@ -438,7 +450,8 @@ export function demoStatements({ anchor }: { anchor: Date }) {
 
   for (let day = 1; day <= HISTORY_DAYS; day++) {
     const weekday = weekdayOf(new Date(at(day, 12)));
-    const dayFactor = weekday === 0 || weekday === 6 ? 0.55 : 1.1;
+    // The Bangladeshi weekend: Friday is quiet, Saturday half open.
+    const dayFactor = weekday === 5 ? 0.45 : weekday === 6 ? 0.75 : 1.1;
 
     // Deliveries due today, except the one that runs late.
     for (const order of open.filter((o) => o.dueDay === day)) {

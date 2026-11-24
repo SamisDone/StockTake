@@ -138,9 +138,9 @@ describe("suppliers", () => {
 
   it("reads one supplier with its products and open orders", async () => {
     const { data, refs } = await ok("get_supplier", { supplierId: 1 });
-    expect(data.name).toBe("Harbor Packaging Co.");
+    expect(data.name).toBe("Padma Packaging Ltd.");
     expect((data.products as unknown[]).length).toBeGreaterThan(0);
-    expect(refs[0]).toEqual({ kind: "supplier", id: 1, label: "Harbor Packaging Co." });
+    expect(refs[0]).toEqual({ kind: "supplier", id: 1, label: "Padma Packaging Ltd." });
   });
 });
 
@@ -215,7 +215,7 @@ describe("draft_purchase_order", () => {
 
     const line = (productId: number) => ({ productId, quantity: 1 });
     expect(await refused("draft_purchase_order", JSON.stringify({ supplierId: 1, lines: [line(theirs.id)] }))).toBe(
-      `Harbor Packaging Co. doesn't supply ${theirs.name}.`,
+      `Padma Packaging Ltd. doesn't supply ${theirs.name}.`,
     );
     expect(
       await refused("draft_purchase_order", JSON.stringify({ supplierId: 1, lines: [line(mine.id), line(mine.id)] })),
