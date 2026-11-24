@@ -150,6 +150,7 @@ function Hero({ t, language }: Props) {
           <p className="intro-lede max-w-[34rem] text-lg leading-relaxed text-ink-2">{t.lede}</p>
           <div className="intro-doors mt-8 max-w-md">
             <DemoDoors language={language} />
+            <p className="mt-3 text-sm leading-relaxed text-ink-2">{t.languages}</p>
           </div>
         </div>
 

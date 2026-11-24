@@ -14,6 +14,8 @@ const en = {
   metaDescription:
     "Every unit on hand traces back to an entry in an append-only ledger, and the database refuses any write that would break that.",
   signIn: "Sign in",
+  /** Under the demo doors in the hero. */
+  languages: "In Bangla or English, with money in taka or dollars. Switch either one inside, any time.",
   footer: ["Stocktake rebuilds ", ", a PHP and MySQL course project, on Next.js, Cloudflare Workers and D1."],
   /** Ledger entry numbers above each section's heading. */
   markers: {
@@ -25,7 +27,7 @@ const en = {
   },
   /** The headline, one entry per printed line. */
   headline: ["Stock you", "can prove."],
-  lede: "Stocktake records every receipt, sale, return and write-off in a ledger that only grows. The number on hand is that ledger's total, and the database refuses any write that would make the two disagree.",
+  lede: "Inventory for small shops and distributors. Stocktake records every receipt, sale, return and write-off in a ledger that only grows. The number on hand is that ledger's total, and the database refuses any write that would make the two disagree.",
 
   attempted: "Attempted write",
   answered: "The database answered",
@@ -81,7 +83,6 @@ const en = {
     ["Sales", "with discounts, customers and what each one owes"],
     ["Analytics", "that reconcile to the ledger"],
     ["CSV in and out", "and purchase orders ready to print"],
-    ["Bangla or English", "with money in taka or dollars"],
   ] as [string, string][],
   exchange: {
     question: "Question",
@@ -115,6 +116,7 @@ export const COPY: Copy<LandingCopy> = {
     metaDescription:
       "মজুতের প্রতিটি ইউনিট শুধু-যোগ-হয় এমন একটি খাতার এন্ট্রিতে গিয়ে মেলে, আর সেই নিয়ম ভাঙে এমন যেকোনো লেখা ডেটাবেস ফিরিয়ে দেয়।",
     signIn: "সাইন ইন",
+    languages: "বাংলা বা ইংরেজিতে, টাকা বা ডলারে হিসাব। ভেতরে যেকোনো সময় বদলানো যায়।",
     footer: [
       "Stocktake নতুন করে গড়েছে ",
       ", একটি PHP ও MySQL কোর্স প্রজেক্ট, Next.js, Cloudflare Workers ও D1-এর ওপর।",
@@ -127,7 +129,7 @@ export const COPY: Copy<LandingCopy> = {
       access: "০৫ · প্রবেশ",
     },
     headline: ["যে মজুত", "প্রমাণ করা যায়।"],
-    lede: "Stocktake প্রতিটি প্রাপ্তি, বিক্রি, ফেরত আর বাতিল এমন একটি খাতায় লেখে যা শুধু বাড়ে। মজুতের সংখ্যা সেই খাতারই যোগফল, আর দুটোর মধ্যে গরমিল ঘটায় এমন যেকোনো লেখা ডেটাবেস ফিরিয়ে দেয়।",
+    lede: "ছোট দোকান আর পরিবেশকদের জন্য মজুতের হিসাব। Stocktake প্রতিটি প্রাপ্তি, বিক্রি, ফেরত আর বাতিল এমন একটি খাতায় লেখে যা শুধু বাড়ে। মজুতের সংখ্যা সেই খাতারই যোগফল, আর দুটোর মধ্যে গরমিল ঘটায় এমন যেকোনো লেখা ডেটাবেস ফিরিয়ে দেয়।",
 
     attempted: "যা লেখার চেষ্টা হয়েছিল",
     answered: "ডেটাবেসের উত্তর",
@@ -173,7 +175,6 @@ export const COPY: Copy<LandingCopy> = {
       ["বিক্রি", "ছাড়, গ্রাহক আর কার কাছে কত পাওনা সহ"],
       ["বিশ্লেষণ", "যা খাতার সঙ্গে মিলিয়ে দেখা"],
       ["CSV আনা-নেওয়া", "আর ছাপার উপযোগী ক্রয় অর্ডার"],
-      ["বাংলা বা ইংরেজি", "টাকা বা ডলারে হিসাব"],
     ],
     exchange: {
       question: "প্রশ্ন",
