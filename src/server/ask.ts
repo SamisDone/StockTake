@@ -48,7 +48,7 @@ export function answerStream({
       }
 
       try {
-        const { text, refs, proposal, steps, neurons } = await ask({
+        const { text, refs, proposals, steps, neurons } = await ask({
           run,
           db,
           now,
@@ -63,7 +63,7 @@ export function answerStream({
           onReset: () => send({ type: "reset" }),
         });
         await recordNeurons(db, user.id, claim, neurons);
-        send({ type: "answer", answer: { text, refs, proposal, steps }, allowance: await allowance() });
+        send({ type: "answer", answer: { text, refs, proposals, steps }, allowance: await allowance() });
       } catch (error) {
         await releaseQuestion(db, user.id, claim.day);
         if (!(error instanceof AssistantError)) console.error("The assistant failed", error);

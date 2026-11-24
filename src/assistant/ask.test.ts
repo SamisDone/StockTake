@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "@/db/database";
 import { createTestDb } from "@/test/db";
+import { products, suppliers } from "@/db/schema";
 import { seedBasics } from "@/test/fixtures";
 import { type ChatCompletion, type ChatInput, AssistantError, ask, mentionedRefs, readCompletion } from "./ask";
 import { ASSISTANT_MODEL, FALLBACK_MODEL, MAX_MODEL_CALLS } from "./config";
@@ -96,8 +97,34 @@ describe("ask", () => {
       reply("Here's an order to Northwind Supply for both products."),
     );
     const answer = await ask({ run, db, now, question: "Order what's out" });
-    expect(answer.proposal).toMatchObject({ supplierId: 1, totalCents: 50 * 250 + 20 * 400 });
+    expect(answer.proposals).toHaveLength(1);
+    expect(answer.proposals[0]).toMatchObject({ supplierId: 1, totalCents: 50 * 250 + 20 * 400 });
     expect(answer.refs.map((r) => r.label)).toEqual(["Northwind Supply"]);
+  });
+
+  it("keeps a proposal for each supplier, the latest one when a supplier comes up twice", async () => {
+    await db.insert(suppliers).values({ id: 2, name: "Harbor Packaging", leadTimeDays: 3 });
+    await db.insert(products).values({
+      id: 3,
+      sku: "BOX-003",
+      name: "Box",
+      supplierId: 2,
+      unitCostCents: 100,
+      unitPriceCents: 300,
+      reorderPoint: 10,
+      reorderQuantity: 40,
+    });
+    const { run } = scripted(
+      callTool("draft_purchase_order", { supplierId: 1, lines: [{ productId: 1, quantity: 10 }] }, "a"),
+      callTool("draft_purchase_order", { supplierId: 2 }, "b"),
+      callTool("draft_purchase_order", { supplierId: 1, lines: [{ productId: 2, quantity: 5 }] }, "c"),
+      reply("I've proposed orders to Northwind Supply and Harbor Packaging."),
+    );
+    const answer = await ask({ run, db, now, question: "What should I order?" });
+    expect(answer.proposals.map((p) => [p.supplierId, p.lines.map((l) => [l.productId, l.quantity])])).toEqual([
+      [1, [[2, 5]]],
+      [2, [[3, 40]]],
+    ]);
   });
 
   it("sends earlier turns with the records they named", async () => {

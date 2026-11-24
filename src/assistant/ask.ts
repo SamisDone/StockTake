@@ -21,7 +21,8 @@ export type Answer = {
   text: string;
   /** Records the answer names, for linking. */
   refs: Ref[];
-  proposal: Proposal | null;
+  /** Orders it proposed, one per supplier (the latest when a supplier came up twice). */
+  proposals: Proposal[];
   steps: Step[];
   neurons: number;
   model: string;
@@ -252,7 +253,7 @@ export async function ask({
   ];
   const steps: Step[] = [];
   const refs: Ref[] = [];
-  let proposal: Proposal | null = null;
+  const proposals: Proposal[] = [];
   let neurons = 0;
   let model = ASSISTANT_MODEL;
 
@@ -308,7 +309,7 @@ export async function ask({
     if (toolCalls.length === 0 || i === MAX_MODEL_CALLS - 1) {
       if (!content) throw new AssistantError("failed", "The model gave an empty answer.");
       const answerRefs = mentionedRefs(content, refs);
-      return { text: content, refs: answerRefs, proposal, steps, neurons, model };
+      return { text: content, refs: answerRefs, proposals, steps, neurons, model };
     }
 
     if (content) onReset?.();
@@ -327,7 +328,12 @@ export async function ask({
       onStep?.(step);
       if (result.ok) {
         refs.push(...result.outcome.refs);
-        if (result.outcome.proposal) proposal = result.outcome.proposal;
+        const proposal = result.outcome.proposal;
+        if (proposal) {
+          const same = proposals.findIndex((p) => p.supplierId === proposal.supplierId);
+          if (same === -1) proposals.push(proposal);
+          else proposals[same] = proposal;
+        }
       }
       messages.push({
         role: "tool",

@@ -22,7 +22,8 @@ import { FaultText } from "@/components/fault";
  * follows a link, so the conversation is still there when they come back.
  */
 
-type Answered = { text: string; refs: Ref[]; proposal: Proposal | null; steps: Step[] };
+type Answered = { text: string; refs: Ref[]; proposals: Proposal[]; steps: Step[] };
+type Written = { id: number; number: string };
 type Problem = Refusal | "signed-out" | "network";
 
 type Turn = {
@@ -37,7 +38,8 @@ type Turn = {
   problem: Problem | null;
   /** Prints in once, when it first appears; never again when the page is shown again. */
   fresh: boolean;
-  written: { id: number; number: string } | null;
+  /** The drafts its proposals became, by supplier, so coming back can't write one twice. */
+  written: Record<number, Written>;
 };
 
 async function* readEvents(response: Response) {
@@ -97,7 +99,7 @@ export function Conversation({
       answer: null,
       problem: null,
       fresh: true,
-      written: null,
+      written: {},
     };
     setTurns((all) => [...all.filter((t) => t.id !== replacing), turn]);
     setDraft("");
@@ -212,7 +214,9 @@ export function Conversation({
                 language={language}
                 onPrinted={() => update(turn.id, () => ({ fresh: false }))}
                 onRetry={() => void send(turn.question, turn.id)}
-                onWritten={(written) => update(turn.id, () => ({ written }))}
+                onWritten={(supplierId, written) =>
+                  update(turn.id, (current) => ({ written: { ...current.written, [supplierId]: written } }))
+                }
                 canRetry={!busy && limit === null}
               />
             </li>
@@ -338,7 +342,7 @@ function TurnView({
   language: Language;
   onPrinted: () => void;
   onRetry: () => void;
-  onWritten: (written: { id: number; number: string }) => void;
+  onWritten: (supplierId: number, written: Written) => void;
   canRetry: boolean;
 }) {
   const t = ASK_COPY[language];
@@ -370,15 +374,16 @@ function TurnView({
       ) : turn.answer ? (
         <div className={`mt-3 ${print}`} onAnimationEnd={onPrinted}>
           <AnswerText text={turn.answer.text} refs={turn.answer.refs} language={language} />
-          {turn.answer.proposal ? (
+          {turn.answer.proposals.map((proposal) => (
             <ProposalSlip
-              proposal={turn.answer.proposal}
+              key={proposal.supplierId}
+              proposal={proposal}
               money={money}
               language={language}
-              written={turn.written}
-              onWritten={onWritten}
+              written={turn.written[proposal.supplierId] ?? null}
+              onWritten={(written) => onWritten(proposal.supplierId, written)}
             />
-          ) : null}
+          ))}
           <Working steps={turn.answer.steps} t={t} count={formats(language).count} />
         </div>
       ) : (

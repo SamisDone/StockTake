@@ -13,7 +13,8 @@ import { ASK_COPY } from "./copy";
 import { FaultLine } from "@/components/fault";
 
 /**
- * An order the assistant proposed. Nothing exists until the person writes it; the
+ * An order the assistant proposed, one slip per supplier (the number columns have fixed
+ * widths, so stacked slips line up). Nothing exists until the person writes it; the
  * draft then opens on its own label, where it can still be changed before an admin
  * places it. Once written, the proposal says which draft it became, so coming back to
  * the conversation can't write it twice.
@@ -73,8 +74,8 @@ export function ProposalSlip({
                   {t.onHand(f.count(line.onHand))}
                 </span>
               </td>
-              <td className="tabular py-2.5 pr-3 text-right whitespace-nowrap">{f.count(line.quantity)}</td>
-              <td className="tabular py-2.5 text-right whitespace-nowrap text-ink-2">
+              <td className="tabular py-2.5 pr-3 sm:w-24 text-right whitespace-nowrap">{f.count(line.quantity)}</td>
+              <td className="tabular py-2.5 text-right whitespace-nowrap text-ink-2 sm:w-32">
                 {m.money(line.quantity * line.unitCostCents)}
               </td>
             </tr>

@@ -60,7 +60,7 @@ describe("answerStream", () => {
     });
     expect(answer).toMatchObject({
       type: "answer",
-      answer: { text: "Widget and Gadget are out.", proposal: null },
+      answer: { text: "Widget and Gadget are out.", proposals: [] },
       allowance: {
         questionsLeft: LIMITS.questionsPerDay - 1,
         allowanceLeft: true,
